@@ -21,6 +21,7 @@
 #include "pixel.h"
 #include "render_target.h"
 #include "texture.h"
+#include "vulkan_device_info.h"
 #include "vulkan_renderer.h"
 #include "vulkan_sdl_surface.h"
 
@@ -50,12 +51,27 @@ struct Fixture
 		SDL_QuitSubSystem(SDL_INIT_VIDEO);
 	}
 
-	/// A renderer that can make this window's surface, the surface attached.
+	/// A renderer that can make this window's surface, the surface attached: on the first device whose queue can present to it (not every
+	/// driver can to the offscreen driver's surface: NVIDIA's cannot, lavapipe's can).  None that can is an error.
 	VulkanRendererPtr attached(bool vsync = false)
 	{
-		auto const renderer = std::make_shared<VulkanRenderer>(64, 48, std::string(), sdl_vulkan_instance_extensions());
-		attach_sdl_window(*renderer, window, vsync);
-		return renderer;
+		std::string refused;
+		for (PhysicalDeviceInfo const &device : enumerate_vulkan_physical_devices())
+		{
+			auto const renderer = std::make_shared<VulkanRenderer>(64, 48, device.uuid, sdl_vulkan_instance_extensions());
+			try
+			{
+				attach_sdl_window(*renderer, window, vsync);
+				return renderer;
+			}
+			catch (std::runtime_error const &e)
+			{
+				if (std::string(e.what()).find("cannot present to this surface") == std::string::npos)
+					throw;
+				refused += " " + device.name;
+			}
+		}
+		throw std::runtime_error("no device can present to the offscreen window; refused:" + refused);
 	}
 };
 
