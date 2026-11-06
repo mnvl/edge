@@ -36,6 +36,14 @@ PyPI has wheels for Linux (x86_64 and aarch64, glibc 2.28 or newer). The wheel h
 Vulkan loader (`libvulkan.so.1`) and a Vulkan driver (any GPU's, or Mesa's lavapipe without one), and pip installs `pyrove` with it.
 Elsewhere pip builds from source, which needs the Vulkan headers and loader, `glslangValidator`, CMake and a C++20 compiler.
 
+Build `pyrove` and `pyedge` the same way. They share rove's types through nanobind, and only between modules built with the same
+C++ ABI: a `pyedge` built from source beside a `pyrove` wheel can install and import, then raise `TypeError` when a `pyrove` type
+reaches it. Where pip would build `pyedge` from source, build both:
+
+```bash
+pip install --no-binary pyrove,pyedge pyedge
+```
+
 ```python
 import pyedge
 renderer = pyedge.create_renderer(640, 480)
