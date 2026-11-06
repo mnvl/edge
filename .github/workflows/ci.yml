@@ -1,7 +1,8 @@
 name: CI
 
-# On demand: gh workflow run CI --ref <branch>
+# On pull requests where the minutes are free (a public repository), and on demand: gh workflow run CI --ref <branch>
 on:
+  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -10,6 +11,7 @@ concurrency:
 
 jobs:
   linux:
+    if: github.event_name != 'pull_request' || !github.event.repository.private
     # Mesa draws both GPU backends on the CPU: lavapipe (Vulkan) and llvmpipe (OpenGL ES through EGL), so every test runs
     # without a GPU.  The same image as etc/container/Dockerfile.
     name: Linux (Vulkan + GLES, Mesa)
@@ -45,6 +47,7 @@ jobs:
         run: ctest --test-dir build -j$(nproc) --timeout 900 --output-on-failure
 
   macos:
+    if: github.event_name != 'pull_request' || !github.event.repository.private
     # Metal (and Vulkan through MoltenVK where the runner has it); built and the CPU-only tests run, the GPU suites need a
     # device the hosted runners may not give
     name: macOS (Metal), build
@@ -67,6 +70,7 @@ jobs:
         run: cmake --build build
 
   consumers:
+    if: github.event_name != 'pull_request' || !github.event.repository.private
     # edge used the ways docs/install.md describes, each building test_package/ (a program on the null renderer, with a shader
     # compiled through edge_add_shaders and edge's own shaders copied beside it) or, for pip, running the wheel's smoke test
     name: Use as ${{ matrix.way }}
