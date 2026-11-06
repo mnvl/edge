@@ -159,7 +159,8 @@ BOOST_AUTO_TEST_CASE(edge_s_spirv_is_the_build_s_and_a_copy_beside_a_binary_is_t
 {
 	edge::ShaderLookup const vulkan = edge::vulkan_shader_lookup();
 	BOOST_REQUIRE(!vulkan.build_dir.empty());
-	BOOST_CHECK_EQUAL(edge::find_shader_dir(vulkan, nullptr, edge::edge_binary_dir()), vulkan.build_dir);
+	// (beside a directory with no copy, not beside test_edge: a parent project may bundle a copy there)
+	BOOST_CHECK_EQUAL(edge::find_shader_dir(vulkan, nullptr, root / "bin"), vulkan.build_dir);
 	fs::create_directories(root / "bin" / "shaders");
 	fs::copy(vulkan.build_dir, root / "bin" / "shaders" / "edge", fs::copy_options::recursive);
 	BOOST_CHECK_EQUAL(edge::find_shader_dir(vulkan, nullptr, root / "bin"), root / "bin" / "shaders" / "edge");
