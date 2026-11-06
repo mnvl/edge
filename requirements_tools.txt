@@ -1,0 +1,6 @@
+# edge/test/make_test_dds.py: the DDS test assets
+etcpak
+pytest
+# edge/test/test_edge_shot.py: reads the PNG edge_shot writes
+numpy
+Pillow

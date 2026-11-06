@@ -1,0 +1,7 @@
+edge provides CMake targets and the helpers that build a game's shaders and models:
+
+    find_package(edge CONFIG REQUIRED)
+    target_link_libraries(main PRIVATE edge::edge)
+    # with the features: edge::asset (asset-tools), edge::imgui (imgui), edge::sdl (sdl3)
+
+At run time edge needs its shaders beside the program: edge_bundle_runtime(<target> DESTINATION <dir>), or EDGE_VK_SHADER_DIR.

@@ -1,0 +1,168 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2004-2026 Manvel Avetisian
+
+"""edge's Python bindings: renderers (Vulkan, null), models, materials, cameras and textures.
+
+An installed pyedge (pip) has its compiled module, _pyedge, inside the package, and edge's shaders beside it.  A source checkout finds the
+module CMake built: $EDGE_PYTHON_BINDINGS_DIR, else build/lib of the checkout or of the project it is a subdirectory of.
+"""
+from __future__ import annotations
+
+import importlib
+import importlib.machinery
+import os
+import re
+import sys
+import threading
+from pathlib import Path
+from types import ModuleType
+
+__version__ = "3.0.0"
+
+
+def _binding_dirs() -> list[Path]:
+    explicit = os.environ.get("EDGE_PYTHON_BINDINGS_DIR")
+    if explicit:
+        return [Path(explicit).expanduser()]
+
+    repo_root = Path(__file__).resolve().parents[1]
+    return [
+        # Unified build from a parent project (edge as subdirectory)
+        repo_root.parent / "build" / "lib",
+        # Standalone edge build
+        repo_root / "build" / "lib",
+        repo_root / "cmake-build-debug" / "lib",
+        repo_root / "cmake-build-release" / "lib",
+    ]
+
+
+def _module_files(bindings_dir: Path, module_name: str) -> list[Path]:
+    patterns = (
+        f"{module_name}*.so",
+        f"{module_name}*.pyd",
+        f"{module_name}*.dylib",
+        f"{module_name}*.dll",
+    )
+    result: list[Path] = []
+    for pattern in patterns:
+        result.extend(sorted(bindings_dir.glob(pattern)))
+    return result
+
+
+def _running_python_tag() -> str:
+    """The tag an extension needs to load here.  Not cache_tag: a
+    free-threaded interpreter shares that with the GIL build of its version,
+    and only the extension suffix says cpython-314t rather than cpython-314."""
+    return re.search(r"(cpython-\d+t?)", importlib.machinery.EXTENSION_SUFFIXES[0]).group(1)
+
+
+def _guess_python_tags(paths: list[Path]) -> list[str]:
+    tags = set()
+    for path in paths:
+        match = re.search(r"(cpython-\d+t?)", path.name)
+        if match:
+            tags.add(match.group(1))
+    return sorted(tags)
+
+
+def _put_binding_dirs_on_path() -> None:
+    for candidate in _binding_dirs():
+        if candidate.exists() and str(candidate) not in sys.path:
+            sys.path.insert(0, str(candidate))
+
+
+def _import_required_binding(module_name: str) -> ModuleType:
+    # Installed (a wheel): the module is inside the package (and known by its own name too, as a build's is).
+    if not os.environ.get("EDGE_PYTHON_BINDINGS_DIR") and _module_files(Path(__file__).resolve().parent, module_name):
+        module = importlib.import_module(f"{__name__}.{module_name}")
+        sys.modules.setdefault(module_name, module)
+        return module
+
+    # A source checkout: the module CMake built (e.g. build/lib/_pyedge*.so).
+    bindings_dirs = _binding_dirs()
+    _put_binding_dirs_on_path()
+
+    try:
+        return importlib.import_module(module_name)
+    except (ModuleNotFoundError, ImportError) as exc:
+        extension_suffixes = ", ".join(importlib.machinery.EXTENSION_SUFFIXES)
+        built_files: list[Path] = []
+        for candidate in bindings_dirs:
+            if candidate.exists():
+                built_files.extend(_module_files(candidate, module_name))
+
+        running_tag = _running_python_tag()
+        built_tags = _guess_python_tags(built_files)
+        mismatch_note = ""
+        if built_tags and running_tag not in built_tags:
+            mismatch_note = (
+                "\nDetected ABI mismatch:\n"
+                f"- active interpreter tag: {running_tag}\n"
+                f"- built module tags: {', '.join(built_tags)}\n"
+            )
+
+        raise ImportError(
+            f"Could not import required binding module '{module_name}'.\n"
+            "Install pyedge with pip (pip install pyedge, or pip install . in edge's checkout), or build the\n"
+            "native bindings with the same interpreter and put the checkout on PYTHONPATH:\n"
+            "  cmake -S . -B build -DPython_EXECUTABLE=$(which python)\n"
+            "  cmake --build build --target pyedge\n"
+            f"extension_suffixes={extension_suffixes}\n"
+            f"module_candidates={[path.name for path in built_files]}"
+            f"{mismatch_note}"
+        ) from exc
+
+
+# The binding (and pyrove's, which it imports) is loaded by the first name that needs it, not by importing pyedge: a program that
+# imports it and needs no name of it (a tool that puts edge on the path only to find its test assets) runs where no binding was built, or
+# in a Python that cannot load it (Blender's).
+_binding: ModuleType | None = None
+_binding_lock = threading.Lock()
+
+
+def _loaded_binding() -> ModuleType:
+    global _binding
+    if _binding is None:
+        with _binding_lock:
+            if _binding is None:
+                binding = _import_required_binding("_pyedge")
+                # The native side's log (edge/src/log.h) goes to $EDGE_LOG from the moment the binding is loaded, before the first
+                # renderer or model a process builds.  Without it nothing is written to disk; warnings and errors reach stderr either
+                # way.  init_logging() moves it.
+                binding.init_logging(os.environ.get("EDGE_LOG"))
+                _binding = binding
+    return _binding
+
+
+def __getattr__(name: str):
+    # (a probe of a dunder name -- hasattr(module, "__wrapped__") by inspect, doctest, pytest -- answers without the binding: an
+    # ImportError would escape hasattr)
+    if name.startswith("__") and name.endswith("__") and name != "__all__":
+        raise AttributeError(f"module 'pyedge' has no attribute '{name}'")
+    binding = _loaded_binding()
+    if name == "__all__":
+        return [n for n in dir(binding) if not n.startswith("_")]
+    if name == "_bindings":          # (the binding module itself, for a caller that needs where its files are)
+        return binding
+    try:
+        return getattr(binding, name)
+    except AttributeError as exc:
+        raise AttributeError(f"module 'pyedge' has no attribute '{name}'") from exc
+
+
+def __dir__() -> list[str]:
+    return sorted(name for name in dir(_loaded_binding()) if not name.startswith("_"))
+
+
+def _check_edge_log() -> None:
+    # (an empty EDGE_LOG is a mistake whether or not the binding is ever loaded: said at the import)
+    path = os.environ.get("EDGE_LOG")
+    if path is not None and not path:
+        raise RuntimeError("EDGE_LOG is set but empty; set it to a log file path or unset it")
+
+
+_check_edge_log()
+# (the build's bindings importable from here on, loading none: pyrove's beside pyedge's, for a program that imports pyrove after pyedge;
+# an installed pyedge's pyrove is pip's)
+if os.environ.get("EDGE_PYTHON_BINDINGS_DIR") or not _module_files(Path(__file__).resolve().parent, "_pyedge"):
+    _put_binding_dirs_on_path()

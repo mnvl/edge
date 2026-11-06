@@ -1,0 +1,63 @@
+name: Wheels
+
+# pyedge's wheels: Linux only for now (manylinux_2_28, x86_64 and aarch64 each on its own runner; pyproject.toml has the
+# cibuildwheel settings).  rove's C++ sources are checked out inside the project, where the build container sees them
+# (EDGE_ROVE_SOURCE_DIR); pyrove itself comes from PyPI when the wheel is installed.
+
+# A tag publishes; otherwise on demand: gh workflow run Wheels --ref <branch>
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  wheels:
+    name: Wheels ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: mnvl/rove
+          ref: ${{ vars.ROVE_REF || 'main' }}
+          path: _rove
+          token: ${{ secrets.ROVE_TOKEN || github.token }}
+      - uses: pypa/cibuildwheel@v4.3.5
+        env:
+          CIBW_ENVIRONMENT_LINUX: CMAKE_ARGS="-DEDGE_ROVE_SOURCE_DIR=/project/_rove"
+          # pyrove from the same rove checkout, so each wheel is tested against the rove it was built with (and before pyrove is
+          # on PyPI)
+          CIBW_BEFORE_TEST_LINUX: pip install /project/_rove
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: wheelhouse/*.whl
+
+  sdist:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: pipx run build --sdist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  publish:
+    # PyPI trusted publishing: configure the project on PyPI for this repository and workflow first
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [wheels, sdist]
+    runs-on: ubuntu-24.04
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: pypa/gh-action-pypi-publish@release/v1

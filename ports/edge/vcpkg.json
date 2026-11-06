@@ -1,0 +1,57 @@
+{
+  "name": "edge",
+  "version": "3.0.0",
+  "description": "A small C++/Python renderer for games and tools: Vulkan, OpenGL ES and Metal backends, glTF and its own model format",
+  "homepage": "https://github.com/mnvl/edge",
+  "license": "MIT",
+  "supports": "linux | osx",
+  "dependencies": [
+    "cereal",
+    {
+      "name": "glslang",
+      "host": true,
+      "default-features": false,
+      "features": [
+        "tools"
+      ]
+    },
+    "rove",
+    "spdlog",
+    "stb",
+    {
+      "name": "vcpkg-cmake",
+      "host": true
+    },
+    {
+      "name": "vcpkg-cmake-config",
+      "host": true
+    },
+    {
+      "name": "vulkan",
+      "platform": "linux"
+    }
+  ],
+  "default-features": [
+    "asset-tools"
+  ],
+  "features": {
+    "asset-tools": {
+      "description": "edge::asset and edge_convert: making .edge models (levels of detail, atlases, BC7 and ASTC textures)",
+      "dependencies": [
+        "meshoptimizer"
+      ]
+    },
+    "imgui": {
+      "description": "edge::imgui: Dear ImGui drawn through edge",
+      "dependencies": [
+        "imgui"
+      ]
+    },
+    "sdl3": {
+      "description": "edge::sdl: an SDL3 window's Vulkan surface",
+      "dependencies": [
+        "sdl3"
+      ]
+    }
+  }
+}

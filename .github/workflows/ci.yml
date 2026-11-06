@@ -1,0 +1,127 @@
+name: CI
+
+# On demand: gh workflow run CI --ref <branch>
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    # Mesa draws both GPU backends on the CPU: lavapipe (Vulkan) and llvmpipe (OpenGL ES through EGL), so every test runs
+    # without a GPU.  The same image as etc/container/Dockerfile.
+    name: Linux (Vulkan + GLES, Mesa)
+    runs-on: ubuntu-24.04
+    container: docker.io/library/debian:trixie
+    steps:
+      - name: Packages
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential ca-certificates cmake git ninja-build pkg-config \
+            python3 python3-dev python3-numpy python3-pil python3-pytest \
+            fonts-dejavu-core libboost-dev libboost-test-dev \
+            libvulkan-dev mesa-vulkan-drivers glslang-tools \
+            libgles-dev libegl-dev libegl-mesa0 libgl1-mesa-dri libsdl3-dev
+          git config --global --add safe.directory '*'
+      - uses: actions/checkout@v4
+        with:
+          path: edge
+      - uses: actions/checkout@v4
+        with:
+          repository: mnvl/rove
+          ref: ${{ vars.ROVE_REF || 'main' }}
+          path: rove
+          token: ${{ secrets.ROVE_TOKEN || github.token }}
+      - name: Configure
+        run: cmake -S edge -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DEDGE_GLES=ON -DEDGE_ROVE_SOURCE_DIR=$PWD/rove
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        env:
+          SDL_VIDEO_DRIVER: offscreen
+        run: ctest --test-dir build -j$(nproc) --timeout 900 --output-on-failure
+
+  macos:
+    # Metal (and Vulkan through MoltenVK where the runner has it); built and the CPU-only tests run, the GPU suites need a
+    # device the hosted runners may not give
+    name: macOS (Metal), build
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: edge
+      - uses: actions/checkout@v4
+        with:
+          repository: mnvl/rove
+          ref: ${{ vars.ROVE_REF || 'main' }}
+          path: rove
+          token: ${{ secrets.ROVE_TOKEN || github.token }}
+      - name: Packages
+        run: brew install ninja boost sdl3 glslang
+      - name: Configure
+        run: cmake -S edge -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DEDGE_PYTHON=OFF -DEDGE_ROVE_SOURCE_DIR=$PWD/rove
+      - name: Build
+        run: cmake --build build
+
+  consumers:
+    # edge used the ways docs/install.md describes, each building test_package/ (a program on the null renderer, with a shader
+    # compiled through edge_add_shaders and edge's own shaders copied beside it) or, for pip, running the wheel's smoke test
+    name: Use as ${{ matrix.way }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        way: [submodules, conan, vcpkg, pip]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: edge
+      - uses: actions/checkout@v4
+        with:
+          repository: mnvl/rove
+          ref: ${{ vars.ROVE_REF || 'main' }}
+          path: rove
+          token: ${{ secrets.ROVE_TOKEN || github.token }}
+      - name: Packages
+        if: matrix.way == 'submodules' || matrix.way == 'pip'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libvulkan-dev glslang-tools mesa-vulkan-drivers
+      - name: rove and edge as sibling subdirectories (submodules)
+        if: matrix.way == 'submodules'
+        run: |
+          printf 'cmake_minimum_required(VERSION 3.20)\nproject(game CXX)\nadd_subdirectory(rove)\nadd_subdirectory(edge)\nadd_subdirectory(edge/test_package example)\n' > CMakeLists.txt
+          cmake -S . -B build -DEDGE_PYTHON=OFF -DEDGE_TESTS=OFF
+          cmake --build build -j4
+          build/example/edge_example
+      - name: Conan
+        if: matrix.way == 'conan'
+        run: |
+          pipx install conan
+          conan profile detect
+          conan create rove -s compiler.cppstd=20 --build=missing
+          conan create edge -s compiler.cppstd=20 --build=missing \
+            -c tools.system.package_manager:mode=install -c tools.system.package_manager:sudo=True
+      - name: vcpkg
+        if: matrix.way == 'vcpkg'
+        env:
+          ROVE_SOURCE_DIR: ${{ github.workspace }}/rove
+          EDGE_SOURCE_DIR: ${{ github.workspace }}/edge
+          VCPKG_KEEP_ENV_VARS: ROVE_SOURCE_DIR;EDGE_SOURCE_DIR
+        run: |
+          mkdir app && cp edge/test_package/CMakeLists.txt edge/test_package/example.cc edge/test_package/tint.frag app/
+          echo '{ "name": "app", "version": "0.0.0", "dependencies": ["edge"] }' > app/vcpkg.json
+          cmake -S app -B app/build -DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake \
+            "-DVCPKG_OVERLAY_PORTS=$PWD/rove/ports;$PWD/edge/ports"
+          cmake --build app/build
+          app/build/edge_example
+      - name: pip
+        if: matrix.way == 'pip'
+        run: |
+          python3 -m venv venv
+          venv/bin/pip install ./rove ./edge
+          mkdir smoke && cd smoke
+          ../venv/bin/python ../edge/test/wheel_smoke.py ../edge/test/data/test_figure.glb

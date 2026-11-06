@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2004-2026 Manvel Avetisian
+
+# pyedge, edge's Python bindings, as a wheel: `pip install .` builds edge and the native module _pyedge (CMake, scikit-build-core) into
+# the pyedge package, with edge's shaders beside it (pyedge/shaders/edge, pyedge/view_shaders: src/shader_dirs.h finds them there).
+# rove's Python module is not built: pyedge imports pip's pyrove, which must be built with the same nanobind (2.4.0, pinned) for the two
+# modules to share rove's types.  rove's C++ sources: EDGE_ROVE_SOURCE_DIR when given (CMAKE_ARGS), else ../rove beside edge, else
+# the tag EDGE_ROVE_GIT_TAG fetched from GitHub.
+
+[build-system]
+requires = ["scikit-build-core>=0.10", "nanobind==2.4.0"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "pyedge"
+version = "3.0.0"
+description = "Python bindings of edge, a small C++ renderer (Vulkan, OpenGL ES, Metal)"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "Manvel Avetisian" }]
+license = "MIT"
+license-files = ["LICENSE.md", "THIRD_PARTY.md"]
+dependencies = ["pyrove>=3,<4", "numpy"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: Free Threading :: 2 - Beta",
+    "Topic :: Multimedia :: Graphics :: 3D Rendering",
+    "Topic :: Games/Entertainment",
+    "Topic :: Software Development :: Libraries",
+]
+keywords = ["rendering", "vulkan", "gltf", "3d", "graphics", "game-development"]
+
+[project.urls]
+Homepage = "https://github.com/mnvl/edge"
+Repository = "https://github.com/mnvl/edge"
+Changelog = "https://github.com/mnvl/edge/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+test = ["pytest", "numpy", "pillow"]
+
+[tool.scikit-build]
+minimum-version = "build-system.requires"
+cmake.version = ">=3.20"
+cmake.build-type = "Release"
+build-dir = "build/{wheel_tag}"
+wheel.packages = ["pyedge"]
+# (anchored: an unanchored "src" would take build/*/src too)
+sdist.include = ["/CMakeLists.txt", "/src", "/include", "/etc/cmake", "/etc/patches", "/tools", "/pyedge/*.py", "/LICENSE.md",
+    "/THIRD_PARTY.md", "/README.md", "/CHANGELOG.md"]
+sdist.exclude = ["/build", "__pycache__", "/test", "/examples", "/docs", "/.github", "/etc/container", "/_rove"]
+
+# pyedge alone: no tests, install rules, windows (SDL), ImGui or edge_shot; the asset tools for convert_gltf_to_edge
+[tool.scikit-build.cmake.define]
+EDGE_PYTHON = "ON"
+EDGE_TESTS = "OFF"
+EDGE_INSTALL = "OFF"
+EDGE_SDL = "OFF"
+EDGE_IMGUI = "OFF"
+EDGE_GLES = "OFF"
+EDGE_SHOT = "OFF"
+EDGE_ASSET_TOOLS = "ON"
+
+# Linux wheels (manylinux_2_28, x86_64 and aarch64, each on its own runner).  libvulkan.so.1 is the system's: the loader finds the
+# machine's drivers, so auditwheel must not put a copy of it in the wheel.
+[tool.cibuildwheel]
+build = "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-* cp314t-*"
+skip = "*-musllinux_* *-manylinux_i686"
+test-requires = ["pytest", "numpy", "pillow"]
+test-command = "python {project}/test/wheel_smoke.py {project}/test/data/test_figure.glb"
+
+[tool.cibuildwheel.linux]
+archs = ["auto64"]
+manylinux-x86_64-image = "manylinux_2_28"
+manylinux-aarch64-image = "manylinux_2_28"
+# (AlmaLinux 8 has no glslang package: glslangValidator is built from its sources, without SPIRV-Tools, into /usr/local)
+before-all = [
+    "dnf install -y vulkan-headers vulkan-loader-devel",
+    "git clone --depth 1 --branch 16.4.0 https://github.com/KhronosGroup/glslang /tmp/glslang",
+    "cmake -S /tmp/glslang -B /tmp/glslang/build -DCMAKE_BUILD_TYPE=Release -DENABLE_OPT=OFF -DGLSLANG_TESTS=OFF -DBUILD_EXTERNAL=OFF",
+    "cmake --build /tmp/glslang/build -j4",
+    "cmake --install /tmp/glslang/build",
+    "glslangValidator --version",
+]
+repair-wheel-command = "auditwheel repair --exclude libvulkan.so.1 -w {dest_dir} {wheel}"

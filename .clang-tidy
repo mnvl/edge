@@ -1,0 +1,18 @@
+# What new code is held to (run-clang-tidy -p <build> 'edge/(src|test|tools)/'): the C++20 forms of what edge writes.
+Checks: >
+  -*,
+  modernize-use-override,
+  modernize-use-using,
+  modernize-loop-convert,
+  modernize-make-shared,
+  modernize-make-unique,
+  modernize-use-nullptr,
+  modernize-redundant-void-arg,
+  modernize-use-bool-literals,
+  modernize-deprecated-headers,
+  modernize-use-equals-default,
+  modernize-use-equals-delete
+HeaderFilterRegex: '/edge/(src|test|tools)/'
+CheckOptions:
+  modernize-loop-convert.MinConfidence: reasonable
+  modernize-use-override.IgnoreDestructors: false

@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2004-2026 Manvel Avetisian
+
+# edge's CMake package: find_package(edge CONFIG [COMPONENTS sdl imgui asset]).
+#
+#   edge::edge      the renderer library (<edge/renderer.h> ...)
+#   edge::sdl       an SDL window's Vulkan surface, a GLES context made with SDL (where edge was built with EDGE_SDL)
+#   edge::imgui     Dear ImGui drawn through edge (EDGE_IMGUI)
+#   edge::asset     what makes .edge models: conversion, atlases, levels of detail, BC7/ASTC (EDGE_ASSET_TOOLS)
+#   edge::convert   the edge_convert program, edge::shot the edge_shot one (where they were built)
+#
+# and the helpers a game builds with (edge_add_shaders, edge_bundle_runtime, edge_convert_models: EdgeShaders.cmake,
+# EdgeRuntime.cmake, EdgeModels.cmake beside this file).
+
+@PACKAGE_INIT@
+
+# (taken now: a dependency's package found below sets PACKAGE_PREFIX_DIR to its own prefix)
+set(_edge_glsl_dir "@PACKAGE_EDGE_INSTALL_GLSLDIR@")
+set(_edge_shader_dir "@PACKAGE_EDGE_INSTALL_SHADERDIR@")
+set(_edge_bin_dir "@PACKAGE_EDGE_INSTALL_BINDIR@")
+
+include(CMakeFindDependencyMacro)
+
+set(EDGE_VERSION "@PROJECT_VERSION@")
+set(EDGE_USE_VULKAN @EDGE_USE_VULKAN_BOOL@)
+set(EDGE_USE_GLES @EDGE_USE_GLES_BOOL@)
+set(EDGE_USE_METAL @EDGE_USE_METAL_BOOL@)
+set(EDGE_SYSTEM_DEPS @EDGE_SYSTEM_DEPS_BOOL@)
+set(_edge_has_sdl @EDGE_INSTALLED_SDL@)
+set(_edge_has_imgui @EDGE_INSTALLED_IMGUI@)
+set(_edge_has_asset @EDGE_INSTALLED_ASSET@)
+
+# What the public headers and the link interface need.  (fastgltf, stb, the encoders and, bundled, meshoptimizer and ImGui's core are
+# edge's own, in its package: edge::fastgltf, edge::meshoptimizer, ...)
+find_dependency(rove 3 CONFIG)
+find_dependency(spdlog CONFIG)
+if(EDGE_SYSTEM_DEPS)
+  find_dependency(cereal CONFIG)
+endif()
+if(EDGE_USE_VULKAN)
+  find_dependency(Vulkan)
+endif()
+if(_edge_has_asset AND EDGE_SYSTEM_DEPS)
+  find_dependency(meshoptimizer CONFIG)
+endif()
+if(_edge_has_sdl AND NOT TARGET SDL3::SDL3)
+  find_dependency(SDL3 CONFIG)
+endif()
+if(_edge_has_imgui AND EDGE_SYSTEM_DEPS AND NOT TARGET imgui::imgui)
+  find_dependency(imgui CONFIG)
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/edgeTargets.cmake")
+
+# The helpers, from the install: edge.glsl and its includes in share/edge/glsl, edge's shaders in share/edge/shaders (what
+# edge_bundle_runtime copies beside a game's binary), shader_cross (the GLES and Metal translations of a game's shaders) in bin/.
+set(EDGE_SHADER_INCLUDE_DIR "${_edge_glsl_dir}")
+set(EDGE_SPIRV_DIR "${_edge_shader_dir}")
+set(EDGE_RUNTIME_SHADERS)
+foreach(_edge_shader @EDGE_RUNTIME_SHADER_NAMES@)
+  list(APPEND EDGE_RUNTIME_SHADERS "${EDGE_SPIRV_DIR}/${_edge_shader}")
+endforeach()
+set(EDGE_RUNTIME_SHADER_TARGETS)
+set(EDGE_USE_GLES_SHADERS @EDGE_USE_GLES_BOOL@)
+set(EDGE_USE_METAL_SHADERS @EDGE_USE_METAL_BOOL@)
+set(EDGE_METAL_SDK "@EDGE_METAL_SDK@")
+if(EDGE_USE_GLES_SHADERS OR EDGE_USE_METAL_SHADERS)
+  set(EDGE_SHADER_CROSS_EXECUTABLE "${_edge_bin_dir}/edge_shader_cross@CMAKE_EXECUTABLE_SUFFIX@")
+endif()
+include("${CMAKE_CURRENT_LIST_DIR}/EdgeShaders.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/EdgeRuntime.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/EdgeModels.cmake")
+
+set(edge_sdl_FOUND ${_edge_has_sdl})
+set(edge_imgui_FOUND ${_edge_has_imgui})
+set(edge_asset_FOUND ${_edge_has_asset})
+unset(_edge_has_sdl)
+unset(_edge_has_imgui)
+unset(_edge_has_asset)
+unset(_edge_shader)
+unset(_edge_glsl_dir)
+unset(_edge_shader_dir)
+unset(_edge_bin_dir)
+check_required_components(edge)

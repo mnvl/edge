@@ -1,0 +1,10 @@
+/CMakeUserPresets.json
+/Testing/
+/build/
+/pyedge.egg-info/
+/test/assets/Testing/
+__pycache__
+/.cache/
+/_rove/
+/test_package/build/
+/test_package/CMakeUserPresets.json

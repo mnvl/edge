@@ -1,0 +1,19 @@
+diff --git a/src/fastgltf.cpp b/src/fastgltf.cpp
+index c9b6a17..d85024a 100644
+--- a/src/fastgltf.cpp
++++ b/src/fastgltf.cpp
+@@ -3891,11 +3891,12 @@ fg::Error fg::Parser::parseScenes(const simdjson::dom::array& scenes, Asset& ass
+ 
+                 scene.nodeIndices.emplace_back(static_cast<std::size_t>(index));
+             }
+-
+-            asset.scenes.emplace_back(std::move(scene));
+         } else if (nodeError != Error::MissingField) {
+             return nodeError;
+         }
++
++        // a scene without nodes is a scene still: dropping it renumbers the scenes after it, and "scene" names the wrong one
++        asset.scenes.emplace_back(std::move(scene));
+     }
+ 
+ 	return Error::None;
