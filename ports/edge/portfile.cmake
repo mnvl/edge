@@ -15,7 +15,7 @@ else()
         REPO mnvl/edge
         REF "v${VERSION}"
         # the SHA512 of the release's archive: vcpkg prints it when this is wrong
-        SHA512 0
+        SHA512 5454dccc1eb0dd7e16da1ce681f5b1da441721a0902ce78a3a7db6a55a60f70a46dbd1a7efa0744263aa0e1f422846283497c1f25658bae3c72bc7109c363def
         HEAD_REF main
     )
 endif()
