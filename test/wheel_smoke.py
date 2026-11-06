@@ -5,12 +5,17 @@
 
     python wheel_smoke.py <model.glb> [vulkan|null]
 
-It says where the module and its shaders are, makes a renderer (Vulkan where the machine has a device, lavapipe will do; else the null
+It says where the module and its shaders are, checks that a copy of the module without them refuses (the build it came from is
+gone, so it names no directory of it), makes a renderer (Vulkan where the machine has a device, lavapipe will do; else the null
 one, or the backend asked for), loads the glTF, draws it once into a target and reads it back, and checks that pyrove's types cross
 into pyedge's module and back (they are two modules, built apart, that share rove's types through nanobind)."""
 
 import math
+import os
+import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -19,6 +24,22 @@ import pyedge
 import pyrove
 
 SIZE = 96
+
+
+def refuses_without_its_shaders(module: Path, lookup: str, variable: str) -> None:
+    """A copy of the module with nothing beside it must say the shaders are not found, and what to set, naming no build directory."""
+    with tempfile.TemporaryDirectory() as directory:
+        shutil.copy2(module, directory)
+        env = {k: v for k, v in os.environ.items() if k != variable}
+        env.update(EDGE_PYTHON_BINDINGS_DIR=directory, ROVE_PYTHON_BINDINGS_DIR=str(Path(pyrove.pyrove_bind.__file__).parent))
+        result = subprocess.run([sys.executable, "-c", f"import pyedge\nprint(pyedge.{lookup}())\n"], cwd=directory, env=env,
+                                capture_output=True, text=True)
+    if result.returncode == 0:
+        raise SystemExit(f"a copy of the module without its shaders found them in {result.stdout.strip()}")
+    if "are not found" not in result.stderr or variable not in result.stderr:
+        raise SystemExit(f"a copy of the module without its shaders failed otherwise: {result.stderr}")
+    if "the build's" in result.stderr:
+        raise SystemExit(f"the module names the build it came from: {result.stderr}")
 
 
 def main() -> int:
@@ -45,10 +66,12 @@ def main() -> int:
         print(f"vulkan shaders: {shaders}")
         if shaders != package / "shaders" / "edge":
             raise SystemExit(f"edge's shaders are not the package's: {shaders}")
+        refuses_without_its_shaders(module, "vulkan_shader_dir", "EDGE_VK_SHADER_DIR")
     view = Path(pyedge.view_shader_dir())
     print(f"view shaders: {view}")
     if view != package / "view_shaders":
         raise SystemExit(f"the view shaders are not the package's: {view}")
+    refuses_without_its_shaders(module, "view_shader_dir", "EDGE_VIEW_SHADER_DIR")
 
     renderer = pyedge.create_renderer(SIZE, SIZE, backend=backend)
     print(f"renderer: {renderer.backend}")

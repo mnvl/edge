@@ -82,7 +82,8 @@ it taken:
 "The binary edge is linked into" is the executable, or the shared library that holds edge (pyedge's module), found with `dladdr`
 (`GetModuleHandleEx` on Windows) from an address of edge's.  So `shaders/edge` is the bundle `edge_bundle_runtime` copies beside a
 game's binary (and a wheel's `pyedge` package), and `../share/edge/shaders` an installed edge seen from its `bin/` or `lib/`.  The
-install's directory is `<CMAKE_INSTALL_PREFIX>/share/edge/...` as configured (where edge has install rules), tried last.  When no place holds them the error names
+install's directory is `<CMAKE_INSTALL_PREFIX>/share/edge/...` as configured (where edge has install rules), tried last.  A wheel names
+no build's directory, as its build is gone when it runs; its shaders are in its package.  When no place holds them the error names
 every place tried.
 
 ## Installing, and the CMake package

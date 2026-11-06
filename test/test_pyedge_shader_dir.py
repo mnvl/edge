@@ -4,8 +4,8 @@
 """Contract: edge's own SPIR-V (vertex.spv, fragment.spv, ...) is read from
 $EDGE_VK_SHADER_DIR when it is set, else from shaders/edge beside the module (a
 wheel's package), ../share/edge/shaders beside it (an install), else the
-directory the build put it in; the view shaders likewise
-($EDGE_VIEW_SHADER_DIR, view_shaders beside the module).
+directory the build put it in (a wheel names none: its build is gone); the view
+shaders likewise ($EDGE_VIEW_SHADER_DIR, view_shaders beside the module).
 
 ``vulkan_shader_dir()`` says which directory that is; a draw proves the
 renderer reads from it, and from nowhere else.
@@ -117,34 +117,54 @@ def test_unset_the_view_shaders_are_the_build_s_and_set_the_named_directory(monk
     assert pyedge.view_shader_dir() == str(tmp_path)
 
 
-def test_a_module_with_its_shaders_beside_it_reads_those(built_dir, monkeypatch, tmp_path):
-    """The layout of a wheel's package: the module, shaders/edge and view_shaders beside it.  A copy of the module there finds them
-    (from where the module is, not from the build), and draws with them."""
-    monkeypatch.delenv("EDGE_VIEW_SHADER_DIR", raising=False)
+def _a_copy_of_the_module(tmp_path):
+    """A copy of the module alone in a directory, the environment that loads it from there, and a script that says so."""
     package = tmp_path / "package"
     package.mkdir()
     module = Path(pyedge._bindings.__file__)
     shutil.copy2(module, package / module.name)
-    shutil.copytree(built_dir, package / "shaders" / "edge")
-    shutil.copytree(Path(pyedge.view_shader_dir()), package / "view_shaders")
+    env = {k: v for k, v in os.environ.items() if k not in ("EDGE_VK_SHADER_DIR", "EDGE_VIEW_SHADER_DIR")}
+    env.update(EDGE_PYTHON_BINDINGS_DIR=str(package), ROVE_PYTHON_BINDINGS_DIR=str(Path(pyrove.pyrove_bind.__file__).parent))
     script = (
         "import sys\n"
         f"sys.path.insert(0, {str(Path(__file__).parent)!r})\n"
         "import pyedge\n"
         f"assert pyedge._bindings.__file__ == {str(package / module.name)!r}, pyedge._bindings.__file__\n"
-        "print(pyedge.vulkan_shader_dir())\n"
-        "print(pyedge.view_shader_dir())\n"
-        "from test_pyedge_shader_dir import _draw_a_triangle\n"
-        "_draw_a_triangle()\n"
     )
-    env = {k: v for k, v in os.environ.items() if k not in ("EDGE_VK_SHADER_DIR", "EDGE_VIEW_SHADER_DIR")}
-    env.update(EDGE_PYTHON_BINDINGS_DIR=str(package), ROVE_PYTHON_BINDINGS_DIR=str(Path(pyrove.pyrove_bind.__file__).parent))
+    return package, env, script
+
+
+_DRAW = "from test_pyedge_shader_dir import _draw_a_triangle\n_draw_a_triangle()\n"
+
+
+def test_a_module_with_its_shaders_beside_it_reads_those(built_dir, monkeypatch, tmp_path):
+    """The layout of a wheel's package: the module, shaders/edge and view_shaders beside it.  A copy of the module there finds them
+    (from where the module is, not from the build), and draws with them."""
+    monkeypatch.delenv("EDGE_VIEW_SHADER_DIR", raising=False)
+    package, env, script = _a_copy_of_the_module(tmp_path)
+    shutil.copytree(built_dir, package / "shaders" / "edge")
+    shutil.copytree(Path(pyedge.view_shader_dir()), package / "view_shaders")
+    script += "print(pyedge.vulkan_shader_dir())\nprint(pyedge.view_shader_dir())\n" + _DRAW
     result = subprocess.run([sys.executable, "-c", script], cwd=tmp_path, env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [str(package / "shaders" / "edge"), str(package / "view_shaders")]
-    # without them it is the build's again (the one the module was built in, an installed module's too): not the copy's directory
-    shutil.rmtree(package / "shaders")
-    result = subprocess.run([sys.executable, "-c", script], cwd=tmp_path, env=env, capture_output=True, text=True)
-    assert result.returncode == 0, result.stderr
-    fallback = Path(result.stdout.splitlines()[0])
-    assert fallback != package / "shaders" / "edge" and (fallback / "vertex.spv").is_file(), fallback
+
+
+@pytest.mark.parametrize("lookup, variable, file", [("vulkan_shader_dir", "EDGE_VK_SHADER_DIR", "vertex.spv"),
+                                                    ("view_shader_dir", "EDGE_VIEW_SHADER_DIR", "lit.frag.spv")])
+def test_without_them_a_build_s_module_reads_the_build_s_and_a_wheel_s_refuses(tmp_path, lookup, variable, file):
+    """A wheel's build is gone when it runs, on another machine: it names no build directory, and says what to set.  A module built
+    here still has the directory it was built in (not the copy's)."""
+    package, env, script = _a_copy_of_the_module(tmp_path)
+    script += f"print(pyedge.{lookup}())\n"
+    wheel = Path(pyedge._bindings.__file__).parent == Path(pyedge.__file__).resolve().parent
+    if wheel:
+        result = subprocess.run([sys.executable, "-c", script], cwd=tmp_path, env=env, capture_output=True, text=True)
+        assert result.returncode != 0, result.stdout
+        assert "are not found" in result.stderr and variable in result.stderr, result.stderr
+        assert "the build's" not in result.stderr, result.stderr
+    else:
+        result = subprocess.run([sys.executable, "-c", script + _DRAW], cwd=tmp_path, env=env, capture_output=True, text=True)
+        assert result.returncode == 0, result.stderr
+        fallback = Path(result.stdout.splitlines()[0])
+        assert package not in fallback.parents and (fallback / file).is_file(), fallback

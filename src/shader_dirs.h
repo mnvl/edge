@@ -17,7 +17,8 @@ namespace edge
 /// 2. each of @p relative under the directory of the binary edge is linked into (edge_binary_dir()): `shaders/edge`, the bundle
 ///    edge_bundle_runtime makes beside a game's binary and a wheel's pyedge package; `../share/edge/shaders`, an installed edge
 ///    (bin/ or lib/ beside share/);
-/// 3. the directory the build put them in, then the one `cmake --install` puts them in (where edge was built with EDGE_INSTALL).
+/// 3. the directory the build put them in (not a wheel's: its build is gone when it runs), then the one `cmake --install` puts them
+///    in (where edge was built with EDGE_INSTALL).
 ///
 /// The first of 2 and 3 that holds @p file is taken.
 struct ShaderLookup
@@ -26,7 +27,7 @@ struct ShaderLookup
 	std::string variable;                               // the environment variable that names their directory
 	std::string file;                                   // a file every complete directory of them has: "vertex.spv"
 	std::vector<std::filesystem::path> relative;        // under the binary's directory
-	std::filesystem::path build_dir;                    // where the build put them (empty: it made none)
+	std::filesystem::path build_dir;                    // where the build put them (empty: it made none, or it is a wheel's)
 	std::filesystem::path install_dir;                  // where `cmake --install` puts them (empty: no install rules)
 };
 
