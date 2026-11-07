@@ -94,6 +94,15 @@ std::string make_animation_channel_context(fastgltf::Animation const &animation,
 	return stream.str();
 }
 
+/// An accessor read as element type E, where it is one: fastgltf asserts that in a Debug build and reads regardless in a Release one.
+template <class E, class F>
+void read_checked(fastgltf::Asset const &asset, fastgltf::Accessor const &accessor, std::string const &context, F &&f)
+{
+	if (accessor.type != fastgltf::ElementTraits<E>::type)
+		throw load_error(context + ": an accessor of type " + std::string(fastgltf::getAccessorTypeName(accessor.type)));
+	fastgltf::iterateAccessorWithIndex<E>(asset, accessor, std::forward<F>(f));
+}
+
 void read_animation_times(fastgltf::Asset const &asset_, std::size_t accessor_index,
 	std::vector<float> &times,
 	std::string const &context)
@@ -106,8 +115,7 @@ void read_animation_times(fastgltf::Asset const &asset_, std::size_t accessor_in
 	times.clear();
 	fastgltf::Accessor const &accessor = asset_.accessors[accessor_index];
 	times.reserve(accessor.count);
-	fastgltf::iterateAccessorWithIndex<float>(
-		asset_, accessor,
+	read_checked<float>(asset_, accessor, context,
 		[&](float time, std::size_t)
 			{
 				times.push_back(time);
@@ -148,8 +156,7 @@ void read_animation_vec3_values(fastgltf::Asset const &asset_, std::size_t acces
 	fastgltf::Accessor const &accessor = asset_.accessors[accessor_index];
 	std::vector<fastgltf::math::fvec3> raw_values;
 	raw_values.reserve(accessor.count);
-	fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(
-		asset_, accessor,
+	read_checked<fastgltf::math::fvec3>(asset_, accessor, context,
 		[&](fastgltf::math::fvec3 const &value, std::size_t)
 			{
 				raw_values.push_back(value);
@@ -204,8 +211,7 @@ void read_animation_quat_values(fastgltf::Asset const &asset_, std::size_t acces
 	fastgltf::Accessor const &accessor = asset_.accessors[accessor_index];
 	std::vector<fastgltf::math::fquat> raw_values;
 	raw_values.reserve(accessor.count);
-	fastgltf::iterateAccessorWithIndex<fastgltf::math::fquat>(
-		asset_, accessor,
+	read_checked<fastgltf::math::fquat>(asset_, accessor, context,
 		[&](fastgltf::math::fquat const &value, std::size_t)
 			{
 				raw_values.push_back(value);
@@ -274,8 +280,7 @@ void read_animation_weights_values(fastgltf::Asset const &asset_, std::size_t ac
 	fastgltf::Accessor const &accessor = asset_.accessors[accessor_index];
 	std::vector<float> raw_values;
 	raw_values.reserve(accessor.count);
-	fastgltf::iterateAccessorWithIndex<float>(
-		asset_, accessor,
+	read_checked<float>(asset_, accessor, context,
 		[&](float value, std::size_t)
 		{
 			raw_values.push_back(value);

@@ -42,7 +42,7 @@ MeshPtr BasicAnimatedMesh<V>::shallow_copy() const
 template <skinned_vertex_layout V>
 BasicAnimatedModel<V> *BasicAnimatedMesh<V>::model()
 {
-    return (BasicAnimatedModel<V> *) Mesh::model();
+    return dynamic_cast<BasicAnimatedModel<V> *>(Mesh::model());
 }
 
 template <skinned_vertex_layout V>
@@ -401,7 +401,7 @@ void BasicAnimatedMesh<V>::draw(Joint *joint_ptr, CameraPtr const &camera,
 	typename Mesh::triangles_list_type const &level = this->triangles_of_lod(lod);
 	for (auto const &triangles : level)
 	{
-		UberDrawCallPtr draw_call = model()->renderer()->create_uber_draw_call();
+		UberDrawCallPtr draw_call = Mesh::model()->renderer()->create_uber_draw_call();
 		Mesh::give_previous(*draw_call, previous);
 
 		draw_call->set_obb(bounds);
@@ -417,7 +417,7 @@ void BasicAnimatedMesh<V>::draw(Joint *joint_ptr, CameraPtr const &camera,
 		draw_call->set_always_visible(this->always_visible_);
 		draw_call->commit();
 
-		model()->scheduler()->add(draw_call);
+		Mesh::model()->scheduler()->add(draw_call);
 	}
 }
 
@@ -436,7 +436,7 @@ void BasicAnimatedMesh<V>::draw_instances(Joint *joint_ptr, CameraPtr const &cam
 	typename Mesh::triangles_list_type const &level = this->triangles_of_lod(lod);
 	for (auto const &triangles : level)
 	{
-		UberDrawCallPtr draw_call = model()->renderer()->create_uber_draw_call();
+		UberDrawCallPtr draw_call = Mesh::model()->renderer()->create_uber_draw_call();
 		Mesh::give_previous(*draw_call, previous);
 		draw_call->set_obb(bounds);
 		draw_call->set_vertex_buffer(this->vertex_array_->vertex_buffer());
@@ -451,7 +451,7 @@ void BasicAnimatedMesh<V>::draw_instances(Joint *joint_ptr, CameraPtr const &cam
 		draw_call->set_always_visible(this->always_visible_);
 		draw_call->commit();
 
-		model()->scheduler()->add(draw_call);
+		Mesh::model()->scheduler()->add(draw_call);
 	}
 }
 

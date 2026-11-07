@@ -108,6 +108,28 @@ private:
 	void parse();
 	/// load_error for an index of a @p what that is not among the @p count there are.
 	void check_index(std::size_t index, std::size_t count, char const *what) const;
+	/// load_error for an accessor whose elements are not all in its buffer view, or a view not all in its buffer: fastgltf reads them unchecked.
+	void check_accessors();
+	/// An accessor read as element type E, where it is one: fastgltf asserts that in a Debug build and reads regardless in a Release one.
+	template <class E, class F>
+	void read_accessor(fastgltf::Accessor const &accessor, F &&f) const
+	{
+		check_element<E>(accessor);
+		fastgltf::iterateAccessor<E>(asset_, accessor, std::forward<F>(f));
+	}
+	template <class E, class F>
+	void read_accessor_with_index(fastgltf::Accessor const &accessor, F &&f) const
+	{
+		check_element<E>(accessor);
+		fastgltf::iterateAccessorWithIndex<E>(asset_, accessor, std::forward<F>(f));
+	}
+	template <class E>
+	void check_element(fastgltf::Accessor const &accessor) const
+	{
+		if (accessor.type != fastgltf::ElementTraits<E>::type)
+			throw load_error("glTF '" + filename_ + "': an accessor of type " + std::string(fastgltf::getAccessorTypeName(accessor.type)) + " where " +
+				std::string(fastgltf::getAccessorTypeName(fastgltf::ElementTraits<E>::type)) + " is read");
+	}
 	void mark_node_recursive(std::size_t node_index);
 	/// The nodes the model is made of: the default scene's (all scenes' without one, all nodes without scenes), with the joints of their
 	/// skins and those joints' ancestors.

@@ -63,8 +63,7 @@ void GltfReader::build_primitive(fastgltf::Primitive const &primitive, std::vect
 	vertex_format = GenericVertex::FORMAT_POSITION;
 	morph_target_deltas.clear();
 
-	fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(
-		asset_, position_accessor,
+	read_accessor_with_index<fastgltf::math::fvec3>(position_accessor,
 		[&](fastgltf::math::fvec3 const &position, std::size_t index)
 		{
 			if (index >= vertices.size())
@@ -76,8 +75,7 @@ void GltfReader::build_primitive(fastgltf::Primitive const &primitive, std::vect
 
 	if (std::optional<std::size_t> normal_accessor_index = find_attribute_accessor(primitive, "NORMAL"))
 	{
-		fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(
-			asset_, attribute_accessor(*normal_accessor_index, "NORMAL", vertices.size()),
+		read_accessor_with_index<fastgltf::math::fvec3>(attribute_accessor(*normal_accessor_index, "NORMAL", vertices.size()),
 			[&](fastgltf::math::fvec3 const &normal, std::size_t index)
 			{
 				vertices[index].normal.set(normal[0], normal[1], normal[2]);
@@ -89,8 +87,7 @@ void GltfReader::build_primitive(fastgltf::Primitive const &primitive, std::vect
 	std::string const texcoord_semantic = "TEXCOORD_" + std::to_string(uv_set.index);
 	if (std::optional<std::size_t> texcoord_accessor_index = find_attribute_accessor(primitive, texcoord_semantic))
 	{
-		fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec2>(
-			asset_, attribute_accessor(*texcoord_accessor_index, texcoord_semantic, vertices.size()),
+		read_accessor_with_index<fastgltf::math::fvec2>(attribute_accessor(*texcoord_accessor_index, texcoord_semantic, vertices.size()),
 			[&](fastgltf::math::fvec2 const &texcoord, std::size_t index)
 			{
 				float u = texcoord[0], v = texcoord[1];
@@ -111,8 +108,7 @@ void GltfReader::build_primitive(fastgltf::Primitive const &primitive, std::vect
 		// glTF gives a VEC3 color an alpha of 1; normalised integers come out as floats as glTF normalises them
 		if (color_accessor.type == fastgltf::AccessorType::Vec3)
 		{
-			fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(
-				asset_, color_accessor,
+			read_accessor_with_index<fastgltf::math::fvec3>(color_accessor,
 				[&](fastgltf::math::fvec3 const &color, std::size_t index)
 				{
 					vertices[index].color.set(color[0], color[1], color[2], 1.0f);
@@ -120,8 +116,7 @@ void GltfReader::build_primitive(fastgltf::Primitive const &primitive, std::vect
 		}
 		else if (color_accessor.type == fastgltf::AccessorType::Vec4)
 		{
-			fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec4>(
-				asset_, color_accessor,
+			read_accessor_with_index<fastgltf::math::fvec4>(color_accessor,
 				[&](fastgltf::math::fvec4 const &color, std::size_t index)
 				{
 					vertices[index].color.set(color[0], color[1], color[2], color[3]);
@@ -149,19 +144,19 @@ void GltfReader::build_primitive(fastgltf::Primitive const &primitive, std::vect
 		{
 		case fastgltf::AccessorType::Scalar:
 			custom.components = 1;
-			fastgltf::iterateAccessor<float>(asset_, accessor, [&](float value) { custom.values.push_back(value); });
+			read_accessor<float>(accessor, [&](float value) { custom.values.push_back(value); });
 			break;
 		case fastgltf::AccessorType::Vec2:
 			custom.components = 2;
-			fastgltf::iterateAccessor<fastgltf::math::fvec2>(asset_, accessor, [&](fastgltf::math::fvec2 const &v) { custom.values.insert(custom.values.end(), {v[0], v[1]}); });
+			read_accessor<fastgltf::math::fvec2>(accessor, [&](fastgltf::math::fvec2 const &v) { custom.values.insert(custom.values.end(), {v[0], v[1]}); });
 			break;
 		case fastgltf::AccessorType::Vec3:
 			custom.components = 3;
-			fastgltf::iterateAccessor<fastgltf::math::fvec3>(asset_, accessor, [&](fastgltf::math::fvec3 const &v) { custom.values.insert(custom.values.end(), {v[0], v[1], v[2]}); });
+			read_accessor<fastgltf::math::fvec3>(accessor, [&](fastgltf::math::fvec3 const &v) { custom.values.insert(custom.values.end(), {v[0], v[1], v[2]}); });
 			break;
 		case fastgltf::AccessorType::Vec4:
 			custom.components = 4;
-			fastgltf::iterateAccessor<fastgltf::math::fvec4>(asset_, accessor, [&](fastgltf::math::fvec4 const &v) { custom.values.insert(custom.values.end(), {v[0], v[1], v[2], v[3]}); });
+			read_accessor<fastgltf::math::fvec4>(accessor, [&](fastgltf::math::fvec4 const &v) { custom.values.insert(custom.values.end(), {v[0], v[1], v[2], v[3]}); });
 			break;
 		default:
 			throw std::runtime_error("glTF '" + filename_ + "': " + std::string(name) + " is a matrix: a custom attribute is a scalar or a vector");
@@ -176,8 +171,7 @@ void GltfReader::build_primitive(fastgltf::Primitive const &primitive, std::vect
 		{
 			throw load_error("glTF '" + filename_ + "': a primitive has TANGENT and no NORMAL");
 		}
-		fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec4>(
-			asset_, attribute_accessor(*tangent_accessor_index, "TANGENT", vertices.size()),
+		read_accessor_with_index<fastgltf::math::fvec4>(attribute_accessor(*tangent_accessor_index, "TANGENT", vertices.size()),
 			[&](fastgltf::math::fvec4 const &tangent, std::size_t index)
 			{
 				vertices[index].tangent.set(tangent[0], tangent[1], tangent[2]);
@@ -208,8 +202,7 @@ void GltfReader::build_primitive(fastgltf::Primitive const &primitive, std::vect
 				return false;
 			}
 			fastgltf::Accessor const &accessor = attribute_accessor(*accessor_index, semantic, vertices.size());
-			fastgltf::iterateAccessorWithIndex<fastgltf::math::u32vec4>(
-				asset_, accessor,
+			read_accessor_with_index<fastgltf::math::u32vec4>(accessor,
 				[&](fastgltf::math::u32vec4 const &joint_indices, std::size_t vertex_index)
 				{
 					for (std::size_t i = 0; i < 4; ++i)
@@ -235,8 +228,7 @@ void GltfReader::build_primitive(fastgltf::Primitive const &primitive, std::vect
 				return false;
 			}
 			fastgltf::Accessor const &accessor = attribute_accessor(*accessor_index, semantic, vertices.size());
-			fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec4>(
-				asset_, accessor,
+			read_accessor_with_index<fastgltf::math::fvec4>(accessor,
 				[&](fastgltf::math::fvec4 const &joint_weights, std::size_t vertex_index)
 				{
 					for (std::size_t i = 0; i < 4; ++i)
@@ -304,8 +296,7 @@ void GltfReader::build_primitive(fastgltf::Primitive const &primitive, std::vect
 					return;
 				}
 
-				fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(
-					asset_, attribute_accessor(static_cast<std::size_t>(attribute_it->accessorIndex),
+				read_accessor_with_index<fastgltf::math::fvec3>(attribute_accessor(static_cast<std::size_t>(attribute_it->accessorIndex),
 						"target " + std::to_string(target_index) + " " + std::string(semantic), vertices.size()),
 					[&](fastgltf::math::fvec3 const &delta, std::size_t vertex_index)
 					{
@@ -342,8 +333,7 @@ void GltfReader::build_primitive(fastgltf::Primitive const &primitive, std::vect
 		check_index(index_accessor_index, asset_.accessors.size(), "accessor");
 		fastgltf::Accessor const &index_accessor = asset_.accessors[index_accessor_index];
 		indices.reserve(index_accessor.count);
-		fastgltf::iterateAccessor<std::uint32_t>(
-			asset_, index_accessor,
+		read_accessor<std::uint32_t>(index_accessor,
 			[&](std::uint32_t index)
 			{
 				indices.push_back(static_cast<unsigned>(index));

@@ -151,6 +151,9 @@ DdsHeader read_dds(void const *data, std::size_t size)
 			throw std::runtime_error("DDS: a cube map");
 		if (dimension != 3 || array < 1)
 			throw std::runtime_error("DDS: only 2D textures and arrays of them");
+		// (as many as any GPU has: more wraps an int, and the size of the texture with it)
+		if (array > 65536)
+			throw std::runtime_error("DDS: an array of " + std::to_string(array) + " layers");
 		d.layers = int(array);
 		switch (dxgi)
 		{
@@ -182,6 +185,11 @@ DdsHeader read_dds(void const *data, std::size_t size)
 		throw std::runtime_error("DDS: unsupported pixel format");
 	if (d.width <= 0 || d.height <= 0)
 		throw std::runtime_error("DDS: empty texture");
+	// (these go through shifts and products: past them the size that is checked below is not the real one)
+	if (d.width > 65536 || d.height > 65536)
+		throw std::runtime_error("DDS: a texture of " + std::to_string(d.width) + " x " + std::to_string(d.height));
+	if (d.levels < 1 || d.levels > 17)
+		throw std::runtime_error("DDS: " + std::to_string(d.levels) + " mip levels");
 	if (d.offset + d.data_size() != size)
 		throw std::runtime_error("DDS: " + std::to_string(size - d.offset) + " bytes of data for "
 			+ std::to_string(d.data_size()) + " in " + std::to_string(d.levels) + " levels"

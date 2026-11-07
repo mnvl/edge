@@ -449,8 +449,66 @@ void Model::load(SerializedModel const &serialized, bool keep_cpu_copy)
 	load(serialized, keep_cpu_copy, true);
 }
 
+namespace
+{
+
+/// What a mesh of a file says has to be possible: the file may have come from anyone, and past here these numbers index the mesh's arrays
+/// and reach the GPU unchecked.  std::runtime_error naming the mesh.
+void validate_mesh(SerializedMesh const &mesh, std::size_t joints_count)
+{
+	auto const fail = [&](std::string const &what) { return std::runtime_error("mesh '" + mesh.name + "': " + what); };
+	std::size_t const indices = mesh.indices.size(), vertices = mesh.vertices.size();
+	auto const check_groups = [&](std::vector<SerializedTriangles> const &groups) {
+		for (SerializedTriangles const &group : groups)
+		{
+			// (each on its own side of the comparison: from a file, the sum and the product can wrap)
+			if (group.triangles_count > indices / 3 || group.first_index_offset > indices - group.triangles_count * 3)
+				throw fail("a group of " + std::to_string(group.triangles_count) + " triangles from " + std::to_string(group.first_index_offset) +
+					" runs past its " + std::to_string(indices) + " indices");
+			if (group.minimal_vertex_index > vertices || group.vertices_count > vertices - group.minimal_vertex_index)
+				throw fail("a group of " + std::to_string(group.vertices_count) + " vertices from " + std::to_string(group.minimal_vertex_index) +
+					" runs past its " + std::to_string(vertices) + " vertices");
+			if (group.triangles_count > 0 && vertices == 0)
+				throw fail("triangles and no vertices");
+		}
+	};
+	check_groups(mesh.triangles);
+	for (SerializedLod const &lod : mesh.lods)
+		check_groups(lod.triangles);
+
+	for (unsigned const index : mesh.indices)
+		if (index >= vertices)
+			throw fail("index " + std::to_string(index) + " of " + std::to_string(vertices) + " vertices");
+
+	for (std::uint64_t const joint : mesh.joint_index_transform)
+	{
+		if (joint >= joints_count)
+			throw fail("a skin of joint " + std::to_string(joint) + " in a model of " + std::to_string(joints_count) + " joints");
+		if (joint >= mesh.inverted_bind_matrices.size())
+			throw fail("a skin of joint " + std::to_string(joint) + " and " + std::to_string(mesh.inverted_bind_matrices.size()) + " bind matrices");
+	}
+
+	GenericVertex::format_type const format = serialized_vertex_format(mesh.serialization_type);
+	bool const weighted = (format & GenericVertex::FORMAT_JOINT_INDICES) != 0 && (format & GenericVertex::FORMAT_JOINT_WEIGHTS) != 0;
+	for (GenericVertex const &vertex : mesh.vertices)
+	{
+		if (!rove::is_finite(vertex.position))
+			throw fail("a vertex position that is not finite");
+		if (weighted)
+			for (std::size_t k = 0; k < vertex.joints.dimensions; ++k)
+				if (vertex.weights.i[k] != 0 && vertex.joints.i[k] >= mesh.joint_index_transform.size())
+					throw fail("a vertex of skin joint " + std::to_string(vertex.joints.i[k]) + " in a skin of " +
+						std::to_string(mesh.joint_index_transform.size()) + " joints");
+	}
+}
+
+}
+
 void Model::load(SerializedModel const &serialized, bool keep_cpu_copy, bool pose_boxes_given)
 {
+	for (SerializedMesh const &mesh : serialized.meshes)
+		validate_mesh(mesh, serialized.joints.size());
+
 	clear();
 
 	std::vector<TexturePtr> textures;
