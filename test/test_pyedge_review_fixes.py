@@ -127,6 +127,48 @@ def test_a_variable_that_names_nothing_leaves_an_installed_package_its_own_modul
         assert "EDGE_PYTHON_BINDINGS_DIR" in result.stderr
 
 
+def _an_editable_install(tmp_path, hook_body):
+    """As `pip install -e .` has it: __init__.py in the checkout, the module elsewhere, an import hook between them."""
+    checkout = tmp_path / "checkout" / "pyedge"
+    checkout.mkdir(parents=True)
+    shutil.copy(Path(pyedge.__file__), checkout / "__init__.py")
+    elsewhere = tmp_path / "site" / "pyedge"
+    elsewhere.mkdir(parents=True)
+    module = Path(shutil.copy(Path(pyedge._bindings.__file__), elsewhere))
+    hook = (
+        "import importlib.abc, importlib.util, sys\n"
+        "class Hook(importlib.abc.MetaPathFinder):\n"
+        "    def find_spec(self, fullname, path=None, target=None):\n"
+        "        if fullname == 'pyedge._pyedge':\n"
+        f"            {hook_body}\n"
+        f"MODULE = {str(module)!r}\n"
+        "sys.meta_path.insert(0, Hook())\n"
+    )
+    env = {k: v for k, v in os.environ.items() if k != "EDGE_PYTHON_BINDINGS_DIR"}
+    env.update(ROVE_PYTHON_BINDINGS_DIR=str(Path(pyrove._bindings.__file__).parent),
+               PYTHONPATH=os.pathsep.join([str(checkout.parent)] + os.environ.get("PYTHONPATH", "").split(os.pathsep)))
+    return module, hook, env
+
+
+def test_an_editable_install_loads_the_module_its_import_hook_has(tmp_path):
+    # (the module not beside __init__.py is no sign that the package has none)
+    module, hook, env = _an_editable_install(tmp_path, "return importlib.util.spec_from_file_location(fullname, MODULE)")
+    result = subprocess.run([sys.executable, "-c", hook + "import pyedge; print(pyedge._bindings.__file__); print(pyedge.Camera)"],
+                            capture_output=True, text=True, env=env, cwd=tmp_path)
+    assert result.returncode == 0, result.stderr
+    assert Path(result.stdout.splitlines()[0]) == module
+
+
+def test_a_module_that_is_there_and_lacks_something_says_what_it_lacks(tmp_path):
+    # (not told apart, this reads "no module was built, build one", which sends its reader the wrong way)
+    _, hook, env = _an_editable_install(tmp_path, "raise ModuleNotFoundError(\"No module named 'a_dependency'\", name='a_dependency')")
+    result = subprocess.run([sys.executable, "-c", hook + "import pyedge; pyedge._import_required_binding('_pyedge')"],
+                            capture_output=True, text=True, env=env, cwd=tmp_path)
+    assert result.returncode != 0
+    assert "No module named 'a_dependency'" in result.stderr
+    assert "Could not import required binding module" not in result.stderr
+
+
 def test_a_variable_that_names_a_module_picks_it(tmp_path):
     _an_installed_package(tmp_path)
     elsewhere = tmp_path / "elsewhere"
