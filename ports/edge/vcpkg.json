@@ -16,7 +16,6 @@
       ]
     },
     "rove",
-    "spdlog",
     "stb",
     {
       "name": "vcpkg-cmake",

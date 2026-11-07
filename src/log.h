@@ -3,40 +3,50 @@
 
 #pragma once
 
-#include <filesystem>
-#include <memory>
-#include <optional>
-#include <string>
-
-#include <spdlog/spdlog.h>
+#include <format>
+#include <functional>
+#include <string_view>
 
 namespace edge
 {
 
-// The library's one logger.
-// Loaders, meshes, textures, shaders and the renderer report through it,
-// so logs/edge.log is one time-ordered account of what the native side
-// did. Warnings and errors always also go to stderr, where the Python log
-// already is; the file gets everything at or above the init_logging()
-// level (default: nothing on disk until init_logging() runs, which
-// edge/pyedge/__init__.py does at import with <repo>/logs/edge.log).
+// The library's one log: loaders, meshes, textures, shaders and the renderer report through it. Its lines at or above the level
+// (warn until set_log_level() says otherwise) go to std::cerr as "[warning gltf_reader.cc:120] message", or to the sink a program gives
+// set_log_sink() to take them into a log of its own.
 //
-// Use the EDGE_LOG_* macros below rather than log() directly: they record
-// the source file and line, and an EDGE_LOG_DEBUG whose level is off
-// formats nothing. Arguments are fmt-style: EDGE_LOG_INFO("{} x {}", w, h).
-std::shared_ptr<spdlog::logger> log();
+// Use the EDGE_LOG_* macros below: they record the source file and line, and a line below the level neither formats nor evaluates its
+// arguments. Arguments are std::format's: EDGE_LOG_INFO("{} x {}", w, h).
+enum class LogLevel
+{
+	debug,
+	info,
+	warn,
+	error,
+};
 
-// Points the logger at `file` (a rotating log, 5 MB x 5, its directory
-// created as needed) at `level`: "debug", "info", "warn"/"warning" or
-// "error"; anything else, "off" included, is an error, not a fallback.
-// std::nullopt keeps warnings and errors on stderr and writes no file.
-// Callable again to move the log; threads already
-// running pick up the new destination on their next line.
-void init_logging(std::optional<std::filesystem::path> const &file, std::string const &level = "info");
+void set_log_level(LogLevel level);
+
+// `file` is the source file's name without its directory, a string that lives as long as the program. Called on whichever thread
+// logs, perhaps on several at once; it must not log through edge, and must not throw (the exception would leave the EDGE_LOG_* line,
+// which may be in a destructor). An empty sink (nullptr) gives the lines back to std::cerr.
+using LogSink = std::function<void(LogLevel level, std::string_view message, char const *file, int line)>;
+void set_log_sink(LogSink sink);
+
+namespace detail
+{
+bool log_enabled(LogLevel level) noexcept;
+void log_write(LogLevel level, char const *file, int line, std::string_view message);
+} // namespace detail
 
 } // namespace edge
 
-#define EDGE_LOG_DEBUG(...) SPDLOG_LOGGER_DEBUG(::edge::log(), __VA_ARGS__)
-#define EDGE_LOG_INFO(...) SPDLOG_LOGGER_INFO(::edge::log(), __VA_ARGS__)
-#define EDGE_LOG_WARN(...) SPDLOG_LOGGER_WARN(::edge::log(), __VA_ARGS__)
-#define EDGE_LOG_ERROR(...) SPDLOG_LOGGER_ERROR(::edge::log(), __VA_ARGS__)
+#define EDGE_LOG_AT(level, ...) \
+	do \
+	{ \
+		if (::edge::detail::log_enabled(level)) \
+			::edge::detail::log_write(level, __FILE__, __LINE__, std::format(__VA_ARGS__)); \
+	} while (false)
+#define EDGE_LOG_DEBUG(...) EDGE_LOG_AT(::edge::LogLevel::debug, __VA_ARGS__)
+#define EDGE_LOG_INFO(...) EDGE_LOG_AT(::edge::LogLevel::info, __VA_ARGS__)
+#define EDGE_LOG_WARN(...) EDGE_LOG_AT(::edge::LogLevel::warn, __VA_ARGS__)
+#define EDGE_LOG_ERROR(...) EDGE_LOG_AT(::edge::LogLevel::error, __VA_ARGS__)

@@ -2,16 +2,28 @@
 # Copyright (c) 2004-2026 Manvel Avetisian
 
 CMAKE_MINIMUM_REQUIRED(VERSION 3.20)
-# Built by itself on a Mac (its tests): Apple silicon, macOS 13 on, as the games that add it say.  (A parent's PROJECT is before this.)
+# Built by itself on a Mac (its tests): Apple silicon, macOS 13.3 on.  (A parent's PROJECT is before this.)
 IF(APPLE AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
   IF(NOT CMAKE_OSX_ARCHITECTURES)
     SET(CMAKE_OSX_ARCHITECTURES arm64 CACHE STRING "Apple silicon only" FORCE)
   ENDIF()
   IF(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
-    SET(CMAKE_OSX_DEPLOYMENT_TARGET 13.0 CACHE STRING "the oldest macOS edge runs on" FORCE)
+    SET(CMAKE_OSX_DEPLOYMENT_TARGET 13.3 CACHE STRING "the oldest macOS edge runs on" FORCE)
   ENDIF()
 ENDIF()
 PROJECT(EDGE VERSION 3.0.1)
+# The oldest Apple systems edge builds for: the log's std::format formats a float through std::to_chars, which Apple's C++ library
+# has from macOS 13.3 and iOS 16.3 on (older targets fail to compile it, "unavailable").  Said here, at configure, rather than there.
+IF(APPLE AND CMAKE_OSX_DEPLOYMENT_TARGET)
+  IF(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    SET(EDGE_OLDEST_APPLE_OS 16.3)
+  ELSE()
+    SET(EDGE_OLDEST_APPLE_OS 13.3)
+  ENDIF()
+  IF(CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS EDGE_OLDEST_APPLE_OS)
+    MESSAGE(FATAL_ERROR "CMAKE_OSX_DEPLOYMENT_TARGET ${CMAKE_OSX_DEPLOYMENT_TARGET}: edge needs ${EDGE_OLDEST_APPLE_OS} or newer on ${CMAKE_SYSTEM_NAME}")
+  ENDIF()
+ENDIF()
 
 # (for edge and what it fetches; a parent's targets choose their own)
 SET(CMAKE_CXX_STANDARD 20)
@@ -109,7 +121,7 @@ ELSE()
 ENDIF()
 
 # The Metal backend (src/metal_*, Objective-C++): on by default on Apple platforms, which have no other renderer worth
-# having (Vulkan only through MoltenVK, OpenGL ES not at all on iOS).  Apple-silicon Macs and iOS 15 on.
+# having (Vulkan only through MoltenVK, OpenGL ES not at all on iOS).  Apple-silicon Macs and iOS 16.3 on (std::format, above).
 IF(APPLE)
   SET(EDGE_METAL_DEFAULT ON)
 ELSE()
@@ -150,7 +162,6 @@ ENDIF()
 # Dependencies.  By default every one is fetched at configure (FetchContent, pinned) and built here.  EDGE_SYSTEM_DEPS takes what a
 # package manager (Conan, vcpkg) or the system provides instead, with find_package, and maps its targets onto the ones edge links:
 #
-#   spdlog         find_package(spdlog CONFIG)          spdlog::spdlog
 #   cereal         find_package(cereal CONFIG)          cereal::cereal
 #   stb            find_package(stb CONFIG) (Conan)     stb::stb; else its headers, find_path(STB_INCLUDE_DIRS stb_image.h) (vcpkg,
 #                                                       Debian's stb/ under the include directory)
@@ -356,27 +367,6 @@ if(EDGE_ADDS_ROVE)
   set(ROVE_INSTALL ${EDGE_INSTALL} CACHE BOOL "" FORCE)
 endif()
 
-# spdlog: the library's one logger (src/log.h), on the desktop into logs/edge.log.  Fetched, compiled (not header-only) so the
-# formatting code is built once, not per translation unit; PIC as it ends up inside the pyedge module like edge itself.  A parent that
-# declares spdlog first wins and edge reuses it.
-if(EDGE_SYSTEM_DEPS)
-  if(NOT TARGET spdlog::spdlog)
-    find_package(spdlog CONFIG REQUIRED)
-  endif()
-else()
-  FetchContent_Declare(
-      spdlog
-      GIT_REPOSITORY https://github.com/gabime/spdlog
-      GIT_TAG 6fa36017cfd5731d617e1a934f0e5ea9c4445b13  # v1.15.3
-  )
-  set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
-  set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-  # (installed as itself where edge installs: its headers are edge's public headers')
-  set(SPDLOG_INSTALL ${EDGE_INSTALL} CACHE BOOL "" FORCE)
-  set(SPDLOG_BUILD_PIC ON CACHE BOOL "" FORCE)
-  FetchContent_MakeAvailable(spdlog)
-endif()
-
 # What only the asset tools need (EDGE_ASSET_TOOLS).
 if(EDGE_ASSET_TOOLS)
   # meshoptimizer: the edge-collapse simplifier that makes a model's levels of detail (src/mesh_lod.h).  edge_asset links
@@ -487,7 +477,7 @@ ENDIF()
 # include/ is on the path), share/edge/ the shaders (src/CMakeLists.txt) and view shaders, bin/ the tools, lib/cmake/edge/ the package
 # and the helpers.  The libraries edge builds of its dependencies and links privately are in edge's package under edge's names
 # (edge::fastgltf, libedge_fastgltf.a, ...): never taken for a system's own.  Bundled, what the public headers include is installed as
-# itself: cereal's headers, spdlog (its own install rules, SPDLOG_INSTALL) and ImGui's core (edge::imgui_core); rove's own rules
+# itself: cereal's headers and ImGui's core (edge::imgui_core); rove's own rules
 # install rove where edge added it (ROVE_INSTALL).
 IF(EDGE_INSTALL)
   INCLUDE(CMakePackageConfigHelpers)

@@ -208,8 +208,10 @@ def test_the_readme_says_what_it_needs_and_has_no_relative_links():
 
 def test_the_licence_notices_hold_the_text_of_what_is_linked():
     notices = (Path(__file__).resolve().parents[1] / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
-    for project in ("fastgltf", "simdjson", "cereal", "stb", "spdlog", "fmt", "meshoptimizer", "bc7enc_rdo", "astc-encoder", "xatlas", "nanobind"):
+    for project in ("fastgltf", "simdjson", "cereal", "stb", "meshoptimizer", "bc7enc_rdo", "astc-encoder", "xatlas", "nanobind"):
         assert f"## {project}" in notices, project
+    for gone in ("spdlog", "fmt"):  # (the log is edge's own: nothing of them is linked)
+        assert f"## {gone}\n" not in notices, gone
     assert "Permission is hereby granted" in notices
     assert "Apache License" in notices
 

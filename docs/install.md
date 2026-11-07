@@ -10,7 +10,7 @@ built, `edge::asset`, `edge::imgui`, `edge::sdl`) and the helpers `edge_add_shad
 #include <edge/load_model.h>
 ```
 
-Requirements for C++: CMake 3.20 or newer, a C++20 compiler (GCC 12, Clang 15, Apple Clang 15 or newer), and for the Vulkan backend
+Requirements for C++: CMake 3.20 or newer, a C++20 compiler with `std::format` (GCC 13, Clang 17 with libc++ or Clang 15 with GCC 13's library, Apple Clang 15, MSVC 19.3x, or newer; for Apple systems macOS 13.3 or iOS 16.3 on), and for the Vulkan backend
 the Vulkan headers and loader and `glslangValidator` (Debian and Ubuntu: `libvulkan-dev glslang-tools`; Conan and vcpkg provide
 them). Linux is the platform edge is built and tested on; macOS (Metal) builds; Windows builds pyedge, and is not otherwise supported yet.
 
@@ -171,7 +171,7 @@ cmake --install edge/build --prefix /opt/edge
 
 edge takes rove from `../rove` and installs it beside itself. Then `find_package(edge CONFIG REQUIRED)` with
 `-DCMAKE_PREFIX_PATH=/opt/edge`. [building.md](building.md) lists what the install holds, and `-DEDGE_SYSTEM_DEPS=ON`, which takes
-spdlog, cereal, stb, meshoptimizer, ImGui and rove from the system or a package manager instead of fetching them.
+cereal, stb, meshoptimizer, ImGui and rove from the system or a package manager instead of fetching them.
 
 ## Shaders at run time
 

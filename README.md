@@ -14,7 +14,7 @@ and lidar images for training and testing), where a general-purpose engine was t
 ## Features
 
 - **Backends**: Vulkan 1.0 with `VK_KHR_maintenance1` (Linux, Windows, Android, macOS through MoltenVK), OpenGL ES 3.0 and
-  WebGL 2 (Emscripten), Metal (Apple silicon, macOS 13 and iOS 15 on), and a null renderer that keeps every rule and draws
+  WebGL 2 (Emscripten), Metal (Apple silicon, macOS 13.3 and iOS 16.3 on), and a null renderer that keeps every rule and draws
   nothing (for tests). The frame and pass order and the error behaviour are the same on every backend.
 - **Headless and parallel**: renderers share no state, so a process runs one per thread, each offscreen, on one GPU or
   several. Frames in flight (1 to 4), batched texture downloads, GPU timers.
@@ -40,7 +40,7 @@ edge is developed for the author's own projects, which use it in production. The
 
 ## Requirements
 
-- CMake 3.20 or newer, Ninja, a C++20 compiler (GCC 12, Clang 15, Apple Clang 15, MSVC 19.3x)
+- CMake 3.20 or newer, Ninja, a C++20 compiler with `std::format` (GCC 13, Clang 17, Apple Clang 15, MSVC 19.3x)
 - [rove](https://github.com/mnvl/rove), the math library, checked out beside edge (`../rove`) or given with
   `-DEDGE_ROVE_SOURCE_DIR=<path>`
 - For Vulkan: the Vulkan headers and loader and `glslangValidator`. Without them edge builds without the Vulkan backend.
@@ -57,7 +57,7 @@ pip (`pip install pyedge`, Linux wheels), Git submodules beside rove, Conan, vcp
 ```cmake
 add_subdirectory(rove)
 add_subdirectory(edge)                            # or find_package(edge CONFIG REQUIRED)
-target_link_libraries(my_app PRIVATE edge::edge)  # brings rove, spdlog, cereal and Vulkan
+target_link_libraries(my_app PRIVATE edge::edge)  # brings rove, cereal and Vulkan
 
 edge_add_shaders(my_shaders DESTINATION ${CMAKE_BINARY_DIR}/shaders SOURCES src/sea.vert src/sea.frag)
 edge_bundle_runtime(my_runtime DESTINATION ${CMAKE_BINARY_DIR})     # edge's shaders beside the binary

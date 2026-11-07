@@ -5,6 +5,20 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- The log is edge's own, on the standard library: spdlog (and its fmt) is no longer fetched, linked, installed or asked for by
+  `find_package(edge)`, and no public header includes it. Lines at or above the level go to `std::cerr`, or to a sink:
+  `edge::set_log_sink()`, `edge::set_log_level()` (`warn` by default), `pyedge.set_log_level()`. `EDGE_LOG_*` take
+  `std::format` arguments.
+- The oldest compilers and systems are those with `std::format`: GCC 13, Clang 17, Apple Clang 15, MSVC 19.3x; macOS 13.3 and
+  iOS 16.3 (configure stops on an older `CMAKE_OSX_DEPLOYMENT_TARGET`).
+
+### Removed
+
+- `edge::init_logging()`, `edge::log()`, `pyedge.init_logging()` and `$EDGE_LOG`: edge writes no log file. A program that wants
+  one gives a sink that writes it.
+
 ### Fixed
 
 - pyedge from `pip install -e .` finds its compiled module: it looked only beside `__init__.py`, where an editable install has none, so every name

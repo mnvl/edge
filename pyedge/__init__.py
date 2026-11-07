@@ -139,10 +139,6 @@ def _loaded_binding() -> ModuleType:
         with _binding_lock:
             if _binding is None:
                 binding = _import_required_binding("_pyedge")
-                # The native side's log (edge/src/log.h) goes to $EDGE_LOG from the moment the binding is loaded, before the first
-                # renderer or model a process builds.  Without it nothing is written to disk; warnings and errors reach stderr either
-                # way.  init_logging() moves it.
-                binding.init_logging(os.environ.get("EDGE_LOG"))
                 _check_pyrove_works(importlib.import_module("pyrove"), binding)
                 _binding = binding
     return _binding
@@ -211,14 +207,6 @@ class _Package(ModuleType):
 sys.modules[__name__].__class__ = _Package
 
 
-def _check_edge_log() -> None:
-    # (an empty EDGE_LOG is a mistake whether or not the binding is ever loaded: said at the import)
-    path = os.environ.get("EDGE_LOG")
-    if path is not None and not path:
-        raise RuntimeError("EDGE_LOG is set but empty; set it to a log file path or unset it")
-
-
-_check_edge_log()
 # (the build's bindings importable from here on, loading none: pyrove's beside pyedge's, for a program that imports pyrove after pyedge;
 # an installed pyedge's pyrove is pip's)
 if os.environ.get("EDGE_PYTHON_BINDINGS_DIR") or not _module_files(Path(__file__).resolve().parent, "_pyedge"):
