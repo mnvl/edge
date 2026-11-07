@@ -32,13 +32,14 @@ pip install pyedge                                    # a released version, from
 pip install ./rove ./edge                             # local checkouts, side by side; builds both from source
 ```
 
-PyPI has wheels for Linux (x86_64 and aarch64, glibc 2.28 or newer), macOS on Apple silicon (13 or newer) and 64-bit Windows. Each holds
-edge and its shaders, and pip installs the matching `pyrove` with it. On Linux and Windows the wheel draws with Vulkan: it uses the system's
-loader (`libvulkan.so.1`, `vulkan-1.dll`, which a GPU's driver installs) and a Vulkan driver. On a Mac it draws with Metal. `import pyedge`
-succeeds without the loader, and the first use says it is missing.
+PyPI has wheels for Linux (x86_64 and aarch64, glibc 2.28 or newer) and macOS on Apple silicon (13 or newer). Each holds edge and its shaders,
+and pip installs the matching `pyrove` with it. On Linux the wheel draws with Vulkan: it uses the system's loader (`libvulkan.so.1`) and a Vulkan
+driver (any GPU's, or Mesa's lavapipe without one). On a Mac it draws with Metal. `import pyedge` succeeds without the loader, and the first use
+says it is missing.
 
-Nothing else is on PyPI: no source distribution either, so elsewhere (an Intel Mac, Windows on ARM, musl Linux) pip says there is no matching
-distribution. To build one from source, with the Vulkan headers and loader, `glslangValidator`, CMake and a C++20 compiler:
+Nothing else is on PyPI: no source distribution either, so elsewhere (Windows, an Intel Mac, musl Linux) pip says there is no matching
+distribution. To build one from source, with the Vulkan headers and loader, `glslangValidator`, CMake and a C++20 compiler (on Windows the Vulkan
+SDK has the first three; CI builds pyedge this way and draws with it there, on lavapipe):
 
 ```bash
 pip install --no-binary pyrove "git+https://github.com/mnvl/edge@v3.0.1"

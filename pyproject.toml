@@ -29,7 +29,6 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Operating System :: POSIX :: Linux",
     "Operating System :: MacOS",
-    "Operating System :: Microsoft :: Windows",
     "Programming Language :: C++",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
@@ -74,14 +73,14 @@ EDGE_IMGUI = "OFF"
 EDGE_GLES = "OFF"
 EDGE_SHOT = "OFF"
 EDGE_ASSET_TOOLS = "ON"
-# On Windows the C++ runtime goes in the extension, as in pyrove's: the two share types only where nanobind's ABI tags match.  (The policy
+# On Windows (a build from source) the C++ runtime goes in the extension, as in pyrove's wheels: the two share types only where nanobind's ABI tags match.  (The policy
 # reaches dependencies whose own cmake_minimum_required would leave it off.)  Elsewhere these say nothing.
 CMAKE_MSVC_RUNTIME_LIBRARY = "MultiThreaded"
 CMAKE_POLICY_DEFAULT_CMP0091 = "NEW"
 
-# Wheels where pyrove has them.  Linux (manylinux_2_28, x86_64 and aarch64, each on its own runner): libvulkan.so.1 is the system's, the
-# loader finds the machine's drivers, so auditwheel must not put a copy of it in the wheel.  Windows the same with vulkan-1.dll, which
-# a GPU's driver installs.  macOS on Apple silicon, 13 on, which draws with Metal.
+# Wheels for Linux (manylinux_2_28, x86_64 and aarch64, each on its own runner): libvulkan.so.1 is the system's, the loader finds the
+# machine's drivers, so auditwheel must not put a copy of it in the wheel.  And macOS on Apple silicon, 13 on, which draws with Metal.
+# Not Windows, where pyedge builds and draws (CI's pyedge job): seven wheels took an hour a release, and nobody has asked for them yet.
 [tool.cibuildwheel]
 build = "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-* cp314t-*"
 skip = "*-musllinux_* *-manylinux_i686"
@@ -109,11 +108,3 @@ environment = { MACOSX_DEPLOYMENT_TARGET = "13.0" }
 before-all = ["brew install glslang"]
 # (by name: a wheel that cannot draw fails here, where the default would fall back on the null backend)
 test-command = "python {project}/test/wheel_smoke.py {project}/test/data/test_figure.glb metal"
-
-[tool.cibuildwheel.windows]
-archs = ["AMD64"]
-# (the workflow installs the Vulkan SDK first: the headers, the import library and glslangValidator.  Nothing to bundle: the runtime is
-# static, and vulkan-1.dll is the driver's.)
-repair-wheel-command = ""
-# (on the workflow's lavapipe, by name: a wheel that cannot draw fails here)
-test-command = "python {project}/test/wheel_smoke.py {project}/test/data/test_figure.glb vulkan"

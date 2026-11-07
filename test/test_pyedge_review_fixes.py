@@ -259,12 +259,18 @@ def test_no_sdist_is_published():
     assert "needs: [version, wheels]" in workflow
 
 
-def test_wheels_are_built_for_every_platform_pyrove_has_them():
+def test_wheels_are_built_for_linux_and_macos_and_not_windows():
+    # Windows builds and draws in CI (the pyedge job), but its wheels took an hour a release and nobody has asked for them yet: what is
+    # published has to be taken away later only at a cost, and what is not can be added at any time.
     workflow = (ROOT / ".github" / "workflows" / "wheels.yml").read_text(encoding="utf-8")
-    for runner in ("ubuntu-24.04", "ubuntu-24.04-arm", "macos-15", "windows-2022"):
+    for runner in ("ubuntu-24.04", "ubuntu-24.04-arm", "macos-15"):
         assert runner in workflow, runner
+    assert "windows-2022" not in workflow
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    assert "[tool.cibuildwheel.macos]" in pyproject and "[tool.cibuildwheel.windows]" in pyproject
+    assert "[tool.cibuildwheel.macos]" in pyproject
+    assert "Operating System :: Microsoft :: Windows" not in pyproject
+    ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "os: [macos-15, windows-2022]" in ci
 
 
 def test_the_backends_say_what_this_build_has():

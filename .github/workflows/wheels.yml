@@ -4,7 +4,7 @@
 name: Wheels
 
 # pyedge's wheels and nothing else: no sdist, so that where no wheel fits pip says so at once, instead of building one beside a pyrove wheel of
-# another compiler, a pair that installs and cannot work.  Linux (manylinux_2_28, x86_64 and aarch64), macOS on Apple silicon and 64-bit Windows,
+# another compiler, a pair that installs and cannot work.  Linux (manylinux_2_28, x86_64 and aarch64) and macOS on Apple silicon,
 # each on its own runner (pyproject.toml has the
 # cibuildwheel settings).  rove's C++ sources are checked out inside the project, where the build container sees them
 # (EDGE_ROVE_SOURCE_DIR); pyrove itself comes from PyPI when the wheel is installed.
@@ -30,7 +30,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2022]
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -38,30 +38,10 @@ jobs:
           repository: mnvl/rove
           ref: ${{ inputs.rove_ref || vars.ROVE_REF || 'v3.0.1' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: test/check_rove_pin.sh holds the two together
           path: _rove
-      # What a build outside a container needs: the Vulkan SDK on Windows, and rove's sources by a path CMake can read
-      - name: Vulkan SDK (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          version=1.4.363.1
-          curl -sSfL -o sdk.exe "https://sdk.lunarg.com/sdk/download/$version/windows/vulkansdk-windows-X64-$version.exe"
-          ./sdk.exe --root 'C:\VulkanSDK' --accept-licenses --default-answer --confirm-command install
-          echo "VULKAN_SDK=C:\VulkanSDK" >> "$GITHUB_ENV"
-          echo 'C:\VulkanSDK\Bin' >> "$GITHUB_PATH"
-      - name: Lavapipe (Windows)
-        # (the runner has no GPU: without a Vulkan driver the smoke test could only use the null backend, which proves nothing about drawing)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          curl -sSfL -o mesa.7z https://github.com/pal1000/mesa-dist-win/releases/download/26.2.6/mesa3d-26.2.6-release-msvc.7z
-          echo "b2e00615feaba45942343c265cc8c5f576142ca682c1ac6661922d4b72492877  mesa.7z" | sha256sum -c -
-          7z x -omesa mesa.7z x64/lvp_icd.x86_64.json x64/vulkan_lvp.dll > /dev/null
-          # (in the registry: the runner is elevated, and there the loader ignores VK_DRIVER_FILES)
-          MSYS_NO_PATHCONV=1 reg add 'HKLM\SOFTWARE\Khronos\Vulkan\Drivers' /v "$(cygpath -w "$PWD/mesa/x64/lvp_icd.x86_64.json")" /t REG_DWORD /d 0 /f
-      - name: rove's sources (macOS, Windows)
-        if: runner.os != 'Linux'
-        shell: bash
-        run: echo "CMAKE_ARGS=-DEDGE_ROVE_SOURCE_DIR=$(python3 -c 'import os; print(os.getcwd().replace(chr(92), "/"))')/_rove" >> "$GITHUB_ENV"
+      # What a build outside a container needs: rove's sources by a path CMake can read
+      - name: rove's sources (macOS)
+        if: runner.os == 'macOS'
+        run: echo "CMAKE_ARGS=-DEDGE_ROVE_SOURCE_DIR=$PWD/_rove" >> "$GITHUB_ENV"
       - uses: pypa/cibuildwheel@f9b966cfadf4109556cadc5bb39ddb72d0ce664e # v4.3.5
         env:
           CIBW_ENVIRONMENT_LINUX: CMAKE_ARGS="-DEDGE_ROVE_SOURCE_DIR=/project/_rove"
@@ -69,7 +49,6 @@ jobs:
           # on PyPI)
           CIBW_BEFORE_TEST_LINUX: pip install /project/_rove
           CIBW_BEFORE_TEST_MACOS: pip install {project}/_rove
-          CIBW_BEFORE_TEST_WINDOWS: pip install {project}/_rove
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: wheels-${{ matrix.os }}

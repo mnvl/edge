@@ -123,6 +123,6 @@ module `_pyedge` into the `pyedge` package, with edge's shaders beside it (`pyed
 and both are built with nanobind 2.4.0 (pinned exactly) so that the two modules share rove's types, which also takes the same C++ ABI
 (GCC 14's `pyrove` wheel and a GCC 15 `pyedge` do not share them: [install.md](install.md#python-pip)).  rove's C++ sources are
 `EDGE_ROVE_SOURCE_DIR` when given (`CMAKE_ARGS=-DEDGE_ROVE_SOURCE_DIR=...`), else `../rove`, else the tag `EDGE_ROVE_GIT_TAG` fetched.
-The wheel has Vulkan on Linux and Windows and Metal on macOS (the Vulkan headers, loader and `glslangValidator` are needed to build the first, `glslangValidator` and Xcode the second) and links the system's `libvulkan.so.1`, which
+The wheel has Vulkan on Linux and Metal on macOS (the Vulkan headers, loader and `glslangValidator` are needed to build the first, `glslangValidator` and Xcode the second) and links the system's `libvulkan.so.1`, which
 it does not carry.  `[tool.cibuildwheel]` and `.github/workflows/wheels.yml` build the Linux wheels (manylinux_2_28, x86_64 and
 aarch64); `test/wheel_smoke.py <model.glb>` checks an installed one from outside the tree.

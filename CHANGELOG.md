@@ -25,7 +25,7 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- pyedge wheels for macOS on Apple silicon and 64-bit Windows, and a Metal backend in pyedge, which `backend="auto"` takes on a Mac.
+- pyedge wheels for macOS on Apple silicon, and a Metal backend in pyedge, which `backend="auto"` takes on a Mac.
 - `sdl_vulkan_device_for_window`: the device that can present to a window, on a machine with several.
 
 ### Changed
