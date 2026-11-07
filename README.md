@@ -57,7 +57,7 @@ pip (`pip install pyedge`, Linux wheels), Git submodules beside rove, Conan, vcp
 ```cmake
 add_subdirectory(rove)
 add_subdirectory(edge)                            # or find_package(edge CONFIG REQUIRED)
-target_link_libraries(my_app PRIVATE edge::edge)  # brings rove, cereal and Vulkan
+target_link_libraries(my_app PRIVATE edge::edge)  # brings rove and Vulkan
 
 edge_add_shaders(my_shaders DESTINATION ${CMAKE_BINARY_DIR}/shaders SOURCES src/sea.vert src/sea.frag)
 edge_bundle_runtime(my_runtime DESTINATION ${CMAKE_BINARY_DIR})     # edge's shaders beside the binary

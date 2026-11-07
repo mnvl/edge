@@ -71,7 +71,8 @@ pixels = rt.color_texture.download()  # bytes, BGRX format
 
 ## .edge File Format
 
-Binary format using cereal serialization (`src/serialized_model.h`). Versions
+Binary format using cereal serialization (the structures of `src/serialized_model.h`, laid out by `src/serialized_model_archive.h`,
+which is edge's own: a program reads and writes a file with `Model::read_file()` and `Model::write_file()`). Versions
 `MODEL_BINARY_OLDEST_VERSION` (10, whose materials have no occlusion) to `MODEL_BINARY_VERSION` (11, which is written): a file of another
 version is refused with a message to convert it again from its glTF. So is a damaged
 one: a length the rest of the file has no room for is refused before anything that long is allocated. Stores everything a model is

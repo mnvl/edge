@@ -15,6 +15,8 @@ versions follow [Semantic Versioning](https://semver.org/).
   iOS 16.3 (configure stops on an older `CMAKE_OSX_DEPLOYMENT_TARGET`).
 - `edge::imgui` (`edge_imgui`) is a header, `imgui_renderer.h`, compiled against the program's ImGui (1.92 or newer), as ImGui's own
   backends are: the renderer can no longer be built against one ImGui and run with another.
+- cereal is inside edge: `serialized_model.h` holds the structures of a `.edge` file and no longer includes cereal, and `edge::edge`
+  neither links nor installs it. `Model::read_file()` and `Model::write_file()` read and write a file's structures.
 
 ### Removed
 
@@ -22,6 +24,7 @@ versions follow [Semantic Versioning](https://semver.org/).
   one gives a sink that writes it.
 - `libedge_imgui.a`, and from an install of edge built by itself, the ImGui it fetched: `libedge_imgui_core.a`, `edge::imgui_core` and
   ImGui's headers under `include/edge/imgui`. A program links its own ImGui.
+- `edge::BoundedInputArchive`, and the structures' `serialize`, `save` and `load` members: read a file with `Model::read_file()`.
 
 ### Fixed
 
