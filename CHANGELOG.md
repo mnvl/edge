@@ -17,6 +17,11 @@ versions follow [Semantic Versioning](https://semver.org/).
   backends are: the renderer can no longer be built against one ImGui and run with another.
 - cereal is inside edge: `serialized_model.h` holds the structures of a `.edge` file and no longer includes cereal, and `edge::edge`
   neither links nor installs it. `Model::read_file()` and `Model::write_file()` read and write a file's structures.
+- An install has the public headers alone: `vulkan_renderer.h` and `gles_renderer.h` name the classes their renderers are built of
+  without including them, so the 11 `vulkan_*.h` of the Vulkan renderer's internals (its device context, descriptor cache,
+  uploader, presenter, ...) and `gles_gpu_timer.h` are no longer installed or included by a program that includes the renderer.
+  A program that used one through `vulkan_renderer.h` includes it itself from edge's sources; `VulkanGpuTimer::HISTORY` is
+  `GpuTimer::HISTORY`.
 
 ### Removed
 

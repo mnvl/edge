@@ -4,25 +4,27 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
-#include <map>
+#include <cstdint>
 #include <optional>
-#include <utility>
 #include <vector>
 #include <memory>
 #include <string>
 #include "renderer.h"
-#include "vulkan_device_context.h"
-#include "vulkan_descriptor_cache.h"
-#include "vulkan_dynamic_uniform_buffer.h"
-#include "vulkan_frame_ring.h"
-#include "vulkan_gpu_timer.h"
-#include "vulkan_presenter.h"
-#include "vulkan_render_pass_cache.h"
-#include "vulkan_uploader.h"
-#include "vulkan_pipeline_builder.h"
 
 namespace edge
 {
+
+// The renderer's own parts, edge's business: their headers are not installed, and nothing here needs more than their names.
+class VulkanDeviceContext;
+using VulkanDeviceContextPtr = std::shared_ptr<VulkanDeviceContext>;
+class VulkanDescriptorCache;
+class VulkanDynamicUniformBuffer;
+class VulkanFrameRing;
+class VulkanGpuTimer;
+class VulkanPipelineBuilder;
+class VulkanPresenter;
+class VulkanRenderPassCache;
+class VulkanUploader;
 
 // Always-offscreen Vulkan renderer. No window or display surface is created,
 // enabling multiple independent Renderer instances per process: each has its own device, made from the process's one Vulkan
@@ -110,7 +112,7 @@ public:
 	void wait_submitted();
 	uint64_t frame_serial() const override { return frame_serial_; }
 	/// Milliseconds the host has spent waiting for frames the GPU had not drawn yet, since the renderer was made.
-	double gpu_wait_ms() const { return frames_->gpu_wait_ms(); }
+	double gpu_wait_ms() const;
 
 	VertexBufferPtr create_vertex_buffer(VertexTraits const *vertex_traits, size_t size,
 		BufferUsage usage = BufferUsage::STATIC) override;
@@ -131,7 +133,7 @@ public:
 	VulkanDeviceContextPtr const &device_context() const { return device_context_; }
 	uint32_t graphics_queue_family() const { return graphics_queue_family_; }
 	VkCommandBuffer active_command_buffer() const { return active_command_buffer_; }
-	VkPipelineLayout pipeline_layout() const { return descriptors_->pipeline_layout(); }
+	VkPipelineLayout pipeline_layout() const;
 	/// See VulkanRenderPassCache.
 	VkRenderPass offscreen_render_pass(VkFormat color_format, bool keep_depth = false);
 	VkRenderPass offscreen_render_pass(std::vector<VkFormat> const &color_formats, bool keep_depth);
@@ -158,7 +160,7 @@ public:
 	void destroy_buffer(VkBuffer buffer, VkDeviceMemory memory);
 	/// The bytes of staging space the uploads hold: what a frame uses, kept from one frame to the next, and what was
 	/// written since the last frame ended (see VulkanUploader::end_frame()).
-	VkDeviceSize staging_arena_size() const { return uploader_->size(); }
+	VkDeviceSize staging_arena_size() const;
 	VkCommandBuffer begin_single_time_commands() const;
 	/// Submits and waits for the queue: every frame submitted is drawn after it.
 	void end_single_time_commands(VkCommandBuffer command_buffer);
@@ -214,7 +216,7 @@ protected:
 	void do_stream_textures(std::vector<TexturePtr> const &textures) override;
 	/// A VulkanGpuTimer: a frame's durations are read back when the renderer waits for the frame (finish_frame(), wait_frames(), or
 	/// the begin_frame() that takes its share back).
-	GpuTimer &gpu_timer() const override { return *gpu_timer_; }
+	GpuTimer &gpu_timer() const override;
 
 private:
 	int screen_width_, screen_height_;
@@ -234,18 +236,19 @@ private:
 	bool surface_instance_extension_ = false;  // VK_KHR_surface on the instance: a swapchain can be had
 	std::unique_ptr<VulkanPresenter> presenter_;
 
-	VulkanPipelineBuilder pipeline_builder_;
+	// (made by the constructor, never null)
+	std::unique_ptr<VulkanPipelineBuilder> pipeline_builder_;
 
 	TexturePtr default_texture_;
-	VulkanDynamicUniformBuffer frame_constants_ubo_;
+	std::unique_ptr<VulkanDynamicUniformBuffer> frame_constants_ubo_;
 	TexturePtr global_textures_[GLOBAL_TEXTURES_COUNT];
 	bool global_compare_[GLOBAL_TEXTURES_COUNT] = {};      // global_shadow_texture: sampled with a comparison
 	bool anisotropy_enabled_ = false;
-	VulkanDynamicUniformBuffer joint_matrices_ubo_;
-	VulkanDynamicUniformBuffer instances_ubo_;
-	VulkanDynamicUniformBuffer material_parameters_ubo_;
+	std::unique_ptr<VulkanDynamicUniformBuffer> joint_matrices_ubo_;
+	std::unique_ptr<VulkanDynamicUniformBuffer> instances_ubo_;
+	std::unique_ptr<VulkanDynamicUniformBuffer> material_parameters_ubo_;
 	uint32_t material_zero_offset_ = 0;          // this frame's block of zeros, a material without parameters reads
-	VulkanDynamicUniformBuffer draw_constants_ubo_;
+	std::unique_ptr<VulkanDynamicUniformBuffer> draw_constants_ubo_;
 	std::unique_ptr<VulkanDescriptorCache> descriptors_;
 
 	std::unique_ptr<VulkanUploader> uploader_;
