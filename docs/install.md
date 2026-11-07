@@ -29,7 +29,7 @@ when edge is built, so the build needs network access. [THIRD_PARTY.md](../THIRD
 
 ```bash
 pip install pyedge                                    # a released version, from PyPI
-pip install ./rove ./edge                             # local checkouts, side by side; builds from source
+pip install ./rove ./edge                             # local checkouts, side by side; builds both from source
 ```
 
 PyPI has wheels for Linux (x86_64 and aarch64, glibc 2.28 or newer), macOS on Apple silicon (13 or newer) and 64-bit Windows. Each holds
@@ -44,13 +44,9 @@ distribution. To build one from source, with the Vulkan headers and loader, `gls
 pip install --no-binary pyrove "git+https://github.com/mnvl/edge@v3.0.1"
 ```
 
-Build `pyrove` and `pyedge` the same way. They share rove's types through nanobind, and only between modules built with the same
-C++ ABI: a `pyedge` built from source beside a `pyrove` wheel can install and import, then raise `TypeError` when a `pyrove` type
-reaches it. Where pip would build `pyedge` from source, build both:
-
-```bash
-pip install --no-binary pyrove,pyedge pyedge
-```
+`pyrove` and `pyedge` share rove's types through nanobind, and only between modules built with the same C++ ABI. That is why pyedge requires
+exactly the pyrove it was released with, and why the command above builds both: a `pyedge` built from source beside a `pyrove` wheel can install,
+then fails on first use with an `ImportError` that says this.
 
 ```python
 import pyedge
