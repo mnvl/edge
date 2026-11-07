@@ -20,6 +20,7 @@ versions follow [Semantic Versioning](https://semver.org/).
 - As a subdirectory, edge no longer builds its tests. Relative directories to `edge_convert_models` are those of the calling list file.
 - pyedge: an import against a pyrove of another compiler is an `ImportError` that says what to do. `hasattr(pyedge, name)` answers when the
   binding cannot load. The wheel's bundled libraries are not exported, and it carries their licence notices and `edge.glsl`.
+  `help(pyedge)` lists every function and overload.
   `EDGE_PYTHON_BINDINGS_DIR` that names no module no longer costs an installed package its own: it warns and uses that.
 
 ### Added

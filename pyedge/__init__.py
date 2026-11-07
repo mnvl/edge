@@ -177,6 +177,33 @@ def __dir__() -> list[str]:
     return sorted(name for name in dir(_loaded_binding()) if not name.startswith("_"))
 
 
+_DESCRIPTION = __doc__ or ""
+
+
+def _description_and_signatures() -> str:
+    """The description, and every function with its overloads: help() lists a nanobind function under no heading of its own.  Without a
+    binding that can load, the description alone: help() is no place to fail."""
+    try:
+        binding = _loaded_binding()
+    except ImportError:
+        return _DESCRIPTION
+    lines = []
+    for name in sorted(n for n in dir(binding) if not n.startswith("_")):
+        for signature, _, defaults in getattr(getattr(binding, name), "__nb_signature__", ()):
+            # (nanobind writes a default as \\N, or \\=N where a string stands for it, for the Nth of `defaults`)
+            text = re.sub(r"\\=?(\d+)", lambda m: repr(defaults[int(m.group(1))]), signature)
+            lines.append("    " + re.sub(r"\b(?:pyedge\.)?_pyedge\.|\b(?:pyrove\.)?pyrove_bind\.", "", text).removeprefix("def "))
+    return _DESCRIPTION + "\nFunctions:\n\n" + "\n".join(lines) + "\n"
+
+
+class _Package(ModuleType):
+    # (made when asked: reading it loads the binding, which an import does not)
+    __doc__ = property(lambda self: _description_and_signatures())
+
+
+sys.modules[__name__].__class__ = _Package
+
+
 def _check_edge_log() -> None:
     # (an empty EDGE_LOG is a mistake whether or not the binding is ever loaded: said at the import)
     path = os.environ.get("EDGE_LOG")

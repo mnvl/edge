@@ -212,3 +212,38 @@ def test_every_place_that_says_the_version_says_the_same():
     in_port = json.loads((ROOT / "ports" / "edge" / "vcpkg.json").read_text(encoding="utf-8"))["version"]
     in_changelog = re.search(r"^## \[([0-9.]+)\]", (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), flags=re.M).group(1)
     assert {in_pyproject, in_port, in_changelog, pyedge.__version__} == {in_cmake}
+
+
+# --- help() -----------------------------------------------------------------------------------------------------------------------
+
+def test_help_of_the_package_lists_every_function_and_overload():
+    import pydoc
+    text = pydoc.render_doc(pyedge, renderer=pydoc.plaintext)
+    # (in the description, under its heading: pydoc's DATA section prints a function's repr, which is no signature to read)
+    assert "Functions:" in pyedge.__doc__
+    assert "    create_renderer(width: int = 800, height: int = 600, backend: str = 'auto'" in pyedge.__doc__
+    assert "Functions:" in text
+    for name in dir(pyedge):
+        if hasattr(getattr(pyedge, name), "__nb_signature__"):
+            assert f"    {name}(" in pyedge.__doc__, name
+    assert "_pyedge." not in pyedge.__doc__
+    assert "pyrove_bind." not in pyedge.__doc__
+    assert "\\" not in pyedge.__doc__
+    assert pyedge.__doc__.startswith("edge's Python bindings")
+
+
+def test_importing_and_reading_the_description_need_no_binding(tmp_path):
+    # (only help() and the like read __doc__, and where the binding cannot load they still get the description)
+    package = tmp_path / "pyedge"
+    package.mkdir()
+    shutil.copy(Path(pyedge.__file__), package / "__init__.py")
+    (tmp_path / "empty").mkdir()
+    code = (
+        "import sys, pyedge\n"
+        "assert '_pyedge' not in sys.modules\n"
+        "print(pyedge.__doc__.split(':')[0])\n"
+    )
+    env = {**os.environ, "PYTHONPATH": str(tmp_path), "EDGE_PYTHON_BINDINGS_DIR": str(tmp_path / "empty")}
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, cwd=tmp_path)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.startswith("edge's Python bindings")
