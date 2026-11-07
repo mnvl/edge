@@ -4,8 +4,9 @@
 """What `cmake --install` puts in a prefix: edge's own files and what its public headers need, nothing a program built against
 edge would have to get from elsewhere without being told.  The build ctest runs in is installed into a temporary prefix once.
 
-ctest passes the build through the environment: EDGE_BUILD_DIR, EDGE_BUILD_CONFIG, CMAKE_COMMAND, and the compiler the build uses
-(EDGE_CXX, EDGE_CXX_ID).
+ctest passes the build through the environment: EDGE_BUILD_DIR, EDGE_BUILD_CONFIG, CMAKE_COMMAND, the compiler the build uses
+(EDGE_CXX, EDGE_CXX_ID), and the ImGui edge's own tests are built with (EDGE_TEST_IMGUI_DIR), which stands for a consumer's: the
+ImGui tests run where the build has edge_imgui (EDGE_IMGUI).
 """
 
 import os
@@ -84,6 +85,48 @@ int main()
 	edge::set_log_sink(nullptr);
 }
 """
+
+
+IMGUI_HEADERS = ("imgui.h", "imconfig.h", "imgui_internal.h", "imstb_rectpack.h", "imstb_textedit.h", "imstb_truetype.h")
+
+
+def test_nothing_of_imgui_is_installed(prefix):
+    # (ImGui is the program's: edge's renderer of it is a header, compiled against the program's ImGui)
+    assert (prefix / "include" / "edge" / "imgui_renderer.h").is_file()
+    found = [str(path.relative_to(prefix)) for path in prefix.rglob("*")
+             if path.name in IMGUI_HEADERS or (path.is_file() and "imgui" in path.name and path.parent.name.startswith("lib"))
+             or path == prefix / "include" / "edge" / "imgui"]
+    assert found == []
+
+
+def test_the_package_exports_no_imgui_library(prefix):
+    targets = "".join(file.read_text(encoding="utf-8") for file in (prefix / "lib").glob("**/cmake/edge/edgeTargets*.cmake"))
+    assert targets
+    assert "imgui_core" not in targets
+    assert "add_library(edge::imgui INTERFACE IMPORTED)" in targets, targets
+
+
+IMGUI_CONSUMER = """\
+#include <imgui.h>
+#include <edge/imgui_renderer.h>
+
+#include <memory>
+
+std::unique_ptr<edge::ImGuiRenderer> make(edge::RendererPtr const &renderer)
+{
+	ImGui::CreateContext();
+	return std::make_unique<edge::ImGuiRenderer>(renderer);
+}
+"""
+
+
+def test_the_imgui_renderer_compiles_from_the_prefix_against_the_programs_imgui(prefix, tmp_path):
+    imgui = Path(os.environ["EDGE_TEST_IMGUI_DIR"])
+    assert (imgui / "imgui.h").is_file(), imgui
+    source = tmp_path / "imgui_consumer.cc"
+    source.write_text(IMGUI_CONSUMER)
+    result = _compile(source, prefix / "include", ("/I" if CXX_ID == "MSVC" else "-I") + str(imgui))
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_the_log_header_compiles_with_the_prefix_alone(prefix, tmp_path):

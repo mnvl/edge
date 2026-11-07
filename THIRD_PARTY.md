@@ -18,7 +18,7 @@ Dear ImGui, SDL3, SPIRV-Cross or Boost.Test.
 | [astc-encoder](https://github.com/ARM-software/astc-encoder) | ASTC texture compression | 5.3.0 | Apache-2.0 |
 | [xatlas](https://github.com/jpcy/xatlas) | Texture atlas packing | f700c77 | MIT |
 | [SPIRV-Cross](https://github.com/KhronosGroup/SPIRV-Cross) | Shader translation for GLES and Metal (build-time tool) | vulkan-sdk-1.4.350.1 | Apache-2.0 |
-| [Dear ImGui](https://github.com/ocornut/imgui) | `edge_imgui` (when edge is built by itself) | f1cc2ae | MIT |
+| [Dear ImGui](https://github.com/ocornut/imgui) | the tests of `edge_imgui` (when edge is built by itself); not installed, a program uses its own | f1cc2ae | MIT |
 | [nanobind](https://github.com/wjakob/nanobind) | Python bindings | v2.4.0 | BSD-3-Clause |
 | [SDL3](https://github.com/libsdl-org/SDL) | `edge_sdl` (system package) | — | Zlib |
 | [Vulkan headers and loader](https://github.com/KhronosGroup/Vulkan-Loader) | Vulkan backend (system package) | — | Apache-2.0 |

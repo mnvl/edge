@@ -13,11 +13,15 @@ versions follow [Semantic Versioning](https://semver.org/).
   `std::format` arguments.
 - The oldest compilers and systems are those with `std::format`: GCC 13, Clang 17, Apple Clang 15, MSVC 19.3x; macOS 13.3 and
   iOS 16.3 (configure stops on an older `CMAKE_OSX_DEPLOYMENT_TARGET`).
+- `edge::imgui` (`edge_imgui`) is a header, `imgui_renderer.h`, compiled against the program's ImGui (1.92 or newer), as ImGui's own
+  backends are: the renderer can no longer be built against one ImGui and run with another.
 
 ### Removed
 
 - `edge::init_logging()`, `edge::log()`, `pyedge.init_logging()` and `$EDGE_LOG`: edge writes no log file. A program that wants
   one gives a sink that writes it.
+- `libedge_imgui.a`, and from an install of edge built by itself, the ImGui it fetched: `libedge_imgui_core.a`, `edge::imgui_core` and
+  ImGui's headers under `include/edge/imgui`. A program links its own ImGui.
 
 ### Fixed
 

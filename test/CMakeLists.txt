@@ -165,6 +165,10 @@ ENDIF()
 IF(EDGE_USE_VULKAN AND EDGE_IMGUI)
   LIST(APPEND EDGE_TEST_SOURCES test_imgui_renderer.cc)
 ENDIF()
+IF(EDGE_IMGUI)
+  # (a second file that compiles the header-only renderer: test_edge links only if its definitions are inline)
+  LIST(APPEND EDGE_TEST_SOURCES test_imgui_renderer_header.cc)
+ENDIF()
 
 # what tests the asset tools (edge_asset, and the encoders' decoders that check them): left out with them (EDGE_ASSET_TOOLS=OFF), and
 # the cases of other suites that convert a model with EDGE_TEST_ASSET_TOOLS
@@ -256,11 +260,21 @@ IF(EDGE_PYTHON)
   ENDIF()
   # what `cmake --install` of this build puts in a prefix (test_install.py): edge's own, and nothing a consumer must find elsewhere
   IF(EDGE_INSTALL)
+    # (the ImGui tests are about edge_imgui: a build without it deselects them)
+    IF(TARGET edge_imgui)
+      GET_TARGET_PROPERTY(EDGE_TEST_IMGUI_DIR imgui INTERFACE_INCLUDE_DIRECTORIES)
+      LIST(GET EDGE_TEST_IMGUI_DIR 0 EDGE_TEST_IMGUI_DIR)
+      STRING(REGEX REPLACE "^\\$<BUILD_INTERFACE:(.*)>$" "\\1" EDGE_TEST_IMGUI_DIR "${EDGE_TEST_IMGUI_DIR}")
+      SET(EDGE_INSTALL_TEST_SELECTION)
+    ELSE()
+      SET(EDGE_TEST_IMGUI_DIR "")
+      SET(EDGE_INSTALL_TEST_SELECTION -k "not imgui")
+    ENDIF()
     ADD_TEST(NAME install_py
-      COMMAND ${Python_EXECUTABLE} -m pytest -q -p no:cacheprovider test/test_install.py
+      COMMAND ${Python_EXECUTABLE} -m pytest -q -p no:cacheprovider test/test_install.py ${EDGE_INSTALL_TEST_SELECTION}
       WORKING_DIRECTORY ${EDGE_ROOT})
     SET_TESTS_PROPERTIES(install_py PROPERTIES ENVIRONMENT
-      "EDGE_BUILD_DIR=${CMAKE_BINARY_DIR};EDGE_BUILD_CONFIG=$<CONFIG>;CMAKE_COMMAND=${CMAKE_COMMAND};EDGE_CXX=${CMAKE_CXX_COMPILER};EDGE_CXX_ID=${CMAKE_CXX_COMPILER_ID};PYTHONDONTWRITEBYTECODE=1")
+      "EDGE_BUILD_DIR=${CMAKE_BINARY_DIR};EDGE_BUILD_CONFIG=$<CONFIG>;CMAKE_COMMAND=${CMAKE_COMMAND};EDGE_CXX=${CMAKE_CXX_COMPILER};EDGE_CXX_ID=${CMAKE_CXX_COMPILER_ID};EDGE_TEST_IMGUI_DIR=${EDGE_TEST_IMGUI_DIR};PYTHONDONTWRITEBYTECODE=1")
   ENDIF()
   # the CMake helpers a game builds with (EdgeModels.cmake, EdgeRuntime.cmake), each conversion test a project of its own built with Ninja
   IF(CMAKE_GENERATOR MATCHES "Ninja")
