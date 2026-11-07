@@ -202,3 +202,13 @@ def test_the_pin_check_refuses_a_pin_that_is_not_the_tag(tmp_path, pin):
 def test_the_pin_check_passes_on_the_repository():
     result = subprocess.run(["sh", str(ROOT / "test" / "check_rove_pin.sh"), str(ROOT)], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
+
+
+def test_every_place_that_says_the_version_says_the_same():
+    import json
+    import re
+    in_cmake = re.search(r"PROJECT\(EDGE VERSION ([0-9.]+)", (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")).group(1)
+    in_pyproject = re.search(r'^version = "(.*)"$', (ROOT / "pyproject.toml").read_text(encoding="utf-8"), flags=re.M).group(1)
+    in_port = json.loads((ROOT / "ports" / "edge" / "vcpkg.json").read_text(encoding="utf-8"))["version"]
+    in_changelog = re.search(r"^## \[([0-9.]+)\]", (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), flags=re.M).group(1)
+    assert {in_pyproject, in_port, in_changelog, pyedge.__version__} == {in_cmake}

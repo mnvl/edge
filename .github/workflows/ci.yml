@@ -41,7 +41,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: mnvl/rove
-          ref: ${{ vars.ROVE_REF || 'v3.0.0' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: tests/check_rove_pin.sh holds the two together
+          ref: ${{ vars.ROVE_REF || 'v3.0.1' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: test/check_rove_pin.sh holds the two together
           path: rove
       - name: CI's rove is the one edge pins
         run: edge/test/check_rove_pin.sh edge
@@ -67,7 +67,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: mnvl/rove
-          ref: ${{ vars.ROVE_REF || 'v3.0.0' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: tests/check_rove_pin.sh holds the two together
+          ref: ${{ vars.ROVE_REF || 'v3.0.1' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: test/check_rove_pin.sh holds the two together
           path: rove
       - name: Packages
         run: brew install ninja boost sdl3 glslang
@@ -93,7 +93,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: mnvl/rove
-          ref: ${{ vars.ROVE_REF || 'v3.0.0' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: tests/check_rove_pin.sh holds the two together
+          ref: ${{ vars.ROVE_REF || 'v3.0.1' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: test/check_rove_pin.sh holds the two together
           path: rove
       - name: Packages
         if: matrix.way == 'submodules' || matrix.way == 'pip'

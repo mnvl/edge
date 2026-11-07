@@ -11,7 +11,7 @@ IF(APPLE AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND NOT CMAKE_SY
     SET(CMAKE_OSX_DEPLOYMENT_TARGET 13.0 CACHE STRING "the oldest macOS edge runs on" FORCE)
   ENDIF()
 ENDIF()
-PROJECT(EDGE VERSION 3.0.0)
+PROJECT(EDGE VERSION 3.0.1)
 
 # (for edge and what it fetches; a parent's targets choose their own)
 SET(CMAKE_CXX_STANDARD 20)
@@ -271,7 +271,7 @@ ENDIF()
 # beside edge (../rove), else an installed rove, else rove fetched from GitHub at EDGE_ROVE_GIT_TAG.  From its sources, edge adds it with
 # its own choice of rove's options (and pyedge's build makes rove's Python module too).
 set(EDGE_ROVE_SOURCE_DIR "" CACHE PATH "Path to rove source tree used by edge.")
-set(EDGE_ROVE_GIT_TAG "v3.0.0" CACHE STRING "The rove version fetched when no rove source tree is found.")
+set(EDGE_ROVE_GIT_TAG "v3.0.1" CACHE STRING "The rove version fetched when no rove source tree is found.")
 if(TARGET rove)
   get_target_property(EDGE_ROVE_SOURCE_DIR rove SOURCE_DIR)
 elseif(TARGET rove::rove)

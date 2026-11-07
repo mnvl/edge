@@ -81,8 +81,8 @@ The recipe is `conanfile.py` in this repository; it takes rove from rove's recip
 rove and edge are in ConanCenter, create both packages from checkouts:
 
 ```bash
-git clone --branch v3.0.0 https://github.com/mnvl/rove
-git clone --branch v3.0.0 https://github.com/mnvl/edge
+git clone --branch v3.0.1 https://github.com/mnvl/rove
+git clone --branch v3.0.1 https://github.com/mnvl/edge
 conan create rove -s compiler.cppstd=20
 conan create edge -s compiler.cppstd=20 --build=missing
 ```
@@ -94,7 +94,7 @@ in your project's `conanfile.txt`:
 
 ```ini
 [requires]
-edge/3.0.0
+edge/3.0.1
 
 [tool_requires]
 glslang/1.4.313.0

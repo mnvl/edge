@@ -1,6 +1,6 @@
 {
   "name": "edge",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "A small C++/Python renderer for games and tools: Vulkan, OpenGL ES and Metal backends, glTF and its own model format",
   "homepage": "https://github.com/mnvl/edge",
   "license": "MIT",

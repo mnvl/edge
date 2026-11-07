@@ -119,7 +119,7 @@ The package finds what the public headers and the link interface need: `rove 3`,
 
 `pyproject.toml` builds pyedge with scikit-build-core: `pip install .` (or `python -m build --wheel`) builds edge and the native
 module `_pyedge` into the `pyedge` package, with edge's shaders beside it (`pyedge/shaders/edge`, `pyedge/view_shaders`, where
-`src/shader_dirs.h` finds them).  It depends on exactly the pyrove edge builds against (`pyrove==3.0.0`, released in lockstep, pyrove first) and does not build rove's Python module: pyedge imports pip's pyrove,
+`src/shader_dirs.h` finds them).  It depends on exactly the pyrove edge builds against (`pyrove==3.0.1`, released in lockstep, pyrove first) and does not build rove's Python module: pyedge imports pip's pyrove,
 and both are built with nanobind 2.4.0 (pinned exactly) so that the two modules share rove's types, which also takes the same C++ ABI
 (GCC 14's `pyrove` wheel and a GCC 15 `pyedge` do not share them: [install.md](install.md#python-pip)).  rove's C++ sources are
 `EDGE_ROVE_SOURCE_DIR` when given (`CMAKE_ARGS=-DEDGE_ROVE_SOURCE_DIR=...`), else `../rove`, else the tag `EDGE_ROVE_GIT_TAG` fetched.

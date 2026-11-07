@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: mnvl/rove
-          ref: ${{ vars.ROVE_REF || 'v3.0.0' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: tests/check_rove_pin.sh holds the two together
+          ref: ${{ vars.ROVE_REF || 'v3.0.1' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: test/check_rove_pin.sh holds the two together
           path: _rove
       - uses: pypa/cibuildwheel@f9b966cfadf4109556cadc5bb39ddb72d0ce664e # v4.3.5
         env:
