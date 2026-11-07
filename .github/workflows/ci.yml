@@ -113,6 +113,15 @@ jobs:
           ./sdk.exe --root 'C:\VulkanSDK' --accept-licenses --default-answer --confirm-command install
           echo "VULKAN_SDK=C:\VulkanSDK" >> "$GITHUB_ENV"
           echo 'C:\VulkanSDK\Bin' >> "$GITHUB_PATH"
+      - name: Lavapipe (Windows)
+        # (the runner has no GPU: without a Vulkan driver the smoke test could only use the null backend, which proves nothing about drawing)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          curl -sSfL -o mesa.7z https://github.com/pal1000/mesa-dist-win/releases/download/26.2.6/mesa3d-26.2.6-release-msvc.7z
+          echo "b2e00615feaba45942343c265cc8c5f576142ca682c1ac6661922d4b72492877  mesa.7z" | sha256sum -c -
+          7z x -omesa mesa.7z x64/lvp_icd.x86_64.json x64/vulkan_lvp.dll > /dev/null
+          echo "VK_DRIVER_FILES=$(pwd -W)/mesa/x64/lvp_icd.x86_64.json" >> "$GITHUB_ENV"
       - name: Install
         shell: bash
         run: |
@@ -122,7 +131,7 @@ jobs:
         shell: bash
         run: |
           mkdir smoke && cd smoke
-          ../venv/*/python ../edge/test/wheel_smoke.py ../edge/test/data/test_figure.glb
+          ../venv/*/python ../edge/test/wheel_smoke.py ../edge/test/data/test_figure.glb ${{ runner.os == 'Windows' && 'vulkan' || 'metal' }}
 
   consumers:
     if: github.event_name != 'pull_request' || !github.event.repository.private

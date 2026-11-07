@@ -25,6 +25,7 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- pyedge wheels for macOS on Apple silicon and 64-bit Windows, and a Metal backend in pyedge, which `backend="auto"` takes on a Mac.
 - `sdl_vulkan_device_for_window`: the device that can present to a window, on a machine with several.
 
 ### Changed
@@ -34,6 +35,7 @@ versions follow [Semantic Versioning](https://semver.org/).
 - pyedge's null backend raises `ValueError` for `frames_in_flight`, `joint_matrices` and `device_uuid`; it was `RuntimeError`.
 - ImGui's headers install under `include/edge/imgui`, on `edge::imgui_core`'s include path.
 - Dependencies are fetched by commit; Conan pins spdlog 1.15.3 and meshoptimizer 0.22.
+- pyedge has no source distribution on PyPI: where no wheel fits, pip says so at once. `docs/install.md` has the build from source.
 - pyedge requires exactly the pyrove edge builds against, not a range: the two are released in lockstep, pyrove first. Publishing pyedge fails
   if that pyrove is not on PyPI yet.
 

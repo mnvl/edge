@@ -12,7 +12,7 @@ built, `edge::asset`, `edge::imgui`, `edge::sdl`) and the helpers `edge_add_shad
 
 Requirements for C++: CMake 3.20 or newer, a C++20 compiler (GCC 12, Clang 15, Apple Clang 15 or newer), and for the Vulkan backend
 the Vulkan headers and loader and `glslangValidator` (Debian and Ubuntu: `libvulkan-dev glslang-tools`; Conan and vcpkg provide
-them). Linux is the platform edge is built and tested on; macOS (Metal) builds; Windows is not supported yet.
+them). Linux is the platform edge is built and tested on; macOS (Metal) builds; Windows builds pyedge, and is not otherwise supported yet.
 
 | Way | rove comes from | edge's dependencies come from |
 |-----|-----------------|-------------------------------|
@@ -32,11 +32,17 @@ pip install pyedge                                    # a released version, from
 pip install ./rove ./edge                             # local checkouts, side by side; builds from source
 ```
 
-PyPI has wheels for Linux (x86_64 and aarch64, glibc 2.28 or newer). The wheel holds edge and its shaders; it uses the system's
-Vulkan loader (`libvulkan.so.1`) and a Vulkan driver (any GPU's, or Mesa's lavapipe without one), and pip installs `pyrove` with it.
-Elsewhere pip builds from source, which needs the Vulkan headers and loader, `glslangValidator`, CMake and a C++20 compiler.
+PyPI has wheels for Linux (x86_64 and aarch64, glibc 2.28 or newer), macOS on Apple silicon (13 or newer) and 64-bit Windows. Each holds
+edge and its shaders, and pip installs the matching `pyrove` with it. On Linux and Windows the wheel draws with Vulkan: it uses the system's
+loader (`libvulkan.so.1`, `vulkan-1.dll`, which a GPU's driver installs) and a Vulkan driver. On a Mac it draws with Metal. `import pyedge`
+succeeds without the loader, and the first use says it is missing.
 
-pyedge has the Vulkan and null backends; OpenGL ES and Metal are for C++. `import pyedge` succeeds without the loader, and the first use says it is missing.
+Nothing else is on PyPI: no source distribution either, so elsewhere (an Intel Mac, Windows on ARM, musl Linux) pip says there is no matching
+distribution. To build one from source, with the Vulkan headers and loader, `glslangValidator`, CMake and a C++20 compiler:
+
+```bash
+pip install --no-binary pyrove "git+https://github.com/mnvl/edge@v3.0.1"
+```
 
 Build `pyrove` and `pyedge` the same way. They share rove's types through nanobind, and only between modules built with the same
 C++ ABI: a `pyedge` built from source beside a `pyrove` wheel can install and import, then raise `TypeError` when a `pyrove` type

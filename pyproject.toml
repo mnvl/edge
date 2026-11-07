@@ -107,9 +107,13 @@ repair-wheel-command = "auditwheel repair --exclude libvulkan.so.1 -w {dest_dir}
 archs = ["arm64"]
 environment = { MACOSX_DEPLOYMENT_TARGET = "13.0" }
 before-all = ["brew install glslang"]
+# (by name: a wheel that cannot draw fails here, where the default would fall back on the null backend)
+test-command = "python {project}/test/wheel_smoke.py {project}/test/data/test_figure.glb metal"
 
 [tool.cibuildwheel.windows]
 archs = ["AMD64"]
 # (the workflow installs the Vulkan SDK first: the headers, the import library and glslangValidator.  Nothing to bundle: the runtime is
 # static, and vulkan-1.dll is the driver's.)
 repair-wheel-command = ""
+# (on the workflow's lavapipe, by name: a wheel that cannot draw fails here)
+test-command = "python {project}/test/wheel_smoke.py {project}/test/data/test_figure.glb vulkan"

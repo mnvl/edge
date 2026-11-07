@@ -64,9 +64,9 @@ edge_bundle_runtime(my_runtime DESTINATION ${CMAKE_BINARY_DIR})     # edge's sha
 edge_convert_models(my_models SOURCE_DIR ${CMAKE_SOURCE_DIR}/assets DESTINATION ${CMAKE_BINARY_DIR}/models)
 ```
 
-From Python, `pip install pyedge`. The Linux wheel needs the system's Vulkan loader, `libvulkan.so.1` (`apt install libvulkan1`), even for the
-null backend, and a Vulkan driver to draw (any GPU's, or Mesa's lavapipe). pyedge has the Vulkan and null backends; OpenGL ES and Metal are
-C++ only.
+From Python, `pip install pyedge`, with wheels for Linux, macOS on Apple silicon and 64-bit Windows. On Linux and Windows it needs the system's
+Vulkan loader (`libvulkan.so.1`, `apt install libvulkan1`; `vulkan-1.dll`, which a GPU's driver installs), even for the null backend, and a Vulkan
+driver to draw (any GPU's, or Mesa's lavapipe). On a Mac it draws with Metal. pyedge has the Vulkan, Metal and null backends; OpenGL ES is C++ only.
 
 ## Build and test
 
