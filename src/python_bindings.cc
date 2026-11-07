@@ -5,6 +5,8 @@
 
 #include <nanobind/nanobind.h>
 
+#include <rove/vec.h>
+
 namespace nb = nanobind;
 
 NB_MODULE(_pyedge, m)
@@ -23,6 +25,8 @@ NB_MODULE(_pyedge, m)
     bind_animation(m);
     bind_model(m);
     bind_renderer(m);
+    // (pyedge's import calls this: a TypeError here says the two modules do not share rove's types)
+    m.def("_takes_a_pyrove_vector", [](rove::vec<3> const &) {});
     bind_log(m);
     bind_lod(m);
 }

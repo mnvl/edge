@@ -69,9 +69,9 @@ A negated-height viewport reverses the apparent winding order of triangles in sc
 
 | `Material::cull_mode` | Meaning | CPU-side semantics | Vulkan `frontFace` (after Y-flip compensation) |
 |-----------------------|---------|-------------------|-----------------------------------------------|
-| `CULL_CCW` (default) | Cull back faces | Front faces wound CCW in world space | `VK_FRONT_FACE_CLOCKWISE` |
+| `CULL_CCW` | Cull back faces | Front faces wound CCW in world space | `VK_FRONT_FACE_CLOCKWISE` |
 | `CULL_CW` | Cull back faces (inside-out) | Front faces wound CW in world space | `VK_FRONT_FACE_COUNTER_CLOCKWISE` |
-| `CULL_NONE` | No culling | — | ignored |
+| `CULL_NONE` (default) | No culling | — | ignored |
 
 From the user's perspective the names describe the **world-space winding** of front faces; the viewport flip is handled transparently.
 

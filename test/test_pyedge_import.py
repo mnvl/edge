@@ -27,15 +27,17 @@ def no_binding(tmp_path):
     return {"EDGE_PYTHON_BINDINGS_DIR": str(empty)}
 
 
-def test_a_name_of_the_binding_where_none_was_built_is_the_import_error_saying_how_to_build_it(no_binding):
+def test_a_name_of_the_binding_where_none_was_built_says_how_to_build_it(no_binding):
+    # (an AttributeError, as a module's __getattr__ must raise for hasattr() to answer, from the ImportError)
     script = (
         "import pyedge\n"
         "for attempt in range(2):\n"          # (a failed load leaves nothing half made: the second says the same)
         "    try:\n"
         "        pyedge.Renderer\n"
-        "    except ImportError as e:\n"
+        "    except AttributeError as e:\n"
         "        assert \"Could not import required binding module '_pyedge'\" in str(e), str(e)\n"
         "        assert 'cmake --build build --target pyedge' in str(e), str(e)\n"
+        "        assert isinstance(e.__cause__, ImportError), repr(e.__cause__)\n"
         "    else:\n"
         "        raise SystemExit('pyedge.Renderer without a binding')\n"
         "print('refused twice')\n"

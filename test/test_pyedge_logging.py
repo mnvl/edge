@@ -5,6 +5,7 @@
 binding (the first name of it a program uses) points it at $EDGE_LOG; without
 it nothing is written to disk and warnings and errors go to stderr.
 init_logging() moves it."""
+from __future__ import annotations
 
 from pathlib import Path
 

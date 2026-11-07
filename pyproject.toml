@@ -14,13 +14,13 @@ build-backend = "scikit_build_core.build"
 [project]
 name = "pyedge"
 version = "3.0.0"
-description = "Python bindings of edge, a small C++ renderer (Vulkan, OpenGL ES, Metal)"
+description = "Python bindings of edge, a small C++ renderer (Vulkan, and a null backend for tests)"
 readme = "README.md"
 requires-python = ">=3.9"
 authors = [{ name = "Manvel Avetisian" }]
 license = "MIT"
-license-files = ["LICENSE.md", "THIRD_PARTY.md"]
-dependencies = ["pyrove>=3,<4", "numpy"]
+license-files = ["LICENSE.md", "THIRD_PARTY.md", "THIRD_PARTY_NOTICES.md"]
+dependencies = ["pyrove>=3,<4", "numpy>=1.19.3"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -28,6 +28,12 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
     "Programming Language :: C++",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: Free Threading :: 2 - Beta",
     "Topic :: Multimedia :: Graphics :: 3D Rendering",
     "Topic :: Games/Entertainment",
@@ -50,9 +56,9 @@ cmake.build-type = "Release"
 build-dir = "build/{wheel_tag}"
 wheel.packages = ["pyedge"]
 # (anchored: an unanchored "src" would take build/*/src too)
-sdist.include = ["/CMakeLists.txt", "/src", "/include", "/etc/cmake", "/etc/patches", "/tools", "/pyedge/*.py", "/LICENSE.md",
-    "/THIRD_PARTY.md", "/README.md", "/CHANGELOG.md"]
-sdist.exclude = ["/build", "__pycache__", "/test", "/examples", "/docs", "/.github", "/etc/container", "/_rove"]
+sdist.include = ["/CMakeLists.txt", "/src", "/include", "/etc/cmake", "/etc/patches", "/etc/licenses", "/tools", "/pyedge/*.py", "/LICENSE.md",
+    "/THIRD_PARTY.md", "/THIRD_PARTY_NOTICES.md", "/README.md", "/CHANGELOG.md", "/docs", "/examples"]
+sdist.exclude = ["/build", "__pycache__", "/test", "/.github", "/etc/container", "/_rove"]
 
 # pyedge alone: no tests, install rules, windows (SDL), ImGui or edge_shot; the asset tools for convert_gltf_to_edge
 [tool.scikit-build.cmake.define]

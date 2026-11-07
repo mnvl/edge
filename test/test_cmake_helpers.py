@@ -144,6 +144,23 @@ def test_edge_convert_refuses_to_list_the_files_of_what_is_not_there(tmp_path):
 
 
 @needs_convert
+@needs_convert
+def test_relative_directories_are_of_the_list_file_that_names_them(project, tmp_path):
+    # (what docs/building.md writes: it found nothing from one working directory, and no such directory from another)
+    project.configure()
+    cmake_lists = project.root / "CMakeLists.txt"
+    text = cmake_lists.read_text()
+    text = text.replace(f'SOURCE_DIR "{project.src}" DESTINATION "${{CMAKE_BINARY_DIR}}/out"', "SOURCE_DIR src DESTINATION out")
+    assert "SOURCE_DIR src DESTINATION out" in text
+    cmake_lists.write_text(text)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    subprocess.run([CMAKE, "-S", project.root, "-B", project.root / "build", "-G", "Ninja", f"-DCMAKE_MAKE_PROGRAM={NINJA}"],
+                   check=True, capture_output=True, cwd=elsewhere)
+    project.build()
+    assert (project.out / "plane.edge").exists()
+
+
 def test_every_gltf_under_the_source_becomes_a_model_at_its_path_as_edge_convert_makes_it(project, tmp_path):
     project.configure()
     project.build()

@@ -14,6 +14,7 @@ import os
 import re
 import sys
 import threading
+import warnings
 from pathlib import Path
 from types import ModuleType
 
@@ -72,8 +73,12 @@ def _put_binding_dirs_on_path() -> None:
 
 
 def _import_required_binding(module_name: str) -> ModuleType:
-    # Installed (a wheel): the module is inside the package (and known by its own name too, as a build's is).
-    if not os.environ.get("EDGE_PYTHON_BINDINGS_DIR") and _module_files(Path(__file__).resolve().parent, module_name):
+    # Installed (a wheel): the module is inside the package (and known by its own name too, as a build's is).  It is the right one
+    # whatever the environment says, and a variable that points elsewhere is for a source checkout.
+    if _module_files(Path(__file__).resolve().parent, module_name):
+        if os.environ.get("EDGE_PYTHON_BINDINGS_DIR"):
+            warnings.warn("EDGE_PYTHON_BINDINGS_DIR is for a source checkout: this pyedge is installed and has its own module",
+                          RuntimeWarning, stacklevel=2)
         module = importlib.import_module(f"{__name__}.{module_name}")
         sys.modules.setdefault(module_name, module)
         return module
@@ -130,8 +135,21 @@ def _loaded_binding() -> ModuleType:
                 # renderer or model a process builds.  Without it nothing is written to disk; warnings and errors reach stderr either
                 # way.  init_logging() moves it.
                 binding.init_logging(os.environ.get("EDGE_LOG"))
+                _check_pyrove_works(importlib.import_module("pyrove"), binding)
                 _binding = binding
     return _binding
+
+
+def _check_pyrove_works(pyrove: ModuleType, binding: ModuleType) -> None:
+    """pyedge and pyrove share rove's types only where nanobind's ABI tags match, which the two builds' compilers decide.  pip cannot
+    see it: its check says all is well, and every call that passes a vector then raises TypeError.  Said once, here, with what to do."""
+    try:
+        binding._takes_a_pyrove_vector(pyrove.vec3(0.0, 0.0, 0.0))
+    except TypeError as exc:
+        raise ImportError(
+            "pyedge and pyrove cannot pass rove's types to each other: they were built by different compilers (nanobind's ABI tags differ). "
+            "Build both the same way: pip install --force-reinstall --no-binary pyrove,pyedge pyedge"
+        ) from exc
 
 
 def __getattr__(name: str):
@@ -139,7 +157,11 @@ def __getattr__(name: str):
     # ImportError would escape hasattr)
     if name.startswith("__") and name.endswith("__") and name != "__all__":
         raise AttributeError(f"module 'pyedge' has no attribute '{name}'")
-    binding = _loaded_binding()
+    try:
+        binding = _loaded_binding()
+    except ImportError as exc:
+        # (hasattr() and friends answer False, and the error says why: pyedge needs a binding that may not load here)
+        raise AttributeError(f"module 'pyedge' has no attribute '{name}': {exc}") from exc
     if name == "__all__":
         return [n for n in dir(binding) if not n.startswith("_")]
     if name == "_bindings":          # (the binding module itself, for a caller that needs where its files are)

@@ -36,6 +36,8 @@ PyPI has wheels for Linux (x86_64 and aarch64, glibc 2.28 or newer). The wheel h
 Vulkan loader (`libvulkan.so.1`) and a Vulkan driver (any GPU's, or Mesa's lavapipe without one), and pip installs `pyrove` with it.
 Elsewhere pip builds from source, which needs the Vulkan headers and loader, `glslangValidator`, CMake and a C++20 compiler.
 
+pyedge has the Vulkan and null backends; OpenGL ES and Metal are for C++. `import pyedge` succeeds without the loader, and the first use says it is missing.
+
 Build `pyrove` and `pyedge` the same way. They share rove's types through nanobind, and only between modules built with the same
 C++ ABI: a `pyedge` built from source beside a `pyrove` wheel can install and import, then raise `TypeError` when a `pyrove` type
 reaches it. Where pip would build `pyedge` from source, build both:
@@ -128,7 +130,8 @@ edge's own CMake package (with the helpers), not one Conan generates.
 
 ## C++: vcpkg
 
-The port is in `ports/edge`, beside rove's in rove's `ports/`. Until they are in vcpkg's registry, use both as overlay ports. In
+The port is in `ports/edge`, beside rove's in rove's `ports/`. Until they are in vcpkg's registry, use both as overlay ports, from `main`:
+a port names a release and the SHA512 of its archive, and a tag's own copy cannot hold the hash of the archive made from it. In
 manifest mode, your project's `vcpkg.json`:
 
 ```json
@@ -138,8 +141,8 @@ manifest mode, your project's `vcpkg.json`:
 ```
 
 ```bash
-git clone --branch v3.0.0 https://github.com/mnvl/rove
-git clone --branch v3.0.0 https://github.com/mnvl/edge
+git clone https://github.com/mnvl/rove
+git clone https://github.com/mnvl/edge
 cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake "-DVCPKG_OVERLAY_PORTS=$PWD/rove/ports;$PWD/edge/ports"
 ```
 
@@ -169,9 +172,12 @@ spdlog, cereal, stb, meshoptimizer, ImGui and rove from the system or a package 
 
 ## Shaders at run time
 
-edge reads its compiled shaders when a renderer is made. A program built against edge finds them in `shaders/edge` beside its
+edge reads its compiled shaders at the first draw that needs them. A program built against edge finds them in `shaders/edge` beside its
 binary, which `edge_bundle_runtime(<target> DESTINATION <dir>)` fills; `EDGE_VK_SHADER_DIR` names another directory. The wheel
 carries its own. [building.md](building.md#where-edge-finds-its-shaders-at-run-time) has the whole lookup.
+
+An installed `libedge.a` remembers the build's shader directory and the prefix given to CMake when it was configured, not one given later to
+`cmake --install --prefix`, so bundle the shaders with a program you ship: the build tree may be gone where it runs.
 
 ## Versions
 

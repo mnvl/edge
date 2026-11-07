@@ -13,7 +13,7 @@
 #
 # One model, for a project that gives its models options of their own; a target that depends on OUTPUT makes it.
 #
-# A model is made again when what it is made from changed by its bytes, not by its time (git-annex sync rewrites file times): the glTF,
+# A model is made again when what it is made from changed by its bytes, not by its time (a sync may rewrite file times): the glTF,
 # each file it names (edge_convert --inputs), the options and the pipeline edge_convert makes models with (--version; a converter linked
 # anew with the same pipeline makes the same files), all recorded in <model.edge>.json beside the model.
 # A changed file time runs the rule, which finds the record the same and only touches the model.
@@ -64,6 +64,9 @@ function(edge_convert_models TARGET)
   if(ARG_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR "edge_convert_models(${TARGET}): unknown arguments ${ARG_UNPARSED_ARGUMENTS}")
   endif()
+  # (relative to the list file that calls this, as CMake's own commands take them: what the docs' example writes)
+  get_filename_component(ARG_SOURCE_DIR "${ARG_SOURCE_DIR}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+  get_filename_component(ARG_DESTINATION "${ARG_DESTINATION}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_BINARY_DIR}")
   if(NOT IS_DIRECTORY "${ARG_SOURCE_DIR}")
     message(FATAL_ERROR "edge_convert_models(${TARGET}): SOURCE_DIR ${ARG_SOURCE_DIR} is not a directory")
   endif()

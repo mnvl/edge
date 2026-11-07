@@ -6,8 +6,8 @@
 
 import pytest
 
-pyedge = pytest.importorskip("pyedge")
-pyrove = pytest.importorskip("pyrove")
+import pyedge
+import pyrove
 
 
 def _renderer():

@@ -46,14 +46,14 @@ class EdgeConan(ConanFile):
     def requirements(self):
         # (transitive_headers: edge's public headers include them)
         self.requires("rove/[>=3 <4]", transitive_headers=True)
-        self.requires("spdlog/[>=1.14 <2]", transitive_headers=True)
+        self.requires("spdlog/1.15.3", transitive_headers=True)
         self.requires("cereal/1.3.2", transitive_headers=True)
         self.requires("stb/cci.20240531")
         if self.settings.os != "Macos":
             self.requires("vulkan-headers/1.3.268.0", transitive_headers=True)
             self.requires("vulkan-loader/1.3.268.0")
         if self.options.asset_tools:
-            self.requires("meshoptimizer/[>=0.21]")
+            self.requires("meshoptimizer/0.22")
         if self.options.with_imgui:
             self.requires("imgui/1.92.9b", transitive_headers=True)
         if self.options.with_sdl:
