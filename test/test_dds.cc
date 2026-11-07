@@ -31,6 +31,7 @@
 #include "texture.h"
 #include "vertex.h"
 #include "vertex_traits.h"
+#include "vulkan_device_context.h"
 
 using namespace edge;
 

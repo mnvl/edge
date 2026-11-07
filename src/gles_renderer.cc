@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "gles_buffer.h"
+#include "gles_gpu_timer.h"
 #include "gles_render_target.h"
 #include "gles_renderer.h"
 #include "gles_texture.h"
@@ -295,6 +296,11 @@ void GLESRenderer::init()
 	glSamplerParameteri(compare_sampler_, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
 	glSamplerParameteri(compare_sampler_, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
 	check_gl("creating the renderer");
+}
+
+GpuTimer &GLESRenderer::gpu_timer() const
+{
+	return *gpu_timer_;
 }
 
 GLESRenderer::~GLESRenderer()

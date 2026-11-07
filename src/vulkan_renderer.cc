@@ -19,6 +19,9 @@
 #include "vertex_traits.h"
 #include "vulkan_descriptor_cache.h"
 #include "vulkan_device.h"
+#include "vulkan_device_context.h"
+#include "vulkan_dynamic_uniform_buffer.h"
+#include "vulkan_pipeline_builder.h"
 #include "vulkan_error.h"
 #include "vulkan_frame_ring.h"
 #include "vulkan_gpu_timer.h"
@@ -97,6 +100,12 @@ VulkanRenderer::VulkanRenderer(int width, int height, std::string const &device_
 	graphics_queue_(VK_NULL_HANDLE),
 	graphics_queue_family_(0),
 	command_pool_(VK_NULL_HANDLE),
+	pipeline_builder_(std::make_unique<VulkanPipelineBuilder>()),
+	frame_constants_ubo_(std::make_unique<VulkanDynamicUniformBuffer>()),
+	joint_matrices_ubo_(std::make_unique<VulkanDynamicUniformBuffer>()),
+	instances_ubo_(std::make_unique<VulkanDynamicUniformBuffer>()),
+	material_parameters_ubo_(std::make_unique<VulkanDynamicUniformBuffer>()),
+	draw_constants_ubo_(std::make_unique<VulkanDynamicUniformBuffer>()),
 	active_command_buffer_(VK_NULL_HANDLE),
 	active_pass_render_pass_(VK_NULL_HANDLE)
 {
@@ -190,6 +199,26 @@ VulkanRenderer::~VulkanRenderer()
 	instance_ = VK_NULL_HANDLE;
 }
 
+double VulkanRenderer::gpu_wait_ms() const
+{
+	return frames_->gpu_wait_ms();
+}
+
+VkPipelineLayout VulkanRenderer::pipeline_layout() const
+{
+	return descriptors_->pipeline_layout();
+}
+
+VkDeviceSize VulkanRenderer::staging_arena_size() const
+{
+	return uploader_->size();
+}
+
+GpuTimer &VulkanRenderer::gpu_timer() const
+{
+	return *gpu_timer_;
+}
+
 void VulkanRenderer::init()
 {
 	VulkanInstancePtr const instance = VulkanInstance::acquire(instance_extensions_);
@@ -261,11 +290,11 @@ void VulkanRenderer::create_descriptor_resources()
 {
 	create_constants_buffers();
 	VulkanDescriptorCache::Constants constants;
-	constants.joint_matrices = &joint_matrices_ubo_;
-	constants.instances = &instances_ubo_;
-	constants.draw_constants = &draw_constants_ubo_;
-	constants.frame_constants = &frame_constants_ubo_;
-	constants.material_parameters = &material_parameters_ubo_;
+	constants.joint_matrices = joint_matrices_ubo_.get();
+	constants.instances = instances_ubo_.get();
+	constants.draw_constants = draw_constants_ubo_.get();
+	constants.frame_constants = frame_constants_ubo_.get();
+	constants.material_parameters = material_parameters_ubo_.get();
 	// $EDGE_VK_MAX_MATERIAL_SETS, when set, shrinks the descriptor pool below VulkanDescriptorCache::MAX_SETS: a test exhausting
 	// it to prove reclaim works can afford to stream only as many materials as the pool actually holds.
 	uint32_t const max_material_sets = static_cast<uint32_t>(capacity_from_env(
@@ -280,7 +309,7 @@ void VulkanRenderer::create_constants_buffers()
 {
 	// a region of each for every frame in flight; the draw constants and joint matrices share their capacity out among them
 	uint32_t const slots = frames_in_flight_;
-	frame_constants_ubo_.create(device_, physical_device_, static_cast<VkDeviceSize>(FRAME_CONSTANTS_SIZE), slots, slots);
+	frame_constants_ubo_->create(device_, physical_device_, static_cast<VkDeviceSize>(FRAME_CONSTANTS_SIZE), slots, slots);
 
 	VkDeviceSize const joint_block_size =
 		static_cast<VkDeviceSize>(MAX_JOINT_MATRICES * sizeof(rove::matrix<4,4>));
@@ -298,16 +327,16 @@ void VulkanRenderer::create_constants_buffers()
 		VULKAN_DEFAULT_INSTANCE_BLOCKS_PER_FRAME,
 		1);
 
-	joint_matrices_ubo_.create_packed(device_, physical_device_, joint_block_size, joint_matrices * sizeof(rove::matrix<4,4>), slots);
-	instances_ubo_.create(device_, physical_device_, static_cast<VkDeviceSize>(MAX_INSTANCES * sizeof(rove::matrix<4,4>)),
+	joint_matrices_ubo_->create_packed(device_, physical_device_, joint_block_size, joint_matrices * sizeof(rove::matrix<4,4>), slots);
+	instances_ubo_->create(device_, physical_device_, static_cast<VkDeviceSize>(MAX_INSTANCES * sizeof(rove::matrix<4,4>)),
 		instance_blocks_per_frame, slots);
 	VkDeviceSize const material_parameter_blocks_per_frame = capacity_from_env(
 		"EDGE_VK_MATERIAL_PARAMETER_BLOCKS",
 		VULKAN_DEFAULT_MATERIAL_PARAMETER_BLOCKS_PER_FRAME,
 		1);
-	material_parameters_ubo_.create(device_, physical_device_, static_cast<VkDeviceSize>(Material::PARAMETERS_SIZE),
+	material_parameters_ubo_->create(device_, physical_device_, static_cast<VkDeviceSize>(Material::PARAMETERS_SIZE),
 		material_parameter_blocks_per_frame, slots);
-	draw_constants_ubo_.create(device_, physical_device_,
+	draw_constants_ubo_->create(device_, physical_device_,
 		static_cast<VkDeviceSize>(sizeof(VulkanDrawConstants)), draw_constants_blocks_per_frame, slots);
 
 	EDGE_LOG_INFO("Vulkan dynamic UBO capacity: joint matrices/frame = {}, draw blocks/frame = {} ({} frame{} in flight share {} and {})",
@@ -318,11 +347,11 @@ void VulkanRenderer::create_constants_buffers()
 void VulkanRenderer::destroy_descriptor_resources()
 {
 	default_texture_.reset();
-	joint_matrices_ubo_.destroy(device_);
-	instances_ubo_.destroy(device_);
-	material_parameters_ubo_.destroy(device_);
-	draw_constants_ubo_.destroy(device_);
-	frame_constants_ubo_.destroy(device_);
+	joint_matrices_ubo_->destroy(device_);
+	instances_ubo_->destroy(device_);
+	material_parameters_ubo_->destroy(device_);
+	draw_constants_ubo_->destroy(device_);
+	frame_constants_ubo_->destroy(device_);
 	for (TexturePtr &t : global_textures_)
 	{
 		t.reset();
@@ -341,10 +370,10 @@ void VulkanRenderer::bind_descriptor_set(VkCommandBuffer command_buffer, VkDescr
 {
 	// in binding order: 6 joint matrices, 7 instances, 8 draw constants, 9 frame constants, 20 material parameters, 21 the previous
 	// instances, 22 the previous joint matrices (the last two in the instances' and the joint matrices' buffers)
-	uint32_t const joints_offset = joint_matrices ? joint_matrices->offset : joint_matrices_ubo_.region_offset();
-	uint32_t const instances_offset = instances ? instances->offset : instances_ubo_.region_offset();
+	uint32_t const joints_offset = joint_matrices ? joint_matrices->offset : joint_matrices_ubo_->region_offset();
+	uint32_t const instances_offset = instances ? instances->offset : instances_ubo_->region_offset();
 	uint32_t const offsets[VulkanDescriptorCache::UNIFORM_BUFFERS] = {
-		joints_offset, instances_offset, draw_constants_offset, frame_constants_ubo_.region_offset(), material_parameters_offset,
+		joints_offset, instances_offset, draw_constants_offset, frame_constants_ubo_->region_offset(), material_parameters_offset,
 		instances ? instances->previous_offset : instances_offset, joint_matrices ? joint_matrices->previous_offset : joints_offset};
 	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, descriptors_->pipeline_layout(), 0, 1, &set,
 		VulkanDescriptorCache::UNIFORM_BUFFERS, offsets);
@@ -586,7 +615,7 @@ uint32_t VulkanRenderer::update_joint_matrices(std::vector<rove::matrix<4,4>> co
 	{
 		throw std::length_error(std::to_string(joint_matrices.size()) + " joint matrices, a draw has room for " + std::to_string(MAX_JOINT_MATRICES));
 	}
-	return joint_matrices_ubo_.write_packed(joint_matrices.data(), joint_matrices.size() * sizeof(rove::matrix<4,4>),
+	return joint_matrices_ubo_->write_packed(joint_matrices.data(), joint_matrices.size() * sizeof(rove::matrix<4,4>),
 		"Vulkan joint matrices buffer overflow. Increase the renderer's joint_matrices or EDGE_VK_JOINT_MATRICES");
 }
 
@@ -600,7 +629,7 @@ uint32_t VulkanRenderer::update_draw_constants(rove::matrix<4,4> const &world_vi
 	constants.previous_world_view_projection = previous_world_view_projection;
 	constants.previous_world_matrix = previous_world_matrix;
 
-	return draw_constants_ubo_.write(&constants, sizeof(constants),
+	return draw_constants_ubo_->write(&constants, sizeof(constants),
 		"Vulkan draw constants buffer overflow. Increase EDGE_VK_DRAW_CONSTANTS_BLOCKS");
 }
 
@@ -697,16 +726,16 @@ void VulkanRenderer::prepare_current()
 	}
 	uint32_t const current = frames_->current();
 	frames_->wait(current);
-	joint_matrices_ubo_.use_region(current);
-	instances_ubo_.use_region(current);
-	material_parameters_ubo_.use_region(current);
+	joint_matrices_ubo_->use_region(current);
+	instances_ubo_->use_region(current);
+	material_parameters_ubo_->use_region(current);
 	{
 		unsigned char const zeros[Material::PARAMETERS_SIZE] = {};
-		material_zero_offset_ = material_parameters_ubo_.write(zeros, sizeof(zeros),
+		material_zero_offset_ = material_parameters_ubo_->write(zeros, sizeof(zeros),
 			"Vulkan material parameters buffer overflow. Increase EDGE_VK_MATERIAL_PARAMETER_BLOCKS");
 	}
-	draw_constants_ubo_.use_region(current);
-	frame_constants_ubo_.use_region(current);
+	draw_constants_ubo_->use_region(current);
+	frame_constants_ubo_->use_region(current);
 	uploader_->use_arena(current);
 	current_ready_ = true;
 }
@@ -905,13 +934,13 @@ VkPipeline VulkanRenderer::pipeline(VertexTraits const *traits, MaterialPtr cons
 		throw std::logic_error("vulkan pipeline lookup requires an active render pass");
 	}
 
-	return pipeline_builder_.pipeline(device_, descriptors_->pipeline_layout(),
+	return pipeline_builder_->pipeline(device_, descriptors_->pipeline_layout(),
 		active_pass_render_pass_, active_pass_color_attachments_, pass_type(), traits, material);
 }
 
 void VulkanRenderer::destroy_pipelines()
 {
-	pipeline_builder_.destroy_all(device_);
+	pipeline_builder_->destroy_all(device_);
 }
 
 VertexBufferPtr VulkanRenderer::create_vertex_buffer(VertexTraits const *vertex_traits, size_t size, BufferUsage)
@@ -958,7 +987,7 @@ void VulkanRenderer::do_set_frame_constants(void const *data, size_t size)
 		std::memcpy(block.data(), data, size);
 	}
 	prepare_current();
-	frame_constants_ubo_.write_static(block.data(), block.size());
+	frame_constants_ubo_->write_static(block.data(), block.size());
 }
 
 void VulkanRenderer::do_set_global_texture(unsigned slot, TexturePtr const &texture, bool compare)
@@ -1082,7 +1111,7 @@ void VulkanRenderer::do_draw(DrawCall const &call)
 		call.shader_previous_world_view_projection(), call.shader_previous_world());
 	std::vector<unsigned char> const &parameters = call.material()->parameters();
 	uint32_t const material_parameters_offset = parameters.empty() ? material_zero_offset_
-		: material_parameters_ubo_.write(parameters.data(), parameters.size(),
+		: material_parameters_ubo_->write(parameters.data(), parameters.size(),
 			"Vulkan material parameters buffer overflow. Increase EDGE_VK_MATERIAL_PARAMETER_BLOCKS");
 	shader::PushConstants const push_constants = shader::push_constants(*call.material(), *traits, call.is_uber(),
 		joint_matrices != nullptr, call.camera()->eye_point(), call.is_instanced(), !call.has_previous());
@@ -1106,9 +1135,9 @@ void VulkanRenderer::do_draw(DrawCall const &call)
 			rove::matrix<4,4> const *const current = call.visible_instances().data() + first;
 			rove::matrix<4,4> const *const previous = call.previous_visible_instances().data() + first;
 			char const *const overflow = "Vulkan instances buffer overflow. Increase EDGE_VK_INSTANCE_BLOCKS";
-			uint32_t const offset = instances_ubo_.write(current, batch * sizeof(rove::matrix<4,4>), overflow);
+			uint32_t const offset = instances_ubo_->write(current, batch * sizeof(rove::matrix<4,4>), overflow);
 			instance_blocks = Blocks{offset, same_matrices(previous, current, batch) ? offset
-				: instances_ubo_.write(previous, batch * sizeof(rove::matrix<4,4>), overflow)};
+				: instances_ubo_->write(previous, batch * sizeof(rove::matrix<4,4>), overflow)};
 		}
 		bind_descriptor_set(command_buffer, descriptor_set, joint_blocks, instance_blocks, draw_constants_offset,
 			material_parameters_offset);

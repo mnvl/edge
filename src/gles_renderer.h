@@ -3,22 +3,23 @@
 
 #pragma once
 
+#include <cstdint>
 #include <map>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include <GLES3/gl3.h>
 
-#include <vector>
-
 #include "gles_context.h"
-#include "gles_gpu_timer.h"
 #include "material.h"
 #include "renderer.h"
 
 namespace edge
 {
+
+class GLESGpuTimer;      // (the renderer's own: its header is not installed)
 
 class GLESRenderer;
 using GLESRendererPtr = std::shared_ptr<GLESRenderer>;
@@ -177,7 +178,7 @@ protected:
 	/// std::runtime_error for a colour format the device cannot draw into (the framebuffer is incomplete).
 	RenderTargetPtr do_create_render_target(int width, int height, RenderTargetFormat const &format) override;
 	/// A GLESGpuTimer: a frame's durations are read when the renderer begins or ends a frame and the GL has them.
-	GpuTimer &gpu_timer() const override { return *gpu_timer_; }
+	GpuTimer &gpu_timer() const override;
 };
 
 }
