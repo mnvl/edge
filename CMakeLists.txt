@@ -94,8 +94,8 @@ OPTION(EDGE_SDL "Build edge_sdl (SDL3): an SDL window's Vulkan surface, a GLES c
 IF(EDGE_SDL AND NOT TARGET SDL3::SDL3)
   FIND_PACKAGE(SDL3 REQUIRED CONFIG)
 ENDIF()
-# edge_imgui, Dear ImGui drawn through edge (imgui_renderer.h): it links the parent's target imgui, made before edge is added, which
-# has ImGui's core; edge built by itself fetches one.
+# edge_imgui, Dear ImGui drawn through edge (imgui_renderer.h, a header compiled against the program's ImGui, 1.92 or newer): it
+# links the parent's target imgui, made before edge is added, which has ImGui's core; edge built by itself fetches one for its tests.
 OPTION(EDGE_IMGUI "Build edge_imgui: Dear ImGui drawn through edge (the parent's imgui target)." ${EDGE_TOP_LEVEL})
 IF(EDGE_GLES AND EMSCRIPTEN)
   # a browser's WebGL 2, which is OpenGL ES 3.0: Emscripten's own GLES3/gl3.h, and its GL library asked for at the link (no library to find)
@@ -206,10 +206,9 @@ IF(EDGE_IMGUI AND NOT TARGET imgui)
     FetchContent_MakeAvailable(imgui)
     ADD_LIBRARY(imgui STATIC ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp ${imgui_SOURCE_DIR}/imgui_tables.cpp
       ${imgui_SOURCE_DIR}/imgui_widgets.cpp)
-    TARGET_INCLUDE_DIRECTORIES(imgui SYSTEM PUBLIC $<BUILD_INTERFACE:${imgui_SOURCE_DIR}> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/edge/imgui>)
-    # (installed with edge as edge::imgui_core, libedge_imgui_core: the ImGui whose context edge::imgui draws)
-    SET_TARGET_PROPERTIES(imgui PROPERTIES POSITION_INDEPENDENT_CODE ON OUTPUT_NAME edge_imgui_core EXPORT_NAME imgui_core)
-    SET(EDGE_FETCHED_IMGUI ON)
+    TARGET_INCLUDE_DIRECTORIES(imgui SYSTEM PUBLIC ${imgui_SOURCE_DIR})
+    # (edge's tests' ImGui, standing for a program's: never installed)
+    SET_TARGET_PROPERTIES(imgui PROPERTIES POSITION_INDEPENDENT_CODE ON)
   ENDIF()
 ENDIF()
 
@@ -477,8 +476,8 @@ ENDIF()
 # include/ is on the path), share/edge/ the shaders (src/CMakeLists.txt) and view shaders, bin/ the tools, lib/cmake/edge/ the package
 # and the helpers.  The libraries edge builds of its dependencies and links privately are in edge's package under edge's names
 # (edge::fastgltf, libedge_fastgltf.a, ...): never taken for a system's own.  Bundled, what the public headers include is installed as
-# itself: cereal's headers and ImGui's core (edge::imgui_core); rove's own rules
-# install rove where edge added it (ROVE_INSTALL).
+# itself: cereal's headers; rove's own rules install rove where edge added it (ROVE_INSTALL).  Nothing of ImGui: edge::imgui is a
+# header, compiled against the program's.
 IF(EDGE_INSTALL)
   INCLUDE(CMakePackageConfigHelpers)
   SET(EDGE_INSTALL_CMAKEDIR ${CMAKE_INSTALL_LIBDIR}/cmake/edge)
@@ -503,13 +502,6 @@ IF(EDGE_INSTALL)
   ENDIF()
   IF(cereal_SOURCE_DIR AND NOT EDGE_SYSTEM_DEPS)
     INSTALL(DIRECTORY ${cereal_SOURCE_DIR}/include/cereal DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-  ENDIF()
-  IF(EDGE_FETCHED_IMGUI)
-    LIST(APPEND EDGE_EXPORTED imgui)
-    FOREACH(header imgui.h imconfig.h imgui_internal.h imstb_rectpack.h imstb_textedit.h imstb_truetype.h)
-      # (under edge's own directory: the prefix may be shared, and these are another project's names)
-      INSTALL(FILES ${imgui_SOURCE_DIR}/${header} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/edge/imgui)
-    ENDFOREACH()
   ENDIF()
   INSTALL(TARGETS ${EDGE_EXPORTED} EXPORT edgeTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

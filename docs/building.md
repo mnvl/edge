@@ -11,7 +11,7 @@
 - Boost.Test for the tests (`EDGE_TESTS`); Python with nanobind's needs, numpy and pytest for pyedge (`EDGE_PYTHON`)
 
 By default fetched at configure, pinned: fastgltf (patched, `etc/patches`), cereal, stb, meshoptimizer, bc7enc,
-astc-encoder, xatlas, nanobind, SPIRV-Cross (GLES), Dear ImGui (`edge_imgui` of edge built by itself).
+astc-encoder, xatlas, nanobind, SPIRV-Cross (GLES), Dear ImGui (for the tests of `edge_imgui`, of edge built by itself; never installed).
 
 ### Dependencies from a package manager (`EDGE_SYSTEM_DEPS`)
 
@@ -54,7 +54,7 @@ edge built by itself finds `../rove` the same way.  A parent that installs edge 
 | `-DEDGE_GLES=ON` | The OpenGL ES backend |
 | `-DEDGE_METAL=ON` | The Metal backend (Objective-C++, Apple silicon; on by default on Apple platforms). `EDGE_METAL_SDK` (`macosx`, `iphoneos`, `iphonesimulator`) is the sdk its shader libraries are built for |
 | `-DEDGE_SDL=ON` | edge_sdl (SDL3): an SDL window's Vulkan surface, a GLES context made with SDL, an SDL window's Metal layer (on with GLES or Metal, and built by itself) |
-| `-DEDGE_IMGUI=ON` | edge_imgui: Dear ImGui drawn through edge, with the parent's `imgui` target (on built by itself) |
+| `-DEDGE_IMGUI=ON` | edge_imgui: Dear ImGui drawn through edge, `imgui_renderer.h`, a header compiled against the parent's `imgui` target, 1.92 or newer (on built by itself) |
 | `-DEDGE_ASSET_TOOLS=OFF` | The runtime alone: no `edge_asset`, `edge_convert`, `edge_shot` or pyedge `convert_gltf_to_edge`, and none of meshoptimizer, bc7enc_rdo, astc-encoder, xatlas (their tests are left out; edge still loads `.edge` and glTF files) |
 | `-DEDGE_SYSTEM_DEPS=ON` | Find the dependencies a package manager provides (above) instead of fetching them |
 | `-DEDGE_INSTALL=OFF` | No install rules and no CMake package (on when edge is built by itself; a parent that turns it on turns rove's `ROVE_INSTALL` on too) |
@@ -91,9 +91,9 @@ every place tried.
 
 | Where | What |
 |-------|------|
-| `lib/` | `libedge.a`, and where built `libedge_sdl.a`, `libedge_imgui.a`, `libedge_asset.a`; the libraries edge builds of its dependencies and links privately, under edge's names: `libedge_fastgltf.a` (patched), and with the asset tools `libedge_meshoptimizer.a`, `libedge_bc7enc.a`, `libedge_astcenc.a`, `libedge_xatlas.a`; ImGui's core fetched by edge, `libedge_imgui_core.a` |
+| `lib/` | `libedge.a`, and where built `libedge_sdl.a`, `libedge_asset.a`; the libraries edge builds of its dependencies and links privately, under edge's names: `libedge_fastgltf.a` (patched), and with the asset tools `libedge_meshoptimizer.a`, `libedge_bc7enc.a`, `libedge_astcenc.a`, `libedge_xatlas.a` |
 | `include/edge/` | the public headers (those `include/edge/` has a shim of, and what they include), the real ones: `<edge/renderer.h>`; only `include/` is on the include path |
-| `include/` | what the public headers include, when edge fetched it: cereal's headers, ImGui's core headers; rove (its own install) when edge added rove itself |
+| `include/` | what the public headers include, when edge fetched it: cereal's headers; rove (its own install) when edge added rove itself |
 | `share/edge/shaders/` | edge's compiled shaders (SPIR-V, and their GLSL ES and Metal translations where built) |
 | `share/edge/view_shaders/` | the view shaders (`lit.frag.spv`, `edge_shot`'s) |
 | `share/edge/glsl/` | `edge.glsl` and what a shader may include beside it |
@@ -112,7 +112,8 @@ edge_convert_models(game_models SOURCE_DIR assets DESTINATION ${BIN}/models)   #
 ```
 
 The package finds what the public headers and the link interface need: `rove 3`, `Vulkan` (with the Vulkan backend), `SDL3`
-(for `edge::sdl`).  Inside edge's own build the same targets have the same names (`edge::edge` is an alias of `edge`).
+(for `edge::sdl`).  `edge::imgui` is `<edge/imgui_renderer.h>`, compiled against the program's ImGui (1.92 or
+newer): nothing of ImGui is in the install, and the program links its own ImGui beside it.  Inside edge's own build the same targets have the same names (`edge::edge` is an alias of `edge`).
 
 ## pyedge as a wheel (pip)
 

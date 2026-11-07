@@ -487,11 +487,16 @@ IF(EDGE_USE_GLES)
   ADD_DEPENDENCIES(edge gles_shaders)
 ENDIF()
 
-# Dear ImGui drawn through edge: a host that draws its UI otherwise does not link it.
+# Dear ImGui drawn through edge: imgui_renderer.h, a header compiled against the program's ImGui, so nothing of ImGui is built or
+# installed with edge.  Here, the parent's target imgui; installed, edge::imgui is edge::edge, and the program links its own ImGui
+# (a package manager's, imgui::imgui, where edge was built with EDGE_SYSTEM_DEPS).
 IF(EDGE_IMGUI)
-  ADD_LIBRARY(edge_imgui STATIC imgui_renderer.cc imgui_renderer.h)
-  SET_TARGET_PROPERTIES(edge_imgui PROPERTIES POSITION_INDEPENDENT_CODE ON)
-  TARGET_LINK_LIBRARIES(edge_imgui PUBLIC edge imgui)
+  ADD_LIBRARY(edge_imgui INTERFACE)
+  IF(EDGE_SYSTEM_DEPS)
+    TARGET_LINK_LIBRARIES(edge_imgui INTERFACE edge imgui::imgui)
+  ELSE()
+    TARGET_LINK_LIBRARIES(edge_imgui INTERFACE edge $<BUILD_INTERFACE:imgui>)
+  ENDIF()
   SET_TARGET_PROPERTIES(edge_imgui PROPERTIES EXPORT_NAME imgui)
   ADD_LIBRARY(edge::imgui ALIAS edge_imgui)
 ENDIF()
