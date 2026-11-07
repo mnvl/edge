@@ -21,8 +21,9 @@ CMAKE = os.environ["CMAKE_COMMAND"]
 CXX = os.environ["EDGE_CXX"]
 CXX_ID = os.environ["EDGE_CXX_ID"]
 
-# The logger is edge's own: nothing of spdlog, or of the fmt it bundles, is in edge's install
-GONE = ("spdlog", "fmt")
+# Linked into edge, or gone, and none of them a consumer's business: nothing of them is in edge's install.  (spdlog, and the fmt it
+# bundles: the log is edge's own.  cereal: the .edge file's serialization, inside edge; a program reads a file with Model::read_file.)
+GONE = ("spdlog", "fmt", "cereal")
 
 
 @pytest.fixture(scope="module")
@@ -36,28 +37,29 @@ def prefix(tmp_path_factory) -> Path:
     return prefix
 
 
-def test_nothing_of_spdlog_or_fmt_is_installed(prefix):
+def test_nothing_of_spdlog_fmt_or_cereal_is_installed(prefix):
     found = [str(path.relative_to(prefix)) for path in prefix.rglob("*")
              if any(part == name or part.startswith("lib" + name) or part.startswith(name + "-") for part in path.parts for name in GONE)]
     assert found == []
 
 
-def test_the_package_does_not_ask_for_spdlog(prefix):
+def test_the_package_asks_for_none_of_them(prefix):
     package = list((prefix / "lib").glob("**/cmake/edge/*.cmake")) + list((prefix / "lib64").glob("**/cmake/edge/*.cmake"))
     assert package, "no edge package in the install"
     for file in package:
         text = file.read_text(encoding="utf-8")
-        assert "spdlog" not in text.lower(), file
+        for name in ("spdlog", "cereal"):
+            assert name not in text.lower(), (file, name)
 
 
-def test_no_installed_edge_header_includes_spdlog_or_fmt(prefix):
+def test_no_installed_edge_header_includes_them(prefix):
     headers = list((prefix / "include" / "edge").glob("*.h"))
     assert headers
     for header in headers:
         text = header.read_text(encoding="utf-8")
         for name in GONE:
             assert f"<{name}/" not in text, header
-        assert "spdlog::" not in text and "SPDLOG_" not in text, header
+        assert "spdlog::" not in text and "SPDLOG_" not in text and "cereal::" not in text and "CEREAL_" not in text, header
 
 
 def _compile(source: Path, include: Path, *extra: str) -> subprocess.CompletedProcess:
@@ -147,3 +149,27 @@ def test_the_log_header_reads_nothing_of_spdlog_or_fmt(prefix, tmp_path):
     assert "log.h" in read, read  # (the list is there)
     for name in GONE:
         assert f"/{name}/" not in read, read
+
+
+MODEL_CONSUMER = """\
+#include <edge/model.h>
+#include <edge/serialized_model.h>
+
+#include <string>
+
+std::size_t meshes_of(std::string const &file)
+{
+	edge::SerializedModel const model = edge::Model::read_file(file);
+	return model.meshes.size() + model.materials.size();
+}
+"""
+
+
+def test_the_model_file_headers_compile_from_the_prefix_and_read_no_cereal(prefix, tmp_path):
+    source = tmp_path / "model_consumer.cc"
+    source.write_text(MODEL_CONSUMER)
+    result = _compile(source, prefix / "include", "/showIncludes" if CXX_ID == "MSVC" else "-H")
+    assert result.returncode == 0, result.stdout + result.stderr
+    read = (result.stdout + result.stderr).replace("\\", "/")
+    assert "serialized_model.h" in read, read
+    assert "/cereal/" not in read, read

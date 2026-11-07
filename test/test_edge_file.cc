@@ -33,6 +33,7 @@
 #include "pipeline.h"
 #include "scheduler.h"
 #include "serialized_model.h"
+#include "serialized_model_archive.h"
 #include "static_model.h"
 #include "test_fixture.h"
 #include "texture.h"
@@ -367,6 +368,26 @@ BOOST_AUTO_TEST_CASE(a_saved_model_says_the_pipeline_that_wrote_it_and_no_conver
 	edge::SerializedModel const saved = edge::Model::read_file(file.string());
 	BOOST_TEST(saved.pipeline == std::string(edge::pipeline_hash()));
 	BOOST_TEST(saved.options.empty());
+}
+
+// read_file() is how a program reads a .edge file's structures: the whole file is the model, and nothing else
+BOOST_AUTO_TEST_CASE(read_file_refuses_a_byte_after_the_model_and_a_file_cut_short)
+{
+	from_gltf<edge::StaticModelPTBNT>("test_gltf_loder_plane.glb")->save_to_file(file.string());
+	std::vector<char> const whole = bytes();
+	BOOST_TEST(!edge::Model::read_file(file.string()).meshes.empty());
+
+	std::vector<char> longer = whole;
+	longer.push_back('\0');
+	write(longer);
+	BOOST_CHECK_EXCEPTION(edge::Model::read_file(file.string()), std::runtime_error, [](std::runtime_error const &e) {
+		return std::string(e.what()).find("bytes after the end of the model") != std::string::npos;
+	});
+
+	write(std::vector<char>(whole.begin(), whole.end() - 1));
+	BOOST_CHECK_EXCEPTION(edge::Model::read_file(file.string()), std::runtime_error, [](std::runtime_error const &e) {
+		return std::string(e.what()).find("is damaged") != std::string::npos;
+	});
 }
 
 BOOST_AUTO_TEST_CASE(a_skinned_model_with_clips_comes_back_the_same)

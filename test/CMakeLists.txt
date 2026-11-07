@@ -178,7 +178,7 @@ IF(NOT EDGE_ASSET_TOOLS)
 ENDIF()
 
 ADD_EXECUTABLE(test_edge ${EDGE_TEST_SOURCES})
-TARGET_LINK_LIBRARIES(test_edge edge edge_stb Boost::unit_test_framework)
+TARGET_LINK_LIBRARIES(test_edge edge edge_stb edge_cereal Boost::unit_test_framework)      # (cereal: the tests that write damaged .edge files)
 IF(EDGE_ASSET_TOOLS)
   TARGET_LINK_LIBRARIES(test_edge edge_asset edge_bc7enc edge_astcenc)
   TARGET_COMPILE_DEFINITIONS(test_edge PRIVATE EDGE_TEST_ASSET_TOOLS)

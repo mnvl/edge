@@ -93,7 +93,7 @@ every place tried.
 |-------|------|
 | `lib/` | `libedge.a`, and where built `libedge_sdl.a`, `libedge_asset.a`; the libraries edge builds of its dependencies and links privately, under edge's names: `libedge_fastgltf.a` (patched), and with the asset tools `libedge_meshoptimizer.a`, `libedge_bc7enc.a`, `libedge_astcenc.a`, `libedge_xatlas.a` |
 | `include/edge/` | the public headers (those `include/edge/` has a shim of, and what they include), the real ones: `<edge/renderer.h>`; only `include/` is on the include path |
-| `include/` | what the public headers include, when edge fetched it: cereal's headers; rove (its own install) when edge added rove itself |
+| `include/` | rove (its own install) when edge added rove itself |
 | `share/edge/shaders/` | edge's compiled shaders (SPIR-V, and their GLSL ES and Metal translations where built) |
 | `share/edge/view_shaders/` | the view shaders (`lit.frag.spv`, `edge_shot`'s) |
 | `share/edge/glsl/` | `edge.glsl` and what a shader may include beside it |

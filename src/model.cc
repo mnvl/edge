@@ -24,6 +24,7 @@
 #include "pipeline.h"
 #include "renderer.h"
 #include "serialized_model.h"
+#include "serialized_model_archive.h"
 #include "texture.h"
 
 namespace edge {

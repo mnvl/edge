@@ -231,7 +231,8 @@ EDGE_FETCH_EXCLUDED(fastgltf
 # (installed with edge as edge::fastgltf, libedge_fastgltf: not a fastgltf of the system's, which is not patched)
 SET_TARGET_PROPERTIES(fastgltf PROPERTIES POSITION_INDEPENDENT_CODE ON OUTPUT_NAME edge_fastgltf)
 
-# cereal: the .edge file's serialization (serialized_model.h, a public header).  Header-only: fetched, not built.  edge links edge_cereal.
+# cereal: the .edge file's serialization (serialized_model_archive.h, edge's own: no public header includes it).  Header-only: fetched,
+# not built, not installed.  edge links edge_cereal privately, and so do its tests.
 IF(EDGE_SYSTEM_DEPS)
   FIND_PACKAGE(cereal CONFIG REQUIRED)
   ADD_LIBRARY(edge_cereal ALIAS cereal::cereal)
@@ -243,9 +244,7 @@ ELSE()
     SOURCE_SUBDIR no_cmakelists_here)
   FetchContent_MakeAvailable(cereal)
   ADD_LIBRARY(edge_cereal INTERFACE)
-  TARGET_INCLUDE_DIRECTORIES(edge_cereal SYSTEM INTERFACE $<BUILD_INTERFACE:${cereal_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-  SET_TARGET_PROPERTIES(edge_cereal PROPERTIES EXPORT_NAME cereal)
+  TARGET_INCLUDE_DIRECTORIES(edge_cereal SYSTEM INTERFACE ${cereal_SOURCE_DIR}/include)
 ENDIF()
 
 # stb: image decoding and writing, DXT compression, font rasterising (stb_impl.cc compiles them).  Header-only.  edge links edge_stb.
@@ -475,9 +474,8 @@ ENDIF()
 # Installed (EDGE_INSTALL): lib/ the libraries, include/edge/ their headers (the real ones: <edge/x.h> is the header itself, and only
 # include/ is on the path), share/edge/ the shaders (src/CMakeLists.txt) and view shaders, bin/ the tools, lib/cmake/edge/ the package
 # and the helpers.  The libraries edge builds of its dependencies and links privately are in edge's package under edge's names
-# (edge::fastgltf, libedge_fastgltf.a, ...): never taken for a system's own.  Bundled, what the public headers include is installed as
-# itself: cereal's headers; rove's own rules install rove where edge added it (ROVE_INSTALL).  Nothing of ImGui: edge::imgui is a
-# header, compiled against the program's.
+# (edge::fastgltf, libedge_fastgltf.a, ...): never taken for a system's own.  rove's own rules install rove where edge added it
+# (ROVE_INSTALL).  Nothing of cereal (inside edge) or of ImGui (edge::imgui is a header, compiled against the program's).
 IF(EDGE_INSTALL)
   INCLUDE(CMakePackageConfigHelpers)
   SET(EDGE_INSTALL_CMAKEDIR ${CMAKE_INSTALL_LIBDIR}/cmake/edge)
@@ -487,7 +485,7 @@ IF(EDGE_INSTALL)
 
   # (what this build made: not a found package's target, nor an alias of one)
   SET(EDGE_EXPORTED)
-  FOREACH(target edge fastgltf edge_cereal edge_asset meshoptimizer edge_bc7enc edge_astcenc edge_xatlas edge_convert edge_shot edge_sdl
+  FOREACH(target edge fastgltf edge_asset meshoptimizer edge_bc7enc edge_astcenc edge_xatlas edge_convert edge_shot edge_sdl
       edge_imgui edge_gles_api edge_metal_api)
     IF(TARGET ${target})
       GET_TARGET_PROPERTY(imported ${target} IMPORTED)
@@ -499,9 +497,6 @@ IF(EDGE_INSTALL)
   ENDFOREACH()
   IF(NOT TARGET edge_asset)
     LIST(REMOVE_ITEM EDGE_EXPORTED meshoptimizer)
-  ENDIF()
-  IF(cereal_SOURCE_DIR AND NOT EDGE_SYSTEM_DEPS)
-    INSTALL(DIRECTORY ${cereal_SOURCE_DIR}/include/cereal DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
   ENDIF()
   INSTALL(TARGETS ${EDGE_EXPORTED} EXPORT edgeTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

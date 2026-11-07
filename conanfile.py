@@ -46,7 +46,7 @@ class EdgeConan(ConanFile):
     def requirements(self):
         # (transitive_headers: edge's public headers include them)
         self.requires("rove/[>=3 <4]", transitive_headers=True)
-        self.requires("cereal/1.3.2", transitive_headers=True)
+        self.requires("cereal/1.3.2")    # (inside edge: no public header includes it)
         self.requires("stb/cci.20240531")
         if self.settings.os != "Macos":
             self.requires("vulkan-headers/1.3.268.0", transitive_headers=True)
@@ -96,7 +96,7 @@ class EdgeConan(ConanFile):
     def package_info(self):
         # edge's own CMake package (lib/cmake/edge/edgeConfig.cmake), not one Conan generates: it has the targets edge::edge,
         # edge::asset, edge::imgui, edge::sdl, edge::convert and the helpers edge_add_shaders, edge_bundle_runtime and
-        # edge_convert_models.  It finds rove, cereal, Vulkan, meshoptimizer, imgui and SDL3 through the files CMakeDeps
+        # edge_convert_models.  It finds rove, Vulkan, meshoptimizer, imgui and SDL3 through the files CMakeDeps
         # generates for them.
         self.cpp_info.set_property("cmake_find_mode", "none")
         self.cpp_info.builddirs = [os.path.join("lib", "cmake", "edge")]

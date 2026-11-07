@@ -28,6 +28,7 @@
 #include "null_renderer.h"
 #include "scheduler.h"
 #include "serialized_model.h"
+#include "serialized_model_archive.h"
 #include "static_model.h"
 #include "test_fixture.h"
 #include "texture.h"

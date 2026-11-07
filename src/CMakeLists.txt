@@ -428,8 +428,9 @@ ADD_LIBRARY(edge STATIC ${EDGE_SOURCES})
 ADD_DEPENDENCIES(edge edge_pipeline_hash)
 SET_TARGET_PROPERTIES(edge PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # What a C++ program built against edge needs to compile its headers the way edge was compiled: the include path, the
-# definitions that change what the headers declare, and the libraries whose headers they include (rove, cereal: serialized_model.h,
-# Vulkan, GLES).  The rest is edge's own business; the log (log.h) is edge's own, on the standard library.
+# definitions that change what the headers declare, and the libraries whose headers they include (rove, Vulkan,
+# GLES).  The rest is edge's own business: the log (log.h) is edge's own, on the standard library, and the .edge file's cereal
+# is inside edge (serialized_model_archive.h).
 # include/: the public headers as <edge/x.h> (one-line shims to src/).  src/ stays on the path as well, for code that includes
 # "x.h" directly.
 # Installed, the headers themselves are include/edge/*.h, and only include/ is on the path.
@@ -440,7 +441,7 @@ TARGET_COMPILE_DEFINITIONS(edge PUBLIC
   $<$<BOOL:${EDGE_USE_VULKAN}>:EDGE_USE_VULKAN>
   $<$<BOOL:${EDGE_USE_GLES}>:EDGE_USE_GLES>
   $<$<BOOL:${EDGE_USE_METAL}>:EDGE_USE_METAL>)
-TARGET_LINK_LIBRARIES(edge PUBLIC rove::rove edge_cereal)
+TARGET_LINK_LIBRARIES(edge PUBLIC rove::rove)
 # (not generator expressions: the package names these targets as it exports them, edge::gles_api)
 IF(EDGE_USE_VULKAN)
   TARGET_LINK_LIBRARIES(edge PUBLIC Vulkan::Vulkan)
@@ -452,7 +453,7 @@ IF(EDGE_USE_METAL)
   TARGET_LINK_LIBRARIES(edge PUBLIC edge_metal_api)
 ENDIF()
 # (stb is headers only, compiled into edge by stb_impl.cc: nothing of it is linked)
-TARGET_LINK_LIBRARIES(edge PRIVATE fastgltf::fastgltf $<BUILD_INTERFACE:edge_stb>)
+TARGET_LINK_LIBRARIES(edge PRIVATE fastgltf::fastgltf $<BUILD_INTERFACE:edge_stb> $<BUILD_INTERFACE:edge_cereal>)
 ADD_LIBRARY(edge::edge ALIAS edge)
 # Where edge's shaders are looked for at run time (shader_dirs.h): beside the binary, else where this build puts them; a wheel's build is
 # gone when the wheel runs, so it names none.  (dladdr finds the binary: libdl where the C library has it apart.)
