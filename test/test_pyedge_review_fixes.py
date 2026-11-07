@@ -170,3 +170,35 @@ def test_the_licence_notices_hold_the_text_of_what_is_linked():
         assert f"## {project}" in notices, project
     assert "Permission is hereby granted" in notices
     assert "Apache License" in notices
+
+
+# --- the pyrove pyedge is released with -------------------------------------------------------------------------------------------
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_pyedge_pins_exactly_the_pyrove_it_builds_against():
+    import re
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    dependencies = re.search(r"^dependencies = \[(.*)\]$", pyproject, flags=re.M).group(1)
+    pyrove_requirements = re.findall(r'"(pyrove[^"]*)"', dependencies)
+    assert len(pyrove_requirements) == 1
+    tag = re.search(r'^set\(EDGE_ROVE_GIT_TAG "v([^"]+)"', (ROOT / "CMakeLists.txt").read_text(encoding="utf-8"), flags=re.M).group(1)
+    assert pyrove_requirements[0] == f"pyrove=={tag}"
+
+
+@pytest.mark.parametrize("pin", ['"pyrove==9.9.9"', '"pyrove>=3,<4"', '"pyrove"'])
+def test_the_pin_check_refuses_a_pin_that_is_not_the_tag(tmp_path, pin):
+    shutil.copy(ROOT / "CMakeLists.txt", tmp_path)
+    (tmp_path / ".github" / "workflows").mkdir(parents=True)
+    for workflow in (ROOT / ".github" / "workflows").glob("*.yml"):
+        shutil.copy(workflow, tmp_path / ".github" / "workflows")
+    (tmp_path / "pyproject.toml").write_text(f"[project]\ndependencies = [{pin}, \"numpy\"]\n", encoding="utf-8")
+    result = subprocess.run(["sh", str(ROOT / "test" / "check_rove_pin.sh"), str(tmp_path)], capture_output=True, text=True)
+    assert result.returncode != 0
+    assert "pyproject.toml" in result.stderr
+
+
+def test_the_pin_check_passes_on_the_repository():
+    result = subprocess.run(["sh", str(ROOT / "test" / "check_rove_pin.sh"), str(ROOT)], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr

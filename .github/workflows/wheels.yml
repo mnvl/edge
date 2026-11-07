@@ -65,6 +65,11 @@ jobs:
           in_cmake=$(sed -n 's/^PROJECT(edge VERSION \([0-9.]*\).*/\1/Ip' CMakeLists.txt)
           test "$GITHUB_REF_NAME" = "v$in_pyproject"
           test "$in_pyproject" = "$in_cmake"
+      - name: The pyrove pyedge requires is the rove it builds against, and is already on PyPI
+        run: |
+          test/check_rove_pin.sh .
+          pin=$(sed -n 's/^dependencies = .*"pyrove==\([^"]*\)".*/\1/p' pyproject.toml)
+          curl -sSf -o /dev/null "https://pypi.org/pypi/pyrove/$pin/json"
 
   publish:
     # PyPI trusted publishing: configure the project on PyPI for this repository and workflow first.  Only from the push of a tag: a

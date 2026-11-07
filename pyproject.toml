@@ -20,7 +20,9 @@ requires-python = ">=3.9"
 authors = [{ name = "Manvel Avetisian" }]
 license = "MIT"
 license-files = ["LICENSE.md", "THIRD_PARTY.md", "THIRD_PARTY_NOTICES.md"]
-dependencies = ["pyrove>=3,<4", "numpy>=1.19.3"]
+# (exactly the rove edge builds against, EDGE_ROVE_GIT_TAG in CMakeLists.txt: the two are released in lockstep, pyrove first, and
+# test/check_rove_pin.sh holds them together.  Types pass between the modules only where their nanobind ABI tags match, which a range lets drift.)
+dependencies = ["pyrove==3.0.0", "numpy>=1.19.3"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",

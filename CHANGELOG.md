@@ -33,6 +33,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 - pyedge's null backend raises `ValueError` for `frames_in_flight`, `joint_matrices` and `device_uuid`; it was `RuntimeError`.
 - ImGui's headers install under `include/edge/imgui`, on `edge::imgui_core`'s include path.
 - Dependencies are fetched by commit; Conan pins spdlog 1.15.3 and meshoptimizer 0.22.
+- pyedge requires exactly the pyrove edge builds against, not a range: the two are released in lockstep, pyrove first. Publishing pyedge fails
+  if that pyrove is not on PyPI yet.
 
 ## [3.0.0] - 2026-11-06
 
