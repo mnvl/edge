@@ -30,6 +30,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- `Camera::set_translation_rotation` is gone, from C++ and from Python: it took Euler angles in a vector. Build the matrix and give it to
+  `set_view_matrix`.
 - `Texture` of no size or a negative size is `std::invalid_argument`.
 - A name of pyedge whose binding cannot load raises `AttributeError` from the `ImportError`, which was raised directly.
 - pyedge's null backend raises `ValueError` for `frames_in_flight`, `joint_matrices` and `device_uuid`; it was `RuntimeError`.

@@ -78,14 +78,6 @@ void Camera::look_at(rove::vec<3> const &eye_pt, rove::vec<3> const &lookat_pt, 
 	set_view_matrix(tf);
 }
 
-void Camera::set_translation_rotation(rove::vec<3> const &tl, rove::vec<3> const &rot)
-{
-	rove::matrix<4, 4> tf;
-	tf.translation(tl);
-	tf.rotate(rot);
-	set_view_matrix(tf);
-}
-
 void Camera::set_cube_face(rove::vec<3> const &eye, int face, rove::scalar z_near, rove::scalar z_far)
 {
 	// Face i of a cube is sampled (Vulkan's and OpenGL's table) with s across and t down its image along these axes; edge's cameras

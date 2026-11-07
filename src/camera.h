@@ -17,8 +17,7 @@ namespace edge
  *
  * Camera owns two independent transforms:
  *   - **View matrix** — positions and orients the camera in world space.
- *     Set via look_at(), set_translation_rotation(), or
- *     set_view_matrix().
+ *     Set via look_at() or set_view_matrix().
  *   - **Projection matrix** — defines the visible volume (frustum).
  *     Set via set_perspective_projection() or set_orthographic_projection().
  *
@@ -129,9 +128,6 @@ public:
 	/// @param lookat_pt Point the camera is aimed at.
 	/// @param up_dir    World up hint (will be orthogonalised).
 	void look_at(rove::vec<3> const &eye_pt, rove::vec<3> const &lookat_pt, rove::vec<3> const &up_dir);
-
-	/// Build a view matrix from translation and Euler rotation.
-	void set_translation_rotation(rove::vec<3> const &tl, rove::vec<3> const &rot);
 
 	/// The camera that draws face @p face (0 to 5: +x, -x, +y, -y, +z, -z) of a cube render target (RenderTargetFormat::cube) from
 	/// @p eye: a square perspective of a right angle (the projection too: set_perspective_projection(pi / 2, 1, z_near, z_far)), its
