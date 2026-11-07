@@ -121,8 +121,8 @@ jobs:
           curl -sSfL -o mesa.7z https://github.com/pal1000/mesa-dist-win/releases/download/26.2.6/mesa3d-26.2.6-release-msvc.7z
           echo "b2e00615feaba45942343c265cc8c5f576142ca682c1ac6661922d4b72492877  mesa.7z" | sha256sum -c -
           7z x -omesa mesa.7z x64/lvp_icd.x86_64.json x64/vulkan_lvp.dll > /dev/null
-          # (with backslashes: the loader finds the manifest's relative .\\vulkan_lvp.dll by the directory of this path, which it cuts at one)
-          echo "VK_DRIVER_FILES=$(cygpath -w "$PWD/mesa/x64/lvp_icd.x86_64.json")" >> "$GITHUB_ENV"
+          # (in the registry: the runner is elevated, and there the loader ignores VK_DRIVER_FILES)
+          MSYS_NO_PATHCONV=1 reg add 'HKLM\SOFTWARE\Khronos\Vulkan\Drivers' /v "$(cygpath -w "$PWD/mesa/x64/lvp_icd.x86_64.json")" /t REG_DWORD /d 0 /f
       - name: Install
         shell: bash
         run: |
