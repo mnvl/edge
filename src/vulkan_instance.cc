@@ -3,7 +3,11 @@
 
 #include "vulkan_instance.h"
 
+#if defined(_WIN32)
+#include <process.h>
+#else
 #include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -27,7 +31,16 @@ std::mutex instance_lock;
 // and dropping a renderer).  Never destroyed: on the way out of a process the driver's own statics may already be gone.  A fork's child
 // cannot use its parent's, which it forgets rather than destroys.
 std::shared_ptr<VulkanInstance> *kept_instance = nullptr;
-pid_t kept_for_process = 0;
+long kept_for_process = 0;
+
+long this_process()
+{
+#if defined(_WIN32)
+	return long(_getpid());
+#else
+	return long(getpid());
+#endif
+}
 std::atomic<uint64_t> instances_made{0};
 
 bool loader_has(char const *name)
@@ -45,7 +58,7 @@ bool loader_has(char const *name)
 std::shared_ptr<VulkanInstance> VulkanInstance::acquire(std::vector<std::string> const &application_extensions)
 {
 	std::lock_guard<std::mutex> const lock(instance_lock);
-	if (kept_instance && kept_for_process != getpid())
+	if (kept_instance && kept_for_process != this_process())
 		kept_instance = nullptr;       // (the parent's: not this process's to use or to destroy)
 	if (kept_instance)
 	{
@@ -75,7 +88,7 @@ std::shared_ptr<VulkanInstance> VulkanInstance::acquire(std::vector<std::string>
 	made->instance_ = create_vulkan_instance(application_extensions, made->surface_extension_, made->extensions_);
 	++instances_made;
 	kept_instance = new std::shared_ptr<VulkanInstance>(made);
-	kept_for_process = getpid();
+	kept_for_process = this_process();
 	return made;
 }
 
@@ -87,13 +100,13 @@ uint64_t VulkanInstance::made_count()
 bool VulkanInstance::alive()
 {
 	std::lock_guard<std::mutex> const lock(instance_lock);
-	return kept_instance && kept_for_process == getpid() && kept_instance->use_count() > 1;
+	return kept_instance && kept_for_process == this_process() && kept_instance->use_count() > 1;
 }
 
 void VulkanInstance::release_unused()
 {
 	std::lock_guard<std::mutex> const lock(instance_lock);
-	if (kept_instance && kept_for_process == getpid() && kept_instance->use_count() == 1)
+	if (kept_instance && kept_for_process == this_process() && kept_instance->use_count() == 1)
 	{
 		delete kept_instance;
 		kept_instance = nullptr;

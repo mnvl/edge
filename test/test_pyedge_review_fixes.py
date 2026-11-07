@@ -79,7 +79,7 @@ def test_a_pyrove_it_cannot_talk_to_is_an_import_error_that_says_so():
         "try:\n"
         "    pyedge._check_pyrove_works(Fake, pyedge._bindings)\n"
         "except ImportError as e:\n"
-        "    assert 'no-binary' in str(e), str(e)\n"
+        "    assert 'no-binary pyrove' in str(e) and 'git+https://github.com/mnvl/edge@v' + pyedge.__version__ in str(e), str(e)\n"
         "    print('refused')\n"
     )
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
@@ -247,3 +247,28 @@ def test_importing_and_reading_the_description_need_no_binding(tmp_path):
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, cwd=tmp_path)
     assert result.returncode == 0, result.stderr
     assert result.stdout.startswith("edge's Python bindings")
+
+
+# --- what is published ------------------------------------------------------------------------------------------------------------
+
+def test_no_sdist_is_published():
+    # Where no wheel fits, pip would build one beside a pyrove wheel of another compiler: a pair that installs and cannot work.  No sdist,
+    # and pip says at once there is nothing for this machine.
+    workflow = (ROOT / ".github" / "workflows" / "wheels.yml").read_text(encoding="utf-8")
+    assert "--sdist" not in workflow
+    assert "needs: [version, wheels]" in workflow
+
+
+def test_wheels_are_built_for_every_platform_pyrove_has_them():
+    workflow = (ROOT / ".github" / "workflows" / "wheels.yml").read_text(encoding="utf-8")
+    for runner in ("ubuntu-24.04", "ubuntu-24.04-arm", "macos-15", "windows-2022"):
+        assert runner in workflow, runner
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert "[tool.cibuildwheel.macos]" in pyproject and "[tool.cibuildwheel.windows]" in pyproject
+
+
+def test_the_backends_say_what_this_build_has():
+    backends = pyedge.available_renderer_backends()
+    assert "auto" in backends and "null" in backends
+    assert ("metal" in backends) == (sys.platform == "darwin")
+    assert ("vulkan" in backends) == (sys.platform != "darwin")

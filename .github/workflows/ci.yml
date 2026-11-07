@@ -7,6 +7,10 @@ name: CI
 on:
   pull_request:
   workflow_dispatch:
+    inputs:
+      rove_ref:
+        description: "The rove to build against, where it is not the one edge pins (a branch, before its tag exists)"
+        required: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -41,7 +45,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: mnvl/rove
-          ref: ${{ vars.ROVE_REF || 'v3.0.1' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: test/check_rove_pin.sh holds the two together
+          ref: ${{ inputs.rove_ref || vars.ROVE_REF || 'v3.0.1' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: test/check_rove_pin.sh holds the two together
           path: rove
       - name: CI's rove is the one edge pins
         run: edge/test/check_rove_pin.sh edge
@@ -67,7 +71,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: mnvl/rove
-          ref: ${{ vars.ROVE_REF || 'v3.0.1' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: test/check_rove_pin.sh holds the two together
+          ref: ${{ inputs.rove_ref || vars.ROVE_REF || 'v3.0.1' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: test/check_rove_pin.sh holds the two together
           path: rove
       - name: Packages
         run: brew install ninja boost sdl3 glslang
@@ -75,6 +79,50 @@ jobs:
         run: cmake -S edge -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DEDGE_PYTHON=OFF -DEDGE_ROVE_SOURCE_DIR=$PWD/rove
       - name: Build
         run: cmake --build build
+
+  # pyedge from source where its wheels are built on a runner with no container, as pip would: a faster answer than the Wheels workflow
+  pyedge:
+    if: github.event_name != 'pull_request' || !github.event.repository.private
+    name: pyedge ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-2022]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: edge
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: mnvl/rove
+          ref: ${{ inputs.rove_ref || vars.ROVE_REF || 'v3.0.1' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: test/check_rove_pin.sh holds the two together
+          path: rove
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13"
+      - name: glslang (macOS)
+        if: runner.os == 'macOS'
+        run: brew install glslang
+      - name: Vulkan SDK (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          version=1.4.363.1
+          curl -sSfL -o sdk.exe "https://sdk.lunarg.com/sdk/download/$version/windows/vulkansdk-windows-X64-$version.exe"
+          ./sdk.exe --root 'C:\VulkanSDK' --accept-licenses --default-answer --confirm-command install
+          echo "VULKAN_SDK=C:\VulkanSDK" >> "$GITHUB_ENV"
+          echo 'C:\VulkanSDK\Bin' >> "$GITHUB_PATH"
+      - name: Install
+        shell: bash
+        run: |
+          python -m venv venv
+          venv/*/python -m pip install ./rove ./edge pillow
+      - name: Smoke test
+        shell: bash
+        run: |
+          mkdir smoke && cd smoke
+          ../venv/*/python ../edge/test/wheel_smoke.py ../edge/test/data/test_figure.glb
 
   consumers:
     if: github.event_name != 'pull_request' || !github.event.repository.private
@@ -93,7 +141,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: mnvl/rove
-          ref: ${{ vars.ROVE_REF || 'v3.0.1' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: test/check_rove_pin.sh holds the two together
+          ref: ${{ inputs.rove_ref || vars.ROVE_REF || 'v3.0.1' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: test/check_rove_pin.sh holds the two together
           path: rove
       - name: Packages
         if: matrix.way == 'submodules' || matrix.way == 'pip'

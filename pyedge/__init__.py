@@ -149,7 +149,7 @@ def _check_pyrove_works(pyrove: ModuleType, binding: ModuleType) -> None:
     except TypeError as exc:
         raise ImportError(
             "pyedge and pyrove cannot pass rove's types to each other: they were built by different compilers (nanobind's ABI tags differ). "
-            "Build both the same way: pip install --force-reinstall --no-binary pyrove,pyedge pyedge"
+            f"Build both the same way: pip install --force-reinstall --no-binary pyrove git+https://github.com/mnvl/edge@v{__version__}"
         ) from exc
 
 

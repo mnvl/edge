@@ -33,6 +33,10 @@
 #include "uber_draw_call.h"
 #include "vertex.h"
 #include "vertex_traits.h"
+#if defined(EDGE_USE_METAL)
+#include "metal_context.h"
+#include "metal_renderer.h"
+#endif
 #if defined(EDGE_USE_VULKAN)
 #include "vulkan_renderer.h"
 #include "vulkan_device_info.h"
@@ -158,6 +162,9 @@ std::vector<std::string> available_renderer_backends()
 {
     std::vector<std::string> backends;
     backends.push_back("auto");
+#if defined(EDGE_USE_METAL)
+    backends.push_back("metal");
+#endif
 #if defined(EDGE_USE_VULKAN)
     backends.push_back("vulkan");
 #endif
@@ -167,6 +174,10 @@ std::vector<std::string> available_renderer_backends()
 
 std::string resolve_renderer_backend(edge::Renderer const &renderer)
 {
+#if defined(EDGE_USE_METAL)
+    if (dynamic_cast<edge::MetalRenderer const *>(&renderer) != nullptr)
+        return "metal";
+#endif
 #if defined(EDGE_USE_VULKAN)
     if (dynamic_cast<edge::VulkanRenderer const *>(&renderer) != nullptr)
         return "vulkan";
@@ -192,6 +203,20 @@ std::shared_ptr<edge::Renderer> create_renderer(int width, int height, std::stri
             throw nb::value_error("the null backend keeps no frames in flight (it has one)");
         return create_null_renderer(width, height);
     }
+
+#if defined(EDGE_USE_METAL)
+    // On a Mac, Metal: Vulkan is there only through MoltenVK, and only when asked for by name.
+    if (backend == "metal" || backend == "auto")
+    {
+        if (!device_uuid.empty())
+            throw nb::value_error("the Metal backend draws on the system's GPU: it has no device to select by uuid");
+        if (joint_matrices)
+            throw nb::value_error("the Metal backend has no joint_matrices to size");
+        if (frames_in_flight)
+            throw nb::value_error("the Metal backend keeps its own frames in flight (two)");
+        return std::make_shared<edge::MetalRenderer>(width, height, edge::metal_shader_dir().string(), std::make_shared<edge::MetalContext>());
+    }
+#endif
 
     // auto: the GPU this build has; a GPU that cannot be had is an error, not the null renderer, which draws nothing
     if (backend == "vulkan" || backend == "auto")
@@ -264,6 +289,8 @@ void bind_renderer(nb::module_ &m)
         "../share/edge/shaders beside it (an install's), the build's directory and the install's.  "
         "RuntimeError naming every place tried when none does.");
 #endif
+    m.def("metal_shader_dir", [] { return edge::metal_shader_dir().string(); },
+        "The directory a Metal renderer reads its shaders from; RuntimeError naming where it looked and $EDGE_METAL_SHADER_DIR when none has them");
     m.def("view_shader_dir", [] { return edge::view_shader_dir().string(); },
         "The directory of edge's view shaders (lit.frag.spv: edge_shot's light, for a model viewer): $EDGE_VIEW_SHADER_DIR when set, "
         "else the first that holds them of view_shaders beside this module, ../share/edge/view_shaders beside it, the build's "

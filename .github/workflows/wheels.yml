@@ -3,7 +3,9 @@
 
 name: Wheels
 
-# pyedge's wheels: Linux only for now (manylinux_2_28, x86_64 and aarch64 each on its own runner; pyproject.toml has the
+# pyedge's wheels and nothing else: no sdist, so that where no wheel fits pip says so at once, instead of building one beside a pyrove wheel of
+# another compiler, a pair that installs and cannot work.  Linux (manylinux_2_28, x86_64 and aarch64), macOS on Apple silicon and 64-bit Windows,
+# each on its own runner (pyproject.toml has the
 # cibuildwheel settings).  rove's C++ sources are checked out inside the project, where the build container sees them
 # (EDGE_ROVE_SOURCE_DIR); pyrove itself comes from PyPI when the wheel is installed.
 
@@ -12,6 +14,10 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      rove_ref:
+        description: "The rove to build against, where it is not the one edge pins (a branch, before its tag exists)"
+        required: false
 
 # Third-party actions are pinned by commit, and only the publishing job can do more than read
 permissions:
@@ -24,34 +30,40 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2022]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: mnvl/rove
-          ref: ${{ vars.ROVE_REF || 'v3.0.1' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: test/check_rove_pin.sh holds the two together
+          ref: ${{ inputs.rove_ref || vars.ROVE_REF || 'v3.0.1' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: test/check_rove_pin.sh holds the two together
           path: _rove
+      # What a build outside a container needs: the Vulkan SDK on Windows, and rove's sources by a path CMake can read
+      - name: Vulkan SDK (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          version=1.4.363.1
+          curl -sSfL -o sdk.exe "https://sdk.lunarg.com/sdk/download/$version/windows/vulkansdk-windows-X64-$version.exe"
+          ./sdk.exe --root 'C:\VulkanSDK' --accept-licenses --default-answer --confirm-command install
+          echo "VULKAN_SDK=C:\VulkanSDK" >> "$GITHUB_ENV"
+          echo 'C:\VulkanSDK\Bin' >> "$GITHUB_PATH"
+      - name: rove's sources (macOS, Windows)
+        if: runner.os != 'Linux'
+        shell: bash
+        run: echo "CMAKE_ARGS=-DEDGE_ROVE_SOURCE_DIR=$(python3 -c 'import os; print(os.getcwd().replace(chr(92), "/"))')/_rove" >> "$GITHUB_ENV"
       - uses: pypa/cibuildwheel@f9b966cfadf4109556cadc5bb39ddb72d0ce664e # v4.3.5
         env:
           CIBW_ENVIRONMENT_LINUX: CMAKE_ARGS="-DEDGE_ROVE_SOURCE_DIR=/project/_rove"
           # pyrove from the same rove checkout, so each wheel is tested against the rove it was built with (and before pyrove is
           # on PyPI)
           CIBW_BEFORE_TEST_LINUX: pip install /project/_rove
+          CIBW_BEFORE_TEST_MACOS: pip install {project}/_rove
+          CIBW_BEFORE_TEST_WINDOWS: pip install {project}/_rove
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: wheels-${{ matrix.os }}
           path: wheelhouse/*.whl
-
-  sdist:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - run: pipx run build --sdist
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: sdist
-          path: dist/*.tar.gz
 
   # The tag must say the version the package says: a mistagged commit publishes nothing
   version:
@@ -75,7 +87,7 @@ jobs:
     # PyPI trusted publishing: configure the project on PyPI for this repository and workflow first.  Only from the push of a tag: a
     # manual run on a v* ref builds, and does not publish.
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [version, wheels, sdist]
+    needs: [version, wheels]
     runs-on: ubuntu-24.04
     environment: pypi
     permissions:
