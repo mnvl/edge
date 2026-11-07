@@ -45,7 +45,7 @@ public:
 	GLESVertexBuffer(GLESContextPtr const &context, VertexTraits const *traits, size_t size, bool dynamic);
 
 	GLuint get() const { return store_.get(); }
-	VertexTraits const *vertex_traits() const { return traits_; }
+	VertexTraits const *vertex_traits() const override { return traits_; }
 
 	size_t size() const override { return store_.bytes().size(); }
 
@@ -69,7 +69,7 @@ public:
 	GLuint get() const { return store_.get(); }
 	/// GL_UNSIGNED_SHORT or GL_UNSIGNED_INT
 	GLenum index_type() const { return type_; }
-	size_t index_size() const { return type_ == GL_UNSIGNED_SHORT ? 2 : 4; }
+	size_t index_size() const override { return type_ == GL_UNSIGNED_SHORT ? 2 : 4; }
 
 	size_t size() const override { return store_.bytes().size(); }
 

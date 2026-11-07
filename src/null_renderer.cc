@@ -39,6 +39,9 @@ NullRenderer::NullRenderer(int width, int height):
 	default_render_target_(new NullRenderTarget(this, width, height)),
 	gpu_timer_(new NullGpuTimer())
 {
+	// (as on Vulkan: the same mistake is the same error on every renderer)
+	if (width <= 0 || height <= 0)
+		throw std::invalid_argument("a renderer of " + std::to_string(width) + "x" + std::to_string(height) + " pixels");
 }
 
 NullRenderer::~NullRenderer() = default;
@@ -48,14 +51,23 @@ int NullRenderer::screen_height() const { return height_; }
 
 void NullRenderer::resize(int width, int height)
 {
+	if (width <= 0 || height <= 0)
+		throw std::invalid_argument("a renderer resized to " + std::to_string(width) + "x" + std::to_string(height) + " pixels");
 	width_ = width;
 	height_ = height;
 	default_render_target_ = std::make_shared<NullRenderTarget>(this, width_, height_);
 }
 
 
-void NullRenderer::do_begin_frame() { ++frame_serial_; }
-void NullRenderer::do_finish_frame() {}
+void NullRenderer::do_begin_frame()
+{
+	++frame_serial_;
+	*in_a_frame_ = true;
+}
+void NullRenderer::do_finish_frame()
+{
+	*in_a_frame_ = false;
+}
 void NullRenderer::do_begin_pass(RenderTargetPtr const &target, RenderPassClearState const &, uint32_t)
 {
 	NullRenderTarget const *const null_target = dynamic_cast<NullRenderTarget const *>(target.get());
@@ -70,18 +82,25 @@ void NullRenderer::do_draw(DrawCall const &) {}
 
 VertexBufferPtr NullRenderer::create_vertex_buffer(VertexTraits const *vertex_traits, size_t size, BufferUsage)
 {
-	return std::make_shared<NullVertexBuffer>(vertex_traits, size);
+	auto buffer = std::make_shared<NullVertexBuffer>(vertex_traits, size);
+	buffer->set_owner(this);
+	return buffer;
 }
 
 IndexBufferPtr NullRenderer::create_index_buffer(IndexFormat index_format, size_t size, BufferUsage)
 {
-	return std::make_shared<NullIndexBuffer>(index_format, size);
+	auto buffer = std::make_shared<NullIndexBuffer>(index_format, size);
+	buffer->set_owner(this);
+	return buffer;
 }
 
 TexturePtr NullRenderer::create_texture(int width, int height, PixelFormat pixel_format,
 	TextureUsage const &usage)
 {
-	return std::make_shared<NullTexture>(width, height, pixel_format, usage);
+	auto texture = std::make_shared<NullTexture>(width, height, pixel_format, usage);
+	texture->set_owner(this);
+	texture->set_in_a_frame(in_a_frame_);
+	return texture;
 }
 
 RenderTargetPtr NullRenderer::default_render_target()

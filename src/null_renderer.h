@@ -50,6 +50,8 @@ protected:
 	GpuTimer &gpu_timer() const override { return *gpu_timer_; }
 
 private:
+	std::shared_ptr<bool> in_a_frame_ = std::make_shared<bool>(false);     // a texture may outlive the renderer, and asks this
+
 	int width_, height_;
 	RenderTargetPtr default_render_target_;
 	uint64_t frame_serial_ = 0;

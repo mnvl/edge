@@ -102,7 +102,7 @@ def test_camera_accepts_rove_math_types():
     at = pyrove.vec3(0.0, 0.0, 1.0)
     up = pyrove.vec3(0.0, 1.0, 0.0)
     camera.look_at(eye, at, up)
-    camera.set_translation_rotation(pyrove.vec3(1.0, 2.0, 3.0), pyrove.vec3(0.1, 0.2, 0.3))
+    assert not hasattr(camera, "set_translation_rotation")
 
     projection = camera.projection_matrix
     assert type(projection).__name__ == "mat4"

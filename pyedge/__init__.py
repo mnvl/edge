@@ -14,10 +14,11 @@ import os
 import re
 import sys
 import threading
+import warnings
 from pathlib import Path
 from types import ModuleType
 
-__version__ = "3.0.0"
+__version__ = "3.0.1"
 
 
 def _binding_dirs() -> list[Path]:
@@ -72,8 +73,13 @@ def _put_binding_dirs_on_path() -> None:
 
 
 def _import_required_binding(module_name: str) -> ModuleType:
-    # Installed (a wheel): the module is inside the package (and known by its own name too, as a build's is).
-    if not os.environ.get("EDGE_PYTHON_BINDINGS_DIR") and _module_files(Path(__file__).resolve().parent, module_name):
+    # Installed (a wheel): the module is inside the package (and known by its own name too, as a build's is).  The variable picks another
+    # where it names a directory that has one; one that names nothing is no reason to fail with the right module beside this file.
+    explicit = os.environ.get("EDGE_PYTHON_BINDINGS_DIR")
+    if _module_files(Path(__file__).resolve().parent, module_name) and not (explicit and _module_files(Path(explicit).expanduser(), module_name)):
+        if explicit:
+            warnings.warn(f"EDGE_PYTHON_BINDINGS_DIR={explicit} has no {module_name}: using the one this pyedge is installed with",
+                          RuntimeWarning, stacklevel=2)
         module = importlib.import_module(f"{__name__}.{module_name}")
         sys.modules.setdefault(module_name, module)
         return module
@@ -130,8 +136,21 @@ def _loaded_binding() -> ModuleType:
                 # renderer or model a process builds.  Without it nothing is written to disk; warnings and errors reach stderr either
                 # way.  init_logging() moves it.
                 binding.init_logging(os.environ.get("EDGE_LOG"))
+                _check_pyrove_works(importlib.import_module("pyrove"), binding)
                 _binding = binding
     return _binding
+
+
+def _check_pyrove_works(pyrove: ModuleType, binding: ModuleType) -> None:
+    """pyedge and pyrove share rove's types only where nanobind's ABI tags match, which the two builds' compilers decide.  pip cannot
+    see it: its check says all is well, and every call that passes a vector then raises TypeError.  Said once, here, with what to do."""
+    try:
+        binding._takes_a_pyrove_vector(pyrove.vec3(0.0, 0.0, 0.0))
+    except TypeError as exc:
+        raise ImportError(
+            "pyedge and pyrove cannot pass rove's types to each other: they were built by different compilers (nanobind's ABI tags differ). "
+            f"Build both the same way: pip install --force-reinstall --no-binary pyrove git+https://github.com/mnvl/edge@v{__version__}"
+        ) from exc
 
 
 def __getattr__(name: str):
@@ -139,7 +158,11 @@ def __getattr__(name: str):
     # ImportError would escape hasattr)
     if name.startswith("__") and name.endswith("__") and name != "__all__":
         raise AttributeError(f"module 'pyedge' has no attribute '{name}'")
-    binding = _loaded_binding()
+    try:
+        binding = _loaded_binding()
+    except ImportError as exc:
+        # (hasattr() and friends answer False, and the error says why: pyedge needs a binding that may not load here)
+        raise AttributeError(f"module 'pyedge' has no attribute '{name}': {exc}") from exc
     if name == "__all__":
         return [n for n in dir(binding) if not n.startswith("_")]
     if name == "_bindings":          # (the binding module itself, for a caller that needs where its files are)
@@ -152,6 +175,33 @@ def __getattr__(name: str):
 
 def __dir__() -> list[str]:
     return sorted(name for name in dir(_loaded_binding()) if not name.startswith("_"))
+
+
+_DESCRIPTION = __doc__ or ""
+
+
+def _description_and_signatures() -> str:
+    """The description, and every function with its overloads: help() lists a nanobind function under no heading of its own.  Without a
+    binding that can load, the description alone: help() is no place to fail."""
+    try:
+        binding = _loaded_binding()
+    except ImportError:
+        return _DESCRIPTION
+    lines = []
+    for name in sorted(n for n in dir(binding) if not n.startswith("_")):
+        for signature, _, defaults in getattr(getattr(binding, name), "__nb_signature__", ()):
+            # (nanobind writes a default as \\N, or \\=N where a string stands for it, for the Nth of `defaults`)
+            text = re.sub(r"\\=?(\d+)", lambda m: repr(defaults[int(m.group(1))]), signature)
+            lines.append("    " + re.sub(r"\b(?:pyedge\.)?_pyedge\.|\b(?:pyrove\.)?pyrove_bind\.", "", text).removeprefix("def "))
+    return _DESCRIPTION + "\nFunctions:\n\n" + "\n".join(lines) + "\n"
+
+
+class _Package(ModuleType):
+    # (made when asked: reading it loads the binding, which an import does not)
+    __doc__ = property(lambda self: _description_and_signatures())
+
+
+sys.modules[__name__].__class__ = _Package
 
 
 def _check_edge_log() -> None:

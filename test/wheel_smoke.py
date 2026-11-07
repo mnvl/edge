@@ -3,10 +3,10 @@
 
 """A smoke test of an installed pyedge (a wheel's), run from outside the source tree:
 
-    python wheel_smoke.py <model.glb> [vulkan|null]
+    python wheel_smoke.py <model.glb> [vulkan|metal|null]
 
 It says where the module and its shaders are, checks that a copy of the module without them refuses (the build it came from is
-gone, so it names no directory of it), makes a renderer (Vulkan where the machine has a device, lavapipe will do; else the null
+gone, so it names no directory of it), makes a renderer (Metal on a Mac, Vulkan where the machine has a device, lavapipe will do; else the null
 one, or the backend asked for), loads the glTF, draws it once into a target and reads it back, and checks that pyrove's types cross
 into pyedge's module and back (they are two modules, built apart, that share rove's types through nanobind)."""
 
@@ -61,12 +61,24 @@ def main() -> int:
             print(f"no Vulkan device: {e}")
             devices = []
         backend = "vulkan" if devices else "null"
+        if "metal" in backends:
+            try:
+                pyedge.create_renderer(SIZE, SIZE, backend="metal")
+                backend = "metal"
+            except RuntimeError as e:      # (no Metal device: a virtual machine with no GPU)
+                print(f"no Metal device: {e}")
     if "vulkan" in backends:
         shaders = Path(pyedge.vulkan_shader_dir())
         print(f"vulkan shaders: {shaders}")
         if shaders != package / "shaders" / "edge":
             raise SystemExit(f"edge's shaders are not the package's: {shaders}")
         refuses_without_its_shaders(module, "vulkan_shader_dir", "EDGE_VK_SHADER_DIR")
+    if "metal" in backends:
+        shaders = Path(pyedge.metal_shader_dir())
+        print(f"metal shaders: {shaders}")
+        if shaders != package / "shaders" / "edge":
+            raise SystemExit(f"edge's shaders are not the package's: {shaders}")
+        refuses_without_its_shaders(module, "metal_shader_dir", "EDGE_METAL_SHADER_DIR")
     view = Path(pyedge.view_shader_dir())
     print(f"view shaders: {view}")
     if view != package / "view_shaders":

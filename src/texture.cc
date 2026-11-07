@@ -68,6 +68,8 @@ Texture::Texture(int width, int height, PixelFormat pixel_format, TextureUsage c
 	usage_(usage),
 	mip_levels_(1)
 {
+	if (width <= 0 || height <= 0)
+		throw std::invalid_argument("a texture of " + std::to_string(width) + " x " + std::to_string(height));
 	if (usage.array_layers < 0)
 		throw std::invalid_argument(std::to_string(usage.array_layers) + " array layers");
 	if (usage.provided_mip_levels > 0)
@@ -155,7 +157,9 @@ TexturePtr Texture::load_from_memory(RendererPtr const &renderer, void const *da
 
 size_t Texture::level_size(int width, int height, PixelFormat pixel_format, int level)
 {
-	return pixel_data_size(std::max(1, width >> level), std::max(1, height >> level), pixel_format);
+	// (a shift by the width of an int or more is not a number: past the last level there is one texel, as there is at it)
+	int const w = level < 31 ? width >> level : 0, h = level < 31 ? height >> level : 0;
+	return pixel_data_size(std::max(1, w), std::max(1, h), pixel_format);
 }
 
 size_t Texture::levels_size(int width, int height, PixelFormat pixel_format, int levels)
@@ -236,6 +240,16 @@ TexturePtr Texture::load_dds_array(RendererPtr const &renderer, std::vector<std:
 }
 
 void Texture::save_to_file(TexturePtr const &texture, std::string const &filename) {
+	// (of 8 bits a channel, in the order they are stored: there is no one way to write the others as an image)
+	PixelFormat const format = texture->pixel_format();
+	if (format != PixelFormat::A8R8G8B8 && format != PixelFormat::X8R8G8B8)
+		throw std::invalid_argument("save_to_file: a texture of pixel format " + to_string(format) + " is not 8-bit BGRA");
+
+	bool const png = ends_with_ci(filename, ".png"), bmp = ends_with_ci(filename, ".bmp"), tga = ends_with_ci(filename, ".tga");
+	bool const jpg = ends_with_ci(filename, ".jpg") || ends_with_ci(filename, ".jpeg");
+	if (!png && !bmp && !tga && !jpg)
+		throw std::invalid_argument("save_to_file: '" + filename + "' is not .png, .bmp, .tga, .jpg or .jpeg");
+
 	int const w = texture->width();
 	int const h = texture->height();
 	size_t const pixel_count = static_cast<size_t>(w) * static_cast<size_t>(h);
@@ -249,14 +263,14 @@ void Texture::save_to_file(TexturePtr const &texture, std::string const &filenam
 	swizzle_bgra_to_rgba(rgba.data(), w, h);
 
 	int result = 0;
-	if (ends_with_ci(filename, ".png"))
-	{
+	if (png)
 		result = stbi_write_png(filename.c_str(), w, h, 4, rgba.data(), w * 4);
-	}
-	else
-	{
+	else if (bmp)
 		result = stbi_write_bmp(filename.c_str(), w, h, 4, rgba.data());
-	}
+	else if (tga)
+		result = stbi_write_tga(filename.c_str(), w, h, 4, rgba.data());
+	else
+		result = stbi_write_jpg(filename.c_str(), w, h, 4, rgba.data(), 95);
 
 	if (!result)
 	{

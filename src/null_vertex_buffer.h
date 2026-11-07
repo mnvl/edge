@@ -16,6 +16,7 @@ public:
 	~NullVertexBuffer() override;
 
 	size_t size() const override;
+	VertexTraits const *vertex_traits() const override { return traits_; }
 
 
 protected:

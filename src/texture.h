@@ -136,6 +136,10 @@ public:
 	// Supports BMP and PNG formats (extension-based).
 	static void save_to_file(TexturePtr const &texture, std::string const &filename);
 
+	/// The renderer the texture was made by, where the backend says (null where not), to tell whether a draw may use it: only compared.
+	void const *owner() const { return owner_; }
+	void set_owner(void const *owner) { owner_ = owner; }
+
 protected:
 	int width_, height_;
 	PixelFormat pixel_format_;
@@ -159,6 +163,8 @@ protected:
 	virtual void do_unlock() = 0;
 
 private:
+	void const *owner_ = nullptr;
+
 	// The CPU copy, if the texture's format is one of these.
 	void const *cpu_copy(PixelFormat const *pixel_formats, size_t count) const;
 };

@@ -18,8 +18,10 @@ SET(EDGE_TEST_SOURCES
   test_dds.cc
   test_depth_texture.cc
   test_draw_call.cc
+  test_draw_checks.cc
   test_dynamic_mesh.cc
   test_edge_file.cc
+  test_untrusted_files.cc
   test_fixture.h
   test_font.cc
   test_frame_resources.cc

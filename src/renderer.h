@@ -250,6 +250,9 @@ protected:
 	virtual GpuTimer &gpu_timer() const = 0;
 
 private:
+	/// What a draw of @p call reads is all there, and the renderer's own: std::invalid_argument otherwise.
+	void check_ranges(DrawCall const &call) const;
+
 	friend class DrawCall;
 	/// Draws @p call in the active pass (std::logic_error outside one): DrawCall::execute() gives it here once committed.
 	void draw(DrawCall const &call);

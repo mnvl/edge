@@ -393,17 +393,23 @@ void GLESRenderer::do_set_viewport(int x, int y, int width, int height)
 
 VertexBufferPtr GLESRenderer::create_vertex_buffer(VertexTraits const *vertex_traits, size_t size, BufferUsage usage)
 {
-	return std::make_shared<GLESVertexBuffer>(context_, vertex_traits, size, usage == BufferUsage::DYNAMIC);
+	auto buffer = std::make_shared<GLESVertexBuffer>(context_, vertex_traits, size, usage == BufferUsage::DYNAMIC);
+	buffer->set_owner(this);
+	return buffer;
 }
 
 IndexBufferPtr GLESRenderer::create_index_buffer(IndexFormat index_format, size_t size, BufferUsage usage)
 {
-	return std::make_shared<GLESIndexBuffer>(context_, index_format, size, usage == BufferUsage::DYNAMIC);
+	auto buffer = std::make_shared<GLESIndexBuffer>(context_, index_format, size, usage == BufferUsage::DYNAMIC);
+	buffer->set_owner(this);
+	return buffer;
 }
 
 TexturePtr GLESRenderer::create_texture(int width, int height, PixelFormat pixel_format, TextureUsage const &usage)
 {
-	return std::make_shared<GLESTexture>(context_, width, height, pixel_format, usage);
+	auto texture = std::make_shared<GLESTexture>(context_, width, height, pixel_format, usage);
+	texture->set_owner(this);
+	return texture;
 }
 
 void GLESRenderer::do_set_frame_constants(void const *data, size_t size)

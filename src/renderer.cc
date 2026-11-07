@@ -8,6 +8,7 @@
 #include "renderer.h"
 
 #include "draw_call.h"
+#include "index_buffer.h"
 #include "material.h"
 #include "pixel.h"
 #include "gpu_timer.h"
@@ -15,6 +16,8 @@
 #include "shader_program.h"
 #include "texture.h"
 #include "uber_draw_call.h"
+#include "vertex_buffer.h"
+#include "vertex_traits.h"
 
 namespace edge
 {
@@ -222,10 +225,66 @@ void Renderer::set_global_shadow_texture(unsigned slot, TexturePtr const &depth)
 	do_set_global_texture(slot, depth, true);
 }
 
+void Renderer::check_ranges(DrawCall const &call) const
+{
+	// (an owner of null is one the backend did not record; Vulkan's checks its own, by device, in do_draw)
+	VertexBuffer const &vertices = *call.vertex_buffer();
+	if (vertices.owner() && vertices.owner() != this)
+		throw std::invalid_argument("a draw of a vertex buffer of another renderer");
+	IndexBuffer const *const indices = call.index_buffer().get();
+	if (indices && indices->owner() && indices->owner() != this)
+		throw std::invalid_argument("a draw of an index buffer of another renderer");
+
+	// (each on its own side of the comparison: these come from a caller, and the product can wrap)
+	VertexTraits const *const traits = vertices.vertex_traits();
+	size_t const vertex_size = traits ? traits->size() : 0;
+	size_t const vertices_count = vertex_size ? vertices.size() / vertex_size : 0;
+	size_t const triangles = call.triangles_count(), minimal = call.minimal_vertex_index();
+	bool const known = vertex_size != 0;
+	if (known && minimal > vertices_count)
+		throw std::invalid_argument("a draw from vertex " + std::to_string(minimal) + " of " + std::to_string(vertices_count));
+	if (indices)
+	{
+		size_t const indices_count = indices->size() / indices->index_size(), first = call.first_index_offset();
+		if (triangles > indices_count / 3 || first > indices_count - triangles * 3)
+			throw std::invalid_argument("a draw of " + std::to_string(triangles) + " triangles from index " + std::to_string(first) + " of " +
+				std::to_string(indices_count));
+		if (known && triangles > 0)
+		{
+			size_t const highest = indices->highest_index(first, triangles * 3);
+			if (highest >= vertices_count)
+				throw std::invalid_argument("a draw that reaches vertex " + std::to_string(highest) + " of " + std::to_string(vertices_count));
+		}
+	}
+	else if (known && (triangles > vertices_count / 3 || minimal > vertices_count - triangles * 3))
+	{
+		throw std::invalid_argument("a draw of " + std::to_string(triangles) + " triangles from vertex " + std::to_string(minimal) + " of " +
+			std::to_string(vertices_count));
+	}
+
+	// the textures the material brings: a descriptor of another device's image is a crash there
+	Material const &material = *call.material();
+	auto const check_texture = [&](TexturePtr const &texture) {
+		if (texture && texture->owner() && texture->owner() != this)
+			throw std::invalid_argument("a draw of texture '" + texture->filename() + "' of another renderer");
+	};
+	for (size_t i = 0; i < material.diffuse_textures_count(); ++i)
+		check_texture(material.diffuse_texture(i));
+	check_texture(material.texture_blending_weights_texture());
+	check_texture(material.normal_map_texture());
+	check_texture(material.metallic_roughness_texture());
+	check_texture(material.emissive_texture());
+}
+
 void Renderer::draw(DrawCall const &call)
 {
 	if (!in_pass())
 		throw std::logic_error("a draw outside a pass");
+	if (!call.vertex_buffer())
+		throw std::logic_error("a draw with no vertex buffer");
+	if (!call.material())
+		throw std::logic_error("a draw with no material");
+	check_ranges(call);
 	if (call.is_instanced() && call.visible_instances().empty())
 		throw std::invalid_argument("an instanced draw of no instances");
 	if (call.material()->occlusion() && !call.material()->metallic_roughness_texture())

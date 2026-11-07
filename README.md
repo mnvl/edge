@@ -36,7 +36,7 @@ and lidar images for training and testing), where a general-purpose engine was t
 ## Status
 
 edge is developed for the author's own projects, which use it in production. The API still changes between versions; see
-[CHANGELOG.md](CHANGELOG.md). Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
+[CHANGELOG.md](https://github.com/mnvl/edge/blob/main/CHANGELOG.md). Contributions are welcome: see [CONTRIBUTING.md](https://github.com/mnvl/edge/blob/main/CONTRIBUTING.md).
 
 ## Requirements
 
@@ -45,14 +45,14 @@ edge is developed for the author's own projects, which use it in production. The
   `-DEDGE_ROVE_SOURCE_DIR=<path>`
 - For Vulkan: the Vulkan headers and loader and `glslangValidator`. Without them edge builds without the Vulkan backend.
 - For OpenGL ES (`-DEDGE_GLES=ON`): `GLES3/gl3.h` and libGLESv3. For Metal: Xcode.
-- SDL3 for `edge_sdl` (windows and contexts), Boost.Test for the tests, Python 3.8 or newer with NumPy and pytest for pyedge
+- SDL3 for `edge_sdl` (windows and contexts), Boost.Test for the tests, Python 3.9 or newer with NumPy and pytest for pyedge
 - Network access on the first configure: the other dependencies are fetched at pinned versions (see
-  [THIRD_PARTY.md](THIRD_PARTY.md))
+  [THIRD_PARTY.md](https://github.com/mnvl/edge/blob/main/THIRD_PARTY.md))
 
 ## Install
 
 pip (`pip install pyedge`, Linux wheels), Git submodules beside rove, Conan, vcpkg, or installed from source:
-[docs/install.md](docs/install.md) has each, with the CMake that uses it:
+[docs/install.md](https://github.com/mnvl/edge/blob/main/docs/install.md) has each, with the CMake that uses it:
 
 ```cmake
 add_subdirectory(rove)
@@ -64,6 +64,11 @@ edge_bundle_runtime(my_runtime DESTINATION ${CMAKE_BINARY_DIR})     # edge's sha
 edge_convert_models(my_models SOURCE_DIR ${CMAKE_SOURCE_DIR}/assets DESTINATION ${CMAKE_BINARY_DIR}/models)
 ```
 
+From Python, `pip install pyedge`, with wheels for Linux and macOS on Apple silicon. On Linux it needs the system's Vulkan loader, `libvulkan.so.1`
+(`apt install libvulkan1`), even for the null backend, and a Vulkan driver to draw (any GPU's, or Mesa's lavapipe). On a Mac it draws with Metal. pyedge
+has the Vulkan, Metal and null backends; OpenGL ES is C++ only. On Windows, build it from source
+([docs/install.md](https://github.com/mnvl/edge/blob/main/docs/install.md)).
+
 ## Build and test
 
 ```bash
@@ -74,6 +79,9 @@ cmake --build edge/build
 ctest --test-dir edge/build -j$(nproc) --output-on-failure
 ```
 
+On a real GPU run the Python tests one at a time (`pytest` without `-n`): two at once have lost the device on NVIDIA's driver. Set
+`VK_DRIVER_FILES` to lavapipe's ICD to run them in parallel.
+
 Without a GPU, Mesa's lavapipe (Vulkan) and llvmpipe (OpenGL ES) run the whole test suite on the CPU;
 `etc/container/test.sh` builds and tests edge in such a Linux container.
 
@@ -82,13 +90,14 @@ Without a GPU, Mesa's lavapipe (Vulkan) and llvmpipe (OpenGL ES) run the whole t
 ```cpp
 #include <edge/camera.h>
 #include <edge/load_model.h>
+#include <edge/model.h>
 #include <edge/scheduler.h>
 #include <edge/vulkan_renderer.h>
 
 auto renderer = std::make_shared<edge::VulkanRenderer>(640, 480);
 auto scheduler = std::make_shared<edge::Scheduler>(renderer);
 auto model = edge::load_model(renderer, scheduler, "robot.glb");     // a .glb, .gltf or .edge file
-auto target = renderer->create_render_target(640, 480, edge::RenderTargetFormat());
+auto target = renderer->create_render_target(640, 480, edge::PixelFormat::A8R8G8B8);
 
 auto camera = std::make_shared<edge::Camera>();
 camera->set_perspective_projection(1.0f, 640.0f / 480.0f, 0.1f, 100.0f);
@@ -109,20 +118,20 @@ downloaded texture is a NumPy array (`texture.to_numpy()`). `examples/` has comp
 
 | | |
 |---|---|
-| [docs/install.md](docs/install.md) | pip, Git submodules, Conan, vcpkg, installing from source |
-| [docs/building.md](docs/building.md) | Requirements, CMake options, the install tree, where shaders are found |
-| [docs/architecture.md](docs/architecture.md) | Conventions, the frame, backends, threads, design decisions |
-| [docs/coordinates.md](docs/coordinates.md) | World and clip space, matrix order, the viewport flip, winding, pixel formats |
-| [docs/shaders.md](docs/shaders.md) | Writing shaders against `edge.glsl` |
-| [docs/render-targets.md](docs/render-targets.md) | Targets of several colours, layers and cube faces |
-| [docs/models.md](docs/models.md) | Model types, `ModelBuilder`, the `.edge` format |
-| [docs/python.md](docs/python.md) | pyedge |
-| [docs/tools.md](docs/tools.md) | `edge_shot`, `edge_convert`, CMake helpers for a game |
-| [docs/logging.md](docs/logging.md) | The log and its levels |
+| [docs/install.md](https://github.com/mnvl/edge/blob/main/docs/install.md) | pip, Git submodules, Conan, vcpkg, installing from source |
+| [docs/building.md](https://github.com/mnvl/edge/blob/main/docs/building.md) | Requirements, CMake options, the install tree, where shaders are found |
+| [docs/architecture.md](https://github.com/mnvl/edge/blob/main/docs/architecture.md) | Conventions, the frame, backends, threads, design decisions |
+| [docs/coordinates.md](https://github.com/mnvl/edge/blob/main/docs/coordinates.md) | World and clip space, matrix order, the viewport flip, winding, pixel formats |
+| [docs/shaders.md](https://github.com/mnvl/edge/blob/main/docs/shaders.md) | Writing shaders against `edge.glsl` |
+| [docs/render-targets.md](https://github.com/mnvl/edge/blob/main/docs/render-targets.md) | Targets of several colours, layers and cube faces |
+| [docs/models.md](https://github.com/mnvl/edge/blob/main/docs/models.md) | Model types, `ModelBuilder`, the `.edge` format |
+| [docs/python.md](https://github.com/mnvl/edge/blob/main/docs/python.md) | pyedge |
+| [docs/tools.md](https://github.com/mnvl/edge/blob/main/docs/tools.md) | `edge_shot`, `edge_convert`, CMake helpers for a game |
+| [docs/logging.md](https://github.com/mnvl/edge/blob/main/docs/logging.md) | The log and its levels |
 
 The headers in `src/` document each class and function.
 
 ## License
 
-MIT; see [LICENSE](LICENSE.md). The libraries edge fetches when it is built are listed with their licenses in
-[THIRD_PARTY.md](THIRD_PARTY.md).
+MIT; see [LICENSE](https://github.com/mnvl/edge/blob/main/LICENSE.md). The libraries edge fetches when it is built are listed with their licenses in
+[THIRD_PARTY.md](https://github.com/mnvl/edge/blob/main/THIRD_PARTY.md).

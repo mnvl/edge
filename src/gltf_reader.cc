@@ -56,7 +56,9 @@ fastgltf::Asset read_gltf_json(std::string const &filename)
 		throw GltfLoader::load_error("glTF '" + filename + "' could not be read: " + std::string(fastgltf::getErrorMessage(data.error())));
 	}
 	fastgltf::Parser parser(gltf_extensions());
-	fastgltf::Expected<fastgltf::Asset> asset = parser.loadGltf(data.get(), std::filesystem::path(filename).parent_path(), fastgltf::Options::None);
+	// (the directory of "robot.glb" is the working directory, which fastgltf only takes by name)
+	std::filesystem::path const directory = std::filesystem::path(filename).parent_path();
+	fastgltf::Expected<fastgltf::Asset> asset = parser.loadGltf(data.get(), directory.empty() ? std::filesystem::path(".") : directory, fastgltf::Options::None);
 	if (asset.error() != fastgltf::Error::None)
 	{
 		throw GltfLoader::load_error("glTF '" + filename + "' could not be parsed: " + std::string(fastgltf::getErrorMessage(asset.error())));
@@ -68,7 +70,7 @@ GltfReader::GltfReader(std::string const &filename, GltfOptions const &options, 
 	filename_(filename),
 	options_(options),
 	mesh_type_(mesh_type),
-	basepath_(std::filesystem::path(filename).parent_path())
+	basepath_(std::filesystem::path(filename).parent_path().empty() ? std::filesystem::path(".") : std::filesystem::path(filename).parent_path())
 {
 	if (options_.mipmaps && options_.compress_textures)
 	{
@@ -88,6 +90,7 @@ SerializedModel GltfReader::read()
 	}
 	read_ = true;
 	parse();
+	check_accessors();
 	select_imported_nodes();
 	build_joints();
 	link_joint_hierarchy();
@@ -371,8 +374,7 @@ GltfReader::PreparedSkin const *GltfReader::prepare_skin(std::size_t skin_index)
 			throw load_error(context + ": " + std::to_string(accessor.count) + " inverse bind matrices for " +
 				std::to_string(skin.joints.size()) + " joints");
 		}
-		fastgltf::iterateAccessorWithIndex<fastgltf::math::fmat4x4>(
-			asset_, accessor,
+		read_accessor_with_index<fastgltf::math::fmat4x4>(accessor,
 			[&](fastgltf::math::fmat4x4 const &inv_bind_matrix, std::size_t skin_joint_index)
 			{
 				prepared_skin.inverted_bind_matrices[prepared_skin.joint_index_transform[skin_joint_index]] = convert_matrix(inv_bind_matrix);
@@ -382,6 +384,40 @@ GltfReader::PreparedSkin const *GltfReader::prepare_skin(std::size_t skin_index)
 	skin_cache_[skin_index] = std::move(prepared_skin);
 	skin_prepared_[skin_index] = true;
 	return &skin_cache_[skin_index];
+}
+
+void GltfReader::check_accessors()
+{
+	for (std::size_t index = 0; index < asset_.accessors.size(); ++index)
+	{
+		fastgltf::Accessor const &accessor = asset_.accessors[index];
+		std::string const name = "accessor " + std::to_string(index);
+		// What is read is count elements of the file's own size, stride apart, from byteOffset of its buffer view: all of them have to be there.
+		auto const check_view = [&](std::size_t view_index, std::size_t offset, std::size_t count, std::size_t element_size, std::size_t forced_stride) {
+			fastgltf::span<const std::byte> const view = buffer_view_data(view_index);
+			std::size_t const stride = forced_stride ? forced_stride :
+				asset_.bufferViews[view_index].byteStride ? *asset_.bufferViews[view_index].byteStride : element_size;
+			if (element_size == 0 || (count > 0 && stride < element_size))
+				throw load_error("glTF '" + filename_ + "' " + name + ": elements of " + std::to_string(element_size) + " bytes, " + std::to_string(stride) + " apart");
+			if (count == 0) return;
+			// (from the end, so that neither product nor sum can wrap)
+			if (offset > view.size() || element_size > view.size() - offset || count - 1 > (view.size() - offset - element_size) / stride)
+				throw load_error("glTF '" + filename_ + "' " + name + ": " + std::to_string(count) + " elements of " + std::to_string(element_size) +
+					" bytes from " + std::to_string(offset) + " do not fit a buffer view of " + std::to_string(view.size()));
+		};
+		std::size_t const element_size = fastgltf::getElementByteSize(accessor.type, accessor.componentType);
+		if (accessor.bufferViewIndex)
+			check_view(*accessor.bufferViewIndex, accessor.byteOffset, accessor.count, element_size, 0);
+		if (accessor.sparse)
+		{
+			fastgltf::SparseAccessor const &sparse = *accessor.sparse;
+			if (sparse.count > accessor.count)
+				throw load_error("glTF '" + filename_ + "' " + name + ": " + std::to_string(sparse.count) + " sparse values of " + std::to_string(accessor.count));
+			check_view(sparse.indicesBufferView, sparse.indicesByteOffset, sparse.count, fastgltf::getComponentByteSize(sparse.indexComponentType),
+				fastgltf::getComponentByteSize(sparse.indexComponentType));
+			check_view(sparse.valuesBufferView, sparse.valuesByteOffset, sparse.count, element_size, element_size);
+		}
+	}
 }
 
 fastgltf::span<const std::byte> GltfReader::buffer_data(std::size_t buffer_index)

@@ -33,9 +33,11 @@ public:
 	/// with it); std::runtime_error naming one the loader does not have, as when it is made.
 	static std::shared_ptr<VulkanInstance> acquire(std::vector<std::string> const &application_extensions);
 
-	/// Instances made in this process so far, and whether one is alive: what a test counts.
+	/// Instances made in this process so far, and whether a renderer holds one: what a test counts.
 	static uint64_t made_count();
 	static bool alive();
+	/// Destroys the kept instance if nothing holds it: the next renderer makes another.  The instance otherwise stays for the process.
+	static void release_unused();
 
 	~VulkanInstance();
 	VulkanInstance(VulkanInstance const &) = delete;

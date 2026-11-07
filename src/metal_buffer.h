@@ -47,7 +47,7 @@ public:
 	MetalVertexBuffer(MetalContextPtr const &context, VertexTraits const *traits, size_t size);
 
 	MetalBufferStore &store() { return store_; }
-	VertexTraits const *vertex_traits() const { return traits_; }
+	VertexTraits const *vertex_traits() const override { return traits_; }
 	MetalContextPtr const &context() const { return context_; }
 
 	size_t size() const override { return store_.bytes().size(); }
@@ -71,7 +71,7 @@ public:
 	MetalIndexBuffer(MetalContextPtr const &context, IndexFormat index_format, size_t size);
 
 	MetalBufferStore &store() { return store_; }
-	size_t index_size() const { return index_size_; }
+	size_t index_size() const override { return index_size_; }
 	MetalContextPtr const &context() const { return context_; }
 
 	size_t size() const override { return store_.bytes().size(); }

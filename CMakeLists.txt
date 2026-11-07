@@ -11,7 +11,7 @@ IF(APPLE AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND NOT CMAKE_SY
     SET(CMAKE_OSX_DEPLOYMENT_TARGET 13.0 CACHE STRING "the oldest macOS edge runs on" FORCE)
   ENDIF()
 ENDIF()
-PROJECT(EDGE VERSION 3.0.0)
+PROJECT(EDGE VERSION 3.0.1)
 
 # (for edge and what it fetches; a parent's targets choose their own)
 SET(CMAKE_CXX_STANDARD 20)
@@ -48,7 +48,7 @@ ENDIF()
 OPTION(EDGE_PYTHON "Build the pyedge Python module." ON)
 
 # test_edge and its ctest registrations; a cross build (the phone's) cannot run them.  Boost.Test is the one thing of Boost edge needs.
-OPTION(EDGE_TESTS "Build the test_edge executable." ON)
+OPTION(EDGE_TESTS "Build the test_edge executable (on when edge is built by itself)." ${EDGE_TOP_LEVEL})
 
 IF(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
   # Standalone build — use edge's own binary dir.
@@ -195,7 +195,7 @@ IF(EDGE_IMGUI AND NOT TARGET imgui)
     FetchContent_MakeAvailable(imgui)
     ADD_LIBRARY(imgui STATIC ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp ${imgui_SOURCE_DIR}/imgui_tables.cpp
       ${imgui_SOURCE_DIR}/imgui_widgets.cpp)
-    TARGET_INCLUDE_DIRECTORIES(imgui SYSTEM PUBLIC $<BUILD_INTERFACE:${imgui_SOURCE_DIR}> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+    TARGET_INCLUDE_DIRECTORIES(imgui SYSTEM PUBLIC $<BUILD_INTERFACE:${imgui_SOURCE_DIR}> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/edge/imgui>)
     # (installed with edge as edge::imgui_core, libedge_imgui_core: the ImGui whose context edge::imgui draws)
     SET_TARGET_PROPERTIES(imgui PROPERTIES POSITION_INDEPENDENT_CODE ON OUTPUT_NAME edge_imgui_core EXPORT_NAME imgui_core)
     SET(EDGE_FETCHED_IMGUI ON)
@@ -215,8 +215,7 @@ SET(FASTGLTF_COMPILE_AS_CPP20 ON CACHE BOOL "" FORCE)
 SET(CMAKE_DISABLE_FIND_PACKAGE_simdjson ON)
 EDGE_FETCH_EXCLUDED(fastgltf
   GIT_REPOSITORY https://github.com/spnda/fastgltf
-  GIT_TAG v0.9.0
-  GIT_SHALLOW TRUE
+  GIT_TAG 0d1b67a28c4950ea2deb796702006dcbe31e02b3  # v0.9.0
   PATCH_COMMAND git reset --hard --quiet && git apply ${EDGE_ROOT}/etc/patches/fastgltf-0.9.0-scenes-without-nodes.patch
   UPDATE_DISCONNECTED TRUE)
 # (installed with edge as edge::fastgltf, libedge_fastgltf: not a fastgltf of the system's, which is not patched)
@@ -230,8 +229,7 @@ ELSE()
   FetchContent_Declare(
     cereal
     GIT_REPOSITORY https://github.com/USCiLab/cereal
-    GIT_TAG v1.3.2
-    GIT_SHALLOW TRUE
+    GIT_TAG ebef1e929807629befafbb2918ea1a08c7194554  # v1.3.2
     SOURCE_SUBDIR no_cmakelists_here)
   FetchContent_MakeAvailable(cereal)
   ADD_LIBRARY(edge_cereal INTERFACE)
@@ -273,7 +271,7 @@ ENDIF()
 # beside edge (../rove), else an installed rove, else rove fetched from GitHub at EDGE_ROVE_GIT_TAG.  From its sources, edge adds it with
 # its own choice of rove's options (and pyedge's build makes rove's Python module too).
 set(EDGE_ROVE_SOURCE_DIR "" CACHE PATH "Path to rove source tree used by edge.")
-set(EDGE_ROVE_GIT_TAG "v3.0.0" CACHE STRING "The rove version fetched when no rove source tree is found.")
+set(EDGE_ROVE_GIT_TAG "v3.0.1" CACHE STRING "The rove version fetched when no rove source tree is found.")
 if(TARGET rove)
   get_target_property(EDGE_ROVE_SOURCE_DIR rove SOURCE_DIR)
 elseif(TARGET rove::rove)
@@ -342,7 +340,7 @@ if(EDGE_PYTHON)
     FetchContent_Declare(
         nanobind
         GIT_REPOSITORY https://github.com/wjakob/nanobind
-        GIT_TAG v2.4.0
+        GIT_TAG 0f9ce749b257fdfe701edb3cf6f7027ba029434a  # v2.4.0
     )
     FetchContent_MakeAvailable(nanobind)
     set(EDGE_ROVE_PYTHON ON)
@@ -369,7 +367,7 @@ else()
   FetchContent_Declare(
       spdlog
       GIT_REPOSITORY https://github.com/gabime/spdlog
-      GIT_TAG v1.15.3
+      GIT_TAG 6fa36017cfd5731d617e1a934f0e5ea9c4445b13  # v1.15.3
   )
   set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
   set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -395,7 +393,7 @@ if(EDGE_ASSET_TOOLS)
     set(MESHOPT_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
     edge_fetch_excluded(meshoptimizer
         GIT_REPOSITORY https://github.com/zeux/meshoptimizer
-        GIT_TAG v0.22
+        GIT_TAG 4affad044571506a5724c9a6f15424f43e86f731  # v0.22
     )
     # (installed with edge as edge::meshoptimizer, libedge_meshoptimizer: edge_asset links it privately)
     set_target_properties(meshoptimizer PROPERTIES POSITION_INDEPENDENT_CODE ON OUTPUT_NAME edge_meshoptimizer)
@@ -425,8 +423,7 @@ if(EDGE_ASSET_TOOLS)
   FetchContent_Declare(
       astcenc
       GIT_REPOSITORY https://github.com/ARM-software/astc-encoder
-      GIT_TAG 5.3.0
-      GIT_SHALLOW TRUE
+      GIT_TAG 30aabb3f42406df45a910d8496f9bee17eeba9bb  # 5.3.0
       SOURCE_SUBDIR no_cmakelists_here
   )
   FetchContent_MakeAvailable(astcenc)
@@ -520,7 +517,8 @@ IF(EDGE_INSTALL)
   IF(EDGE_FETCHED_IMGUI)
     LIST(APPEND EDGE_EXPORTED imgui)
     FOREACH(header imgui.h imconfig.h imgui_internal.h imstb_rectpack.h imstb_textedit.h imstb_truetype.h)
-      INSTALL(FILES ${imgui_SOURCE_DIR}/${header} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+      # (under edge's own directory: the prefix may be shared, and these are another project's names)
+      INSTALL(FILES ${imgui_SOURCE_DIR}/${header} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/edge/imgui)
     ENDFOREACH()
   ENDIF()
   INSTALL(TARGETS ${EDGE_EXPORTED} EXPORT edgeTargets
@@ -571,7 +569,7 @@ IF(EDGE_INSTALL)
   INSTALL(FILES ${EDGE_CMAKE_DIR}/EdgeShaders.cmake ${EDGE_CMAKE_DIR}/EdgeGles.cmake ${EDGE_CMAKE_DIR}/EdgeMetal.cmake
     ${EDGE_CMAKE_DIR}/EdgeRuntime.cmake ${EDGE_CMAKE_DIR}/EdgeModels.cmake ${EDGE_CMAKE_DIR}/edge_convert_model.cmake
     DESTINATION ${EDGE_INSTALL_CMAKEDIR})
-  INSTALL(FILES ${EDGE_ROOT}/LICENSE.md ${EDGE_ROOT}/THIRD_PARTY.md DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/edge)
+  INSTALL(FILES ${EDGE_ROOT}/LICENSE.md ${EDGE_ROOT}/THIRD_PARTY.md ${EDGE_ROOT}/THIRD_PARTY_NOTICES.md DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/edge)
 
   # the package: what it was built with, for edgeConfig.cmake.in
   FOREACH(flag EDGE_USE_VULKAN EDGE_USE_GLES EDGE_USE_METAL EDGE_SYSTEM_DEPS)

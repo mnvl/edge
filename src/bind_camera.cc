@@ -41,7 +41,6 @@ void bind_camera(nb::module_ &m)
         .def("set_orthographic_projection", &Camera::set_orthographic_projection, "width"_a, "height"_a, "z_near"_a, "z_far"_a)
         .def("look_at", &Camera::look_at, "eye"_a, "lookat"_a, "up"_a)
         .def("set_view_matrix", set_view_matrix, "matrix"_a)
-        .def("set_translation_rotation", &Camera::set_translation_rotation, "translation"_a, "rotation"_a)
         .def("set_cube_face", &Camera::set_cube_face, "eye"_a, "face"_a, "z_near"_a, "z_far"_a,
             "The camera that draws face 0 to 5 (+x, -x, +y, -y, +z, -z) of a cube target from eye: a square right angle, turned so that "
             "a shader samples the cube in world direction d by edge_cube_direction(d) (edge_cube.glsl). IndexError for another face.")

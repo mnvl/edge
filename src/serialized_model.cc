@@ -155,6 +155,15 @@ TexturePtr import_texture(SerializedTexture const &serialized, RendererPtr const
 	{
 		throw std::runtime_error("texture '" + serialized.filename + "' is " + std::to_string(serialized.width) + "x" + std::to_string(serialized.height));
 	}
+	// (before anything adds up that many levels: a count from a file is any number)
+	int full_levels = 1;
+	for (int size = std::max(serialized.width, serialized.height); size > 1; size /= 2)
+		++full_levels;
+	if (serialized.provided_mip_levels < 0 || serialized.provided_mip_levels > full_levels)
+	{
+		throw std::runtime_error("texture '" + serialized.filename + "' has " + std::to_string(serialized.provided_mip_levels) + " mip levels for " +
+			std::to_string(serialized.width) + "x" + std::to_string(serialized.height));
+	}
 	size_t const need = texels_size(serialized.width, serialized.height, serialized.pixel_format, serialized.provided_mip_levels);
 	if (serialized.pixels.size() != need)
 	{
@@ -234,6 +243,17 @@ MaterialPtr import_material(SerializedMaterial const &serialized, std::vector<Te
 		}
 		return textures[size_t(index)];
 	};
+
+	// (before they reach a pipeline: an enum from a file is any number)
+	if (serialized.cull_mode < 0 || serialized.cull_mode > static_cast<int>(Material::CullMode::NONE))
+		throw std::runtime_error("material '" + serialized.name + "' has cull mode " + std::to_string(serialized.cull_mode));
+	int const last_blend_mode = static_cast<int>(Material::BlendMode::INV_DEST_ALPHA);
+	if (serialized.src_blend_mode < 0 || serialized.src_blend_mode > last_blend_mode ||
+		serialized.dest_blend_mode < 0 || serialized.dest_blend_mode > last_blend_mode)
+	{
+		throw std::runtime_error("material '" + serialized.name + "' has blend modes " + std::to_string(serialized.src_blend_mode) + " and " +
+			std::to_string(serialized.dest_blend_mode));
+	}
 
 	MaterialPtr material_ptr = renderer_ptr->create_material();
 	material_ptr->set_name(serialized.name);

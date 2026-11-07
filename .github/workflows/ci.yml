@@ -1,13 +1,24 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2004-2026 Manvel Avetisian
+
 name: CI
 
 # On pull requests where the minutes are free (a public repository), and on demand: gh workflow run CI --ref <branch>
 on:
   pull_request:
   workflow_dispatch:
+    inputs:
+      rove_ref:
+        description: "The rove to build against, where it is not the one edge pins (a branch, before its tag exists)"
+        required: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+# Third-party actions are pinned by commit, and only the publishing job can do more than read
+permissions:
+  contents: read
 
 jobs:
   linux:
@@ -28,15 +39,16 @@ jobs:
             libvulkan-dev mesa-vulkan-drivers glslang-tools \
             libgles-dev libegl-dev libegl-mesa0 libgl1-mesa-dri libsdl3-dev
           git config --global --add safe.directory '*'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: edge
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: mnvl/rove
-          ref: ${{ vars.ROVE_REF || 'main' }}
+          ref: ${{ inputs.rove_ref || vars.ROVE_REF || 'v3.0.1' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: test/check_rove_pin.sh holds the two together
           path: rove
-          token: ${{ secrets.ROVE_TOKEN || github.token }}
+      - name: CI's rove is the one edge pins
+        run: edge/test/check_rove_pin.sh edge
       - name: Configure
         run: cmake -S edge -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DEDGE_GLES=ON -DEDGE_ROVE_SOURCE_DIR=$PWD/rove
       - name: Build
@@ -53,21 +65,74 @@ jobs:
     name: macOS (Metal), build
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: edge
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: mnvl/rove
-          ref: ${{ vars.ROVE_REF || 'main' }}
+          ref: ${{ inputs.rove_ref || vars.ROVE_REF || 'v3.0.1' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: test/check_rove_pin.sh holds the two together
           path: rove
-          token: ${{ secrets.ROVE_TOKEN || github.token }}
       - name: Packages
         run: brew install ninja boost sdl3 glslang
       - name: Configure
         run: cmake -S edge -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DEDGE_PYTHON=OFF -DEDGE_ROVE_SOURCE_DIR=$PWD/rove
       - name: Build
         run: cmake --build build
+
+  # pyedge from source where its wheels are built on a runner with no container, as pip would: a faster answer than the Wheels workflow
+  pyedge:
+    if: github.event_name != 'pull_request' || !github.event.repository.private
+    name: pyedge ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-2022]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: edge
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: mnvl/rove
+          ref: ${{ inputs.rove_ref || vars.ROVE_REF || 'v3.0.1' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: test/check_rove_pin.sh holds the two together
+          path: rove
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13"
+      - name: glslang (macOS)
+        if: runner.os == 'macOS'
+        run: brew install glslang
+      - name: Vulkan SDK (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          version=1.4.363.1
+          curl -sSfL -o sdk.exe "https://sdk.lunarg.com/sdk/download/$version/windows/vulkansdk-windows-X64-$version.exe"
+          ./sdk.exe --root 'C:\VulkanSDK' --accept-licenses --default-answer --confirm-command install
+          echo "VULKAN_SDK=C:\VulkanSDK" >> "$GITHUB_ENV"
+          echo 'C:\VulkanSDK\Bin' >> "$GITHUB_PATH"
+      - name: Lavapipe (Windows)
+        # (the runner has no GPU: without a Vulkan driver the smoke test could only use the null backend, which proves nothing about drawing)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          curl -sSfL -o mesa.7z https://github.com/pal1000/mesa-dist-win/releases/download/26.2.6/mesa3d-26.2.6-release-msvc.7z
+          echo "b2e00615feaba45942343c265cc8c5f576142ca682c1ac6661922d4b72492877  mesa.7z" | sha256sum -c -
+          7z x -omesa mesa.7z x64/lvp_icd.x86_64.json x64/vulkan_lvp.dll > /dev/null
+          # (in the registry: the runner is elevated, and there the loader ignores VK_DRIVER_FILES)
+          MSYS_NO_PATHCONV=1 reg add 'HKLM\SOFTWARE\Khronos\Vulkan\Drivers' /v "$(cygpath -w "$PWD/mesa/x64/lvp_icd.x86_64.json")" /t REG_DWORD /d 0 /f
+      - name: Install
+        shell: bash
+        run: |
+          python -m venv venv
+          venv/*/python -m pip install ./rove ./edge pillow
+      - name: Smoke test
+        shell: bash
+        run: |
+          mkdir smoke && cd smoke
+          ../venv/*/python ../edge/test/wheel_smoke.py ../edge/test/data/test_figure.glb ${{ runner.os == 'Windows' && 'vulkan' || 'metal' }}
 
   consumers:
     if: github.event_name != 'pull_request' || !github.event.repository.private
@@ -80,15 +145,14 @@ jobs:
       matrix:
         way: [submodules, conan, vcpkg, pip]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: edge
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: mnvl/rove
-          ref: ${{ vars.ROVE_REF || 'main' }}
+          ref: ${{ inputs.rove_ref || vars.ROVE_REF || 'v3.0.1' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: test/check_rove_pin.sh holds the two together
           path: rove
-          token: ${{ secrets.ROVE_TOKEN || github.token }}
       - name: Packages
         if: matrix.way == 'submodules' || matrix.way == 'pip'
         run: |
@@ -98,8 +162,9 @@ jobs:
         if: matrix.way == 'submodules'
         run: |
           printf 'cmake_minimum_required(VERSION 3.20)\nproject(game CXX)\nadd_subdirectory(rove)\nadd_subdirectory(edge)\nadd_subdirectory(edge/test_package example)\n' > CMakeLists.txt
-          cmake -S . -B build -DEDGE_PYTHON=OFF -DEDGE_TESTS=OFF
+          cmake -S . -B build -DEDGE_PYTHON=OFF
           cmake --build build -j4
+          test ! -e build/bin/test_edge
           build/example/edge_example
       - name: Conan
         if: matrix.way == 'conan'

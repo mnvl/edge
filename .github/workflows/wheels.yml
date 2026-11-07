@@ -1,6 +1,11 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2004-2026 Manvel Avetisian
+
 name: Wheels
 
-# pyedge's wheels: Linux only for now (manylinux_2_28, x86_64 and aarch64 each on its own runner; pyproject.toml has the
+# pyedge's wheels and nothing else: no sdist, so that where no wheel fits pip says so at once, instead of building one beside a pyrove wheel of
+# another compiler, a pair that installs and cannot work.  Linux (manylinux_2_28, x86_64 and aarch64) and macOS on Apple silicon,
+# each on its own runner (pyproject.toml has the
 # cibuildwheel settings).  rove's C++ sources are checked out inside the project, where the build container sees them
 # (EDGE_ROVE_SOURCE_DIR); pyrove itself comes from PyPI when the wheel is installed.
 
@@ -9,6 +14,14 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      rove_ref:
+        description: "The rove to build against, where it is not the one edge pins (a branch, before its tag exists)"
+        required: false
+
+# Third-party actions are pinned by commit, and only the publishing job can do more than read
+permissions:
+  contents: read
 
 jobs:
   wheels:
@@ -17,47 +30,60 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: mnvl/rove
-          ref: ${{ vars.ROVE_REF || 'main' }}
+          ref: ${{ inputs.rove_ref || vars.ROVE_REF || 'v3.0.1' }}  # EDGE_ROVE_GIT_TAG in CMakeLists.txt: test/check_rove_pin.sh holds the two together
           path: _rove
-          token: ${{ secrets.ROVE_TOKEN || github.token }}
-      - uses: pypa/cibuildwheel@v4.3.5
+      # What a build outside a container needs: rove's sources by a path CMake can read
+      - name: rove's sources (macOS)
+        if: runner.os == 'macOS'
+        run: echo "CMAKE_ARGS=-DEDGE_ROVE_SOURCE_DIR=$PWD/_rove" >> "$GITHUB_ENV"
+      - uses: pypa/cibuildwheel@f9b966cfadf4109556cadc5bb39ddb72d0ce664e # v4.3.5
         env:
           CIBW_ENVIRONMENT_LINUX: CMAKE_ARGS="-DEDGE_ROVE_SOURCE_DIR=/project/_rove"
           # pyrove from the same rove checkout, so each wheel is tested against the rove it was built with (and before pyrove is
           # on PyPI)
           CIBW_BEFORE_TEST_LINUX: pip install /project/_rove
-      - uses: actions/upload-artifact@v4
+          CIBW_BEFORE_TEST_MACOS: pip install {project}/_rove
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: wheels-${{ matrix.os }}
           path: wheelhouse/*.whl
 
-  sdist:
+  # The tag must say the version the package says: a mistagged commit publishes nothing
+  version:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - run: pipx run build --sdist
-      - uses: actions/upload-artifact@v4
-        with:
-          name: sdist
-          path: dist/*.tar.gz
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: The tag, pyproject.toml and CMakeLists.txt agree
+        run: |
+          in_pyproject=$(sed -n 's/^version = "\(.*\)"$/\1/p' pyproject.toml)
+          in_cmake=$(sed -n 's/^PROJECT(edge VERSION \([0-9.]*\).*/\1/Ip' CMakeLists.txt)
+          test "$GITHUB_REF_NAME" = "v$in_pyproject"
+          test "$in_pyproject" = "$in_cmake"
+      - name: The pyrove pyedge requires is the rove it builds against, and is already on PyPI
+        run: |
+          test/check_rove_pin.sh .
+          pin=$(sed -n 's/^dependencies = .*"pyrove==\([^"]*\)".*/\1/p' pyproject.toml)
+          curl -sSf -o /dev/null "https://pypi.org/pypi/pyrove/$pin/json"
 
   publish:
-    # PyPI trusted publishing: configure the project on PyPI for this repository and workflow first
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [wheels, sdist]
+    # PyPI trusted publishing: configure the project on PyPI for this repository and workflow first.  Only from the push of a tag: a
+    # manual run on a v* ref builds, and does not publish.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [version, wheels]
     runs-on: ubuntu-24.04
     environment: pypi
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: dist
           merge-multiple: true
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1

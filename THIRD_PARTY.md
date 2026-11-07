@@ -1,7 +1,10 @@
 # Third-party software
 
 edge's repository contains no third-party source code. At configure time CMake fetches the projects below at the pinned
-versions (`FetchContent`), or finds them on the system. Their licenses apply to the builds that include them.
+versions (`FetchContent`), or finds them on the system. Their licenses apply to the builds that include them. The notices that a binary
+carrying them must have are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), which goes in the wheel and in an install. A pyedge wheel holds
+fastgltf, simdjson, cereal, stb, spdlog, fmt (spdlog's bundled copy), meshoptimizer, bc7enc_rdo, astc-encoder, xatlas and nanobind; it does not hold
+Dear ImGui, SDL3, SPIRV-Cross or Boost.Test.
 
 | Project | Used for | Pinned | License |
 |---|---|---|---|
@@ -10,7 +13,7 @@ versions (`FetchContent`), or finds them on the system. Their licenses apply to 
 | [simdjson](https://github.com/simdjson/simdjson) | fastgltf's JSON parser, fetched by fastgltf | fastgltf's pin | Apache-2.0 or MIT |
 | [cereal](https://github.com/USCiLab/cereal) | `.edge` file serialization | v1.3.2 | BSD-3-Clause |
 | [stb](https://github.com/nothings/stb) | Image decoding and writing, DXT compression, font rasterising | 5736b15 | MIT or public domain |
-| [spdlog](https://github.com/gabime/spdlog) | Logging | v1.15.3 | MIT |
+| [spdlog](https://github.com/gabime/spdlog) | Logging, with its bundled [fmt](https://github.com/fmtlib/fmt) | v1.15.3 | MIT |
 | [meshoptimizer](https://github.com/zeux/meshoptimizer) | Mesh simplification for levels of detail | v0.22 | MIT |
 | [bc7enc_rdo](https://github.com/richgel999/bc7enc_rdo) | BC7 texture compression | b943862 | MIT or public domain |
 | [astc-encoder](https://github.com/ARM-software/astc-encoder) | ASTC texture compression | 5.3.0 | Apache-2.0 |

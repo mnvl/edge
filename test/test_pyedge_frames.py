@@ -295,7 +295,7 @@ def test_frames_in_flight_are_one_to_four_and_the_null_renderer_has_one():
     assert null.frames_in_flight == 1
     null.begin_frame()
     null.submit_frame()                                     # as finish_frame where the renderer cannot keep frames in flight
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ValueError):
         pyedge.create_renderer(64, 64, backend="null", frames_in_flight=2)
 
 

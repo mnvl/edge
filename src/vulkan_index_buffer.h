@@ -23,8 +23,10 @@ public:
 
 
 	VkBuffer get() const { return buffer_; }
+	VkDevice device() const { return context_->device(); }
 	VkIndexType index_type() const { return index_type_; }
 	IndexFormat index_format() const { return index_format_; }
+	size_t index_size() const override { return index_format_ == IndexFormat::U16 ? 2 : 4; }
 
 	/// Property flags of the memory backing the buffer the GPU reads from.
 	VkMemoryPropertyFlags memory_properties() const { return memory_properties_; }

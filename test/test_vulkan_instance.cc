@@ -155,9 +155,10 @@ struct two_gpus
 
 BOOST_AUTO_TEST_SUITE(vulkan_instance)
 
-BOOST_AUTO_TEST_CASE(renderers_share_the_instance_the_first_makes_and_the_last_lets_go)
+BOOST_AUTO_TEST_CASE(renderers_share_the_instance_the_first_makes_and_it_outlives_the_last)
 {
 	BOOST_REQUIRE_MESSAGE(!VulkanInstance::alive(), "an instance is alive before the test");
+	VulkanInstance::release_unused();
 	uint64_t const made = VulkanInstance::made_count();
 	VulkanRendererPtr a = renderer_on("");
 	BOOST_CHECK(VulkanInstance::alive());
@@ -186,9 +187,9 @@ BOOST_AUTO_TEST_CASE(renderers_share_the_instance_the_first_makes_and_the_last_l
 	c.reset();
 	BOOST_CHECK(!VulkanInstance::alive());
 
-	// the next renderer makes another
+	// the next renderer takes the one kept: a driver may not give back what an instance took
 	VulkanRendererPtr d = renderer_on("");
-	BOOST_CHECK_EQUAL(VulkanInstance::made_count(), made + 2);
+	BOOST_CHECK_EQUAL(VulkanInstance::made_count(), made + 1);
 	BOOST_CHECK(draws_right(d, 5));
 	d.reset();
 	BOOST_CHECK(!VulkanInstance::alive());
@@ -198,6 +199,7 @@ BOOST_AUTO_TEST_CASE(renderers_on_two_gpus_share_one_instance_and_either_goes_fi
 {
 	std::vector<std::string> const uuids = gpus();
 	BOOST_REQUIRE(!VulkanInstance::alive());
+	VulkanInstance::release_unused();
 	uint64_t const made = VulkanInstance::made_count();
 	VulkanRendererPtr first = renderer_on(uuids[0]), second = renderer_on(uuids[1]);
 	BOOST_CHECK_EQUAL(VulkanInstance::made_count(), made + 1);
@@ -231,6 +233,7 @@ BOOST_AUTO_TEST_CASE(renderers_made_and_let_go_in_mixed_order_draw_what_they_sho
 	std::vector<std::string> const uuids = gpus();
 	BOOST_REQUIRE(!uuids.empty());
 	BOOST_REQUIRE(!VulkanInstance::alive());
+	VulkanInstance::release_unused();
 	uint64_t const made = VulkanInstance::made_count();
 	std::vector<VulkanRendererPtr> live(6);
 	auto const make = [&](int n) { live[n] = renderer_on(uuids[n % uuids.size()]); };
@@ -266,6 +269,7 @@ BOOST_AUTO_TEST_CASE(renderers_made_and_let_go_in_mixed_order_draw_what_they_sho
 BOOST_AUTO_TEST_CASE(a_texture_that_outlives_its_renderer_keeps_the_instance)
 {
 	BOOST_REQUIRE(!VulkanInstance::alive());
+	VulkanInstance::release_unused();
 	uint64_t const made = VulkanInstance::made_count();
 	VulkanRendererPtr renderer = renderer_on("");
 	VkInstance const instance = renderer->instance();
@@ -285,6 +289,7 @@ BOOST_AUTO_TEST_CASE(a_texture_that_outlives_its_renderer_keeps_the_instance)
 BOOST_AUTO_TEST_CASE(a_renderer_asking_for_an_extension_the_instance_was_made_without_is_refused)
 {
 	BOOST_REQUIRE(!VulkanInstance::alive());
+	VulkanInstance::release_unused();
 	uint64_t const made = VulkanInstance::made_count();
 	VulkanRendererPtr plain = renderer_on("");
 	std::string missing;
@@ -326,14 +331,15 @@ BOOST_AUTO_TEST_CASE(a_renderer_asking_for_an_extension_the_instance_was_made_wi
 BOOST_AUTO_TEST_CASE(device_enumeration_uses_the_instance_there_is)
 {
 	BOOST_REQUIRE(!VulkanInstance::alive());
+	VulkanInstance::release_unused();
 	uint64_t const made = VulkanInstance::made_count();
-	std::vector<std::string> const alone = gpus();         // none alive: one made for it, and let go
+	std::vector<std::string> const alone = gpus();         // none alive: one made for it, and kept
 	BOOST_CHECK_EQUAL(VulkanInstance::made_count(), made + 1);
 	BOOST_CHECK(!VulkanInstance::alive());
 	VulkanRendererPtr renderer = renderer_on("");
-	BOOST_CHECK_EQUAL(VulkanInstance::made_count(), made + 2);
+	BOOST_CHECK_EQUAL(VulkanInstance::made_count(), made + 1);
 	std::vector<std::string> const beside = gpus();
-	BOOST_CHECK_EQUAL(VulkanInstance::made_count(), made + 2);
+	BOOST_CHECK_EQUAL(VulkanInstance::made_count(), made + 1);
 	BOOST_CHECK(alone == beside);
 	BOOST_CHECK(std::find(beside.begin(), beside.end(), renderer->device_uuid()) != beside.end());
 }

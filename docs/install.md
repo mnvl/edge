@@ -12,7 +12,7 @@ built, `edge::asset`, `edge::imgui`, `edge::sdl`) and the helpers `edge_add_shad
 
 Requirements for C++: CMake 3.20 or newer, a C++20 compiler (GCC 12, Clang 15, Apple Clang 15 or newer), and for the Vulkan backend
 the Vulkan headers and loader and `glslangValidator` (Debian and Ubuntu: `libvulkan-dev glslang-tools`; Conan and vcpkg provide
-them). Linux is the platform edge is built and tested on; macOS (Metal) builds; Windows is not supported yet.
+them). Linux is the platform edge is built and tested on; macOS (Metal) builds; Windows builds pyedge, and is not otherwise supported yet.
 
 | Way | rove comes from | edge's dependencies come from |
 |-----|-----------------|-------------------------------|
@@ -29,20 +29,25 @@ when edge is built, so the build needs network access. [THIRD_PARTY.md](../THIRD
 
 ```bash
 pip install pyedge                                    # a released version, from PyPI
-pip install ./rove ./edge                             # local checkouts, side by side; builds from source
+pip install ./rove ./edge                             # local checkouts, side by side; builds both from source
 ```
 
-PyPI has wheels for Linux (x86_64 and aarch64, glibc 2.28 or newer). The wheel holds edge and its shaders; it uses the system's
-Vulkan loader (`libvulkan.so.1`) and a Vulkan driver (any GPU's, or Mesa's lavapipe without one), and pip installs `pyrove` with it.
-Elsewhere pip builds from source, which needs the Vulkan headers and loader, `glslangValidator`, CMake and a C++20 compiler.
+PyPI has wheels for Linux (x86_64 and aarch64, glibc 2.28 or newer) and macOS on Apple silicon (13 or newer). Each holds edge and its shaders,
+and pip installs the matching `pyrove` with it. On Linux the wheel draws with Vulkan: it uses the system's loader (`libvulkan.so.1`) and a Vulkan
+driver (any GPU's, or Mesa's lavapipe without one). On a Mac it draws with Metal. `import pyedge` succeeds without the loader, and the first use
+says it is missing.
 
-Build `pyrove` and `pyedge` the same way. They share rove's types through nanobind, and only between modules built with the same
-C++ ABI: a `pyedge` built from source beside a `pyrove` wheel can install and import, then raise `TypeError` when a `pyrove` type
-reaches it. Where pip would build `pyedge` from source, build both:
+Nothing else is on PyPI: no source distribution either, so elsewhere (Windows, an Intel Mac, musl Linux) pip says there is no matching
+distribution. To build one from source, with the Vulkan headers and loader, `glslangValidator`, CMake and a C++20 compiler (on Windows the Vulkan
+SDK has the first three; CI builds pyedge this way and draws with it there, on lavapipe):
 
 ```bash
-pip install --no-binary pyrove,pyedge pyedge
+pip install --no-binary pyrove "git+https://github.com/mnvl/edge@v3.0.1"
 ```
+
+`pyrove` and `pyedge` share rove's types through nanobind, and only between modules built with the same C++ ABI. That is why pyedge requires
+exactly the pyrove it was released with, and why the command above builds both: a `pyedge` built from source beside a `pyrove` wheel can install,
+then fails on first use with an `ImportError` that says this.
 
 ```python
 import pyedge
@@ -79,8 +84,8 @@ The recipe is `conanfile.py` in this repository; it takes rove from rove's recip
 rove and edge are in ConanCenter, create both packages from checkouts:
 
 ```bash
-git clone --branch v3.0.0 https://github.com/mnvl/rove
-git clone --branch v3.0.0 https://github.com/mnvl/edge
+git clone --branch v3.0.1 https://github.com/mnvl/rove
+git clone --branch v3.0.1 https://github.com/mnvl/edge
 conan create rove -s compiler.cppstd=20
 conan create edge -s compiler.cppstd=20 --build=missing
 ```
@@ -92,7 +97,7 @@ in your project's `conanfile.txt`:
 
 ```ini
 [requires]
-edge/3.0.0
+edge/3.0.1
 
 [tool_requires]
 glslang/1.4.313.0
@@ -128,7 +133,8 @@ edge's own CMake package (with the helpers), not one Conan generates.
 
 ## C++: vcpkg
 
-The port is in `ports/edge`, beside rove's in rove's `ports/`. Until they are in vcpkg's registry, use both as overlay ports. In
+The port is in `ports/edge`, beside rove's in rove's `ports/`. Until they are in vcpkg's registry, use both as overlay ports, from `main`:
+a port names a release and the SHA512 of its archive, and a tag's own copy cannot hold the hash of the archive made from it. In
 manifest mode, your project's `vcpkg.json`:
 
 ```json
@@ -138,8 +144,8 @@ manifest mode, your project's `vcpkg.json`:
 ```
 
 ```bash
-git clone --branch v3.0.0 https://github.com/mnvl/rove
-git clone --branch v3.0.0 https://github.com/mnvl/edge
+git clone https://github.com/mnvl/rove
+git clone https://github.com/mnvl/edge
 cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake "-DVCPKG_OVERLAY_PORTS=$PWD/rove/ports;$PWD/edge/ports"
 ```
 
@@ -169,9 +175,12 @@ spdlog, cereal, stb, meshoptimizer, ImGui and rove from the system or a package 
 
 ## Shaders at run time
 
-edge reads its compiled shaders when a renderer is made. A program built against edge finds them in `shaders/edge` beside its
+edge reads its compiled shaders at the first draw that needs them. A program built against edge finds them in `shaders/edge` beside its
 binary, which `edge_bundle_runtime(<target> DESTINATION <dir>)` fills; `EDGE_VK_SHADER_DIR` names another directory. The wheel
 carries its own. [building.md](building.md#where-edge-finds-its-shaders-at-run-time) has the whole lookup.
+
+An installed `libedge.a` remembers the build's shader directory and the prefix given to CMake when it was configured, not one given later to
+`cmake --install --prefix`, so bundle the shaders with a program you ship: the build tree may be gone where it runs.
 
 ## Versions
 

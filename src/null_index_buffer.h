@@ -16,6 +16,7 @@ public:
 	~NullIndexBuffer() override;
 
 	size_t size() const override { return size_; }
+	size_t index_size() const override { return index_format_ == IndexFormat::U16 ? 2 : 4; }
 
 
 protected:

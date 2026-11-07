@@ -52,7 +52,8 @@ public:
 		{
 			throw cereal::Exception("damaged: " + std::to_string(size) + " bytes wanted where " + std::to_string(left_) + " are left");
 		}
-		std::memcpy(destination, data_, size);
+		if (size != 0)      // (an empty vector's data() may be null, which memcpy may not be given)
+			std::memcpy(destination, data_, size);
 		data_ += size;
 		left_ -= size;
 	}
@@ -65,9 +66,19 @@ private:
 };
 
 template <class T>
-std::enable_if_t<std::is_arithmetic_v<T>> CEREAL_LOAD_FUNCTION_NAME(BoundedInputArchive &archive, T &value)
+std::enable_if_t<std::is_arithmetic_v<T> && !std::is_same_v<T, bool>> CEREAL_LOAD_FUNCTION_NAME(BoundedInputArchive &archive, T &value)
 {
 	archive.loadBinary(&value, sizeof(T));
+}
+
+// (a bool whose byte is neither 0 nor 1 is undefined behaviour to read as one, and a file may hold any byte)
+inline void CEREAL_LOAD_FUNCTION_NAME(BoundedInputArchive &archive, bool &value)
+{
+	std::uint8_t byte = 0;
+	archive.loadBinary(&byte, 1);
+	if (byte > 1)
+		throw cereal::Exception("damaged: a true or false of " + std::to_string(byte));
+	value = byte != 0;
 }
 
 template <class T>

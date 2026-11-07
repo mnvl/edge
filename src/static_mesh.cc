@@ -112,7 +112,8 @@ void BasicStaticMesh<T>::build_model_joints() const
 template <vertex_layout T>
 BasicStaticModel<T> *BasicStaticMesh<T>::model()
 {
-	return (BasicStaticModel<T> *) model_;
+	// (null where its model is of another kind: a converter's, say, holds these meshes too)
+	return dynamic_cast<BasicStaticModel<T> *>(model_);
 }
 
 template <vertex_layout T>
@@ -160,7 +161,7 @@ void BasicStaticMesh<T>::submit(Joint *joint_ptr, CameraPtr const &camera, rove:
 {
 	build_model_joints();
 	rove::matrix<4,4> const transform = world_matrix * joint_ptr->matrix;
-	rove::obb<3> const bounds = conservative_bounds(model()->joints(), *joint_ptr, world_matrix);
+	rove::obb<3> const bounds = conservative_bounds(Mesh::model()->joints(), *joint_ptr, world_matrix);
 
 	// one list of instances for the calls and what the mesh keeps of the frame (shared, not copied)
 	Placement::Matrices const shared_instances = instances ? std::make_shared<std::vector<rove::matrix<4,4>> const>(*instances) : nullptr;
@@ -169,7 +170,7 @@ void BasicStaticMesh<T>::submit(Joint *joint_ptr, CameraPtr const &camera, rove:
 	triangles_list_type const &level = triangles_of_lod(lod);
 	for (auto const &triangles : level)
 	{
-		UberDrawCallPtr draw_call = model()->renderer()->create_uber_draw_call();
+		UberDrawCallPtr draw_call = Mesh::model()->renderer()->create_uber_draw_call();
 		draw_call->set_obb(bounds);
 		give_previous(*draw_call, previous);
 
@@ -186,7 +187,7 @@ void BasicStaticMesh<T>::submit(Joint *joint_ptr, CameraPtr const &camera, rove:
 		draw_call->set_always_visible(always_visible_);
 		draw_call->commit();
 
-		model()->scheduler()->add(draw_call);
+		Mesh::model()->scheduler()->add(draw_call);
 	}
 }
 
@@ -198,7 +199,7 @@ void BasicStaticMesh<V>::set_vertices(GenericVertex *vertices, GenericVertex::fo
 	bool const created = !vertex_array_;
 	if (created)
 	{
-		vertex_array_ = model()->renderer()->
+		vertex_array_ = Mesh::model()->renderer()->
 			template create_vertex_array<vertex_type>(count);
 	}
 	auto mapped = vertex_array_->write(created ? Contents::DISCARD : Contents::KEEP);
@@ -261,7 +262,7 @@ void BasicStaticMesh<T>::set_indices(unsigned *buffer, size_t count)
 {
 	EDGE_LOG_DEBUG("indices: count = {}", count);
 
-	index_array_ = model()->renderer()->
+	index_array_ = Mesh::model()->renderer()->
 		template create_index_array<index_type>(count);
 	base_indices_.resize(count);
 

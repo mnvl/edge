@@ -14,6 +14,7 @@
 #include <stdexcept>
 #include <string>
 
+#include "vulkan_instance.h"
 #include "log.h"
 #include "pixel.h"
 #include "test_vulkan_fixture.h"
@@ -108,6 +109,7 @@ BOOST_AUTO_TEST_CASE(the_renderer_logs_the_device_it_found_and_took)
 	std::filesystem::remove(file);
 	init_logging(file, "info");
 	std::string text;
+	VulkanInstance::release_unused();      // (the instance is kept between renderers: this one is to make it, and say so)
 	{
 		VulkanFixture f;
 		BOOST_REQUIRE_MESSAGE(f.renderer, f.error);
