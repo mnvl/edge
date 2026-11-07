@@ -10,7 +10,7 @@
   `-DEDGE_GLES=ON` `GLES3/gl3.h` and libGLESv3; SDL3 for `edge_sdl` (on when edge is built by itself, and with GLES)
 - Boost.Test for the tests (`EDGE_TESTS`); Python with nanobind's needs, numpy and pytest for pyedge (`EDGE_PYTHON`)
 
-By default fetched at configure, pinned: fastgltf (patched, `etc/patches`), cereal, stb, spdlog, meshoptimizer, bc7enc,
+By default fetched at configure, pinned: fastgltf (patched, `etc/patches`), cereal, stb, meshoptimizer, bc7enc,
 astc-encoder, xatlas, nanobind, SPIRV-Cross (GLES), Dear ImGui (`edge_imgui` of edge built by itself).
 
 ### Dependencies from a package manager (`EDGE_SYSTEM_DEPS`)
@@ -19,7 +19,6 @@ astc-encoder, xatlas, nanobind, SPIRV-Cross (GLES), Dear ImGui (`edge_imgui` of 
 
 | Dependency | Found with | Target edge links |
 |------------|------------|-------------------|
-| spdlog | `find_package(spdlog CONFIG)` | `spdlog::spdlog` |
 | cereal | `find_package(cereal CONFIG)` | `cereal::cereal` |
 | stb | `find_package(stb CONFIG)` (Conan), else `find_path(STB_INCLUDE_DIRS stb_image.h PATH_SUFFIXES stb)` (vcpkg, Debian) | `stb::stb`, or the headers |
 | meshoptimizer (0.21 or newer) | `find_package(meshoptimizer CONFIG)` | `meshoptimizer::meshoptimizer` |
@@ -94,7 +93,7 @@ every place tried.
 |-------|------|
 | `lib/` | `libedge.a`, and where built `libedge_sdl.a`, `libedge_imgui.a`, `libedge_asset.a`; the libraries edge builds of its dependencies and links privately, under edge's names: `libedge_fastgltf.a` (patched), and with the asset tools `libedge_meshoptimizer.a`, `libedge_bc7enc.a`, `libedge_astcenc.a`, `libedge_xatlas.a`; ImGui's core fetched by edge, `libedge_imgui_core.a` |
 | `include/edge/` | the public headers (those `include/edge/` has a shim of, and what they include), the real ones: `<edge/renderer.h>`; only `include/` is on the include path |
-| `include/` | what the public headers include, when edge fetched it: cereal's headers, spdlog (its own install), ImGui's core headers; rove (its own install) when edge added rove itself |
+| `include/` | what the public headers include, when edge fetched it: cereal's headers, ImGui's core headers; rove (its own install) when edge added rove itself |
 | `share/edge/shaders/` | edge's compiled shaders (SPIR-V, and their GLSL ES and Metal translations where built) |
 | `share/edge/view_shaders/` | the view shaders (`lit.frag.spv`, `edge_shot`'s) |
 | `share/edge/glsl/` | `edge.glsl` and what a shader may include beside it |
@@ -112,7 +111,7 @@ edge_bundle_runtime(game_runtime DESTINATION ${BIN})
 edge_convert_models(game_models SOURCE_DIR assets DESTINATION ${BIN}/models)   # runs edge::convert
 ```
 
-The package finds what the public headers and the link interface need: `rove 3`, `spdlog`, `Vulkan` (with the Vulkan backend), `SDL3`
+The package finds what the public headers and the link interface need: `rove 3`, `Vulkan` (with the Vulkan backend), `SDL3`
 (for `edge::sdl`).  Inside edge's own build the same targets have the same names (`edge::edge` is an alias of `edge`).
 
 ## pyedge as a wheel (pip)

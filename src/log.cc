@@ -3,13 +3,12 @@
 
 #include "log.h"
 
-#include <algorithm>
+#include <atomic>
+#include <iostream>
+#include <memory>
 #include <mutex>
 #include <stdexcept>
-#include <vector>
-
-#include <spdlog/sinks/rotating_file_sink.h>
-#include <spdlog/sinks/stdout_color_sinks.h>
+#include <string>
 
 namespace edge
 {
@@ -17,82 +16,77 @@ namespace edge
 namespace
 {
 
-// The shape of Python logging's
-// "[%(asctime)s %(filename)s:%(lineno)d %(levelname)s] %(message)s", plus
-// the thread id, so native and Python logs read alike.
-constexpr char const *kPattern = "[%Y-%m-%d %H:%M:%S.%e %s:%# %l] [thread %t] %v";
-constexpr size_t kMaxFileBytes = 5 * 1024 * 1024;
-constexpr size_t kMaxFiles = 5;
+std::atomic<LogLevel> level{LogLevel::warn};
 
-spdlog::level::level_enum parse_level(std::string const &level)
+// (made at the first use and never destroyed: a line logged from a static's constructor or destructor finds them there)
+std::mutex &sink_mutex()
 {
-	if (level == "debug") return spdlog::level::debug;
-	if (level == "info") return spdlog::level::info;
-	if (level == "warn" || level == "warning") return spdlog::level::warn;
-	if (level == "error") return spdlog::level::err;
-	throw std::invalid_argument("init_logging: level must be debug, info, warn or error, got '" + level + "'");
+	static std::mutex *const mutex = new std::mutex();
+	return *mutex;
 }
 
-std::shared_ptr<spdlog::logger> make_logger(std::optional<std::filesystem::path> const &file,
-	spdlog::level::level_enum level)
+std::shared_ptr<LogSink const> &sink()
 {
-	std::vector<spdlog::sink_ptr> sinks;
-	auto stderr_sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
-	stderr_sink->set_level(std::max(level, spdlog::level::warn));
-	sinks.push_back(stderr_sink);
-	if (file.has_value())
+	static auto *const sink = new std::shared_ptr<LogSink const>();
+	return *sink;
+}
+
+char const *level_name(LogLevel level)
+{
+	switch (level)
 	{
-		// Throws spdlog_ex when the file cannot be opened: a log that
-		// silently goes nowhere is exactly what this must not be.
-		auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(file->string(), kMaxFileBytes,
-			kMaxFiles);
-		file_sink->set_level(level);
-		sinks.push_back(file_sink);
+	case LogLevel::debug: return "debug";
+	case LogLevel::info: return "info";
+	case LogLevel::warn: return "warning";
+	case LogLevel::error: return "error";
 	}
-	auto logger = std::make_shared<spdlog::logger>("edge", sinks.begin(), sinks.end());
-	logger->set_level(std::min(level, spdlog::level::warn));
-	logger->set_pattern(kPattern);
-	// Info lines are lifecycle events (a model loaded, a renderer created),
-	// rare and worth having on disk when the process dies right after;
-	// debug lines are the per-mesh ones and ride along with the next flush.
-	logger->flush_on(spdlog::level::info);
-	return logger;
+	throw std::logic_error("edge log: a level that is none of debug, info, warn and error");
 }
 
-std::mutex &logger_mutex()
+char const *base_name(char const *file)
 {
-	static std::mutex mutex;
-	return mutex;
-}
-
-std::shared_ptr<spdlog::logger> &logger_slot()
-{
-	static std::shared_ptr<spdlog::logger> logger;
-	return logger;
+	char const *base = file;
+	for (char const *c = file; *c != '\0'; ++c)
+		if (*c == '/' || *c == '\\') base = c + 1;
+	return base;
 }
 
 } // namespace
 
-std::shared_ptr<spdlog::logger> log()
+void set_log_level(LogLevel new_level)
 {
-	std::lock_guard<std::mutex> lock(logger_mutex());
-	auto &slot = logger_slot();
-	if (!slot) slot = make_logger(std::nullopt, spdlog::level::info);
-	return slot;
+	level.store(new_level, std::memory_order_relaxed);
 }
 
-void init_logging(std::optional<std::filesystem::path> const &file, std::string const &level)
+void set_log_sink(LogSink new_sink)
 {
-	auto const parsed = parse_level(level);
-	auto logger = make_logger(file, parsed);
-	{
-		std::lock_guard<std::mutex> lock(logger_mutex());
-		logger_slot() = logger;
-	}
-	if (file.has_value())
-	{
-		EDGE_LOG_INFO("logging to {} at level {}", file->string(), level);
-	}
+	auto shared = new_sink ? std::make_shared<LogSink const>(std::move(new_sink)) : nullptr;
+	std::lock_guard<std::mutex> lock(sink_mutex());
+	sink() = std::move(shared);
 }
+
+namespace detail
+{
+
+bool log_enabled(LogLevel line_level) noexcept
+{
+	return line_level >= level.load(std::memory_order_relaxed);
+}
+
+void log_write(LogLevel line_level, char const *file, int line, std::string_view message)
+{
+	char const *const name = base_name(file);
+	std::shared_ptr<LogSink const> current;
+	{
+		std::lock_guard<std::mutex> lock(sink_mutex());
+		current = sink();
+	}
+	if (current)
+		(*current)(line_level, message, name, line);
+	else
+		std::cerr << std::format("[{} {}:{}] {}\n", level_name(line_level), name, line, message) << std::flush;
+}
+
+} // namespace detail
 
 } // namespace edge

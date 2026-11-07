@@ -231,7 +231,7 @@ SET_PROPERTY(DIRECTORY APPEND PROPERTY TEST_INCLUDE_FILES ${EDGE_DISCOVERED_TEST
 # pyedge's own tests (the examples among them)
 IF(EDGE_PYTHON)
   ADD_TEST(NAME pyedge_py
-    COMMAND ${Python_EXECUTABLE} -m pytest -q -p no:cacheprovider test -k pyedge --ignore=test/test_cmake_helpers.py --ignore=test/test_edge_shot.py --ignore=test/test_shader_cross_msl.py
+    COMMAND ${Python_EXECUTABLE} -m pytest -q -p no:cacheprovider test -k pyedge --ignore=test/test_cmake_helpers.py --ignore=test/test_edge_shot.py --ignore=test/test_shader_cross_msl.py --ignore=test/test_install.py
     WORKING_DIRECTORY ${EDGE_ROOT})
   # (pyrove from rove's sources and the module built beside pyedge's; where rove's module is not built here, the environment's pyrove)
   IF(TARGET pyrove_bind)
@@ -253,6 +253,14 @@ IF(EDGE_PYTHON)
     ENDIF()
     SET_TESTS_PROPERTIES(edge_shot_py PROPERTIES ENVIRONMENT
       "EDGE_SHOT=$<TARGET_FILE:edge_shot>;EDGE_CONVERT=$<TARGET_FILE:edge_convert>;EDGE_ROOT=${EDGE_ROOT};EDGE_SHOT_GUI=${EDGE_SHOT_HAS_GUI};PYTHONDONTWRITEBYTECODE=1")
+  ENDIF()
+  # what `cmake --install` of this build puts in a prefix (test_install.py): edge's own, and nothing a consumer must find elsewhere
+  IF(EDGE_INSTALL)
+    ADD_TEST(NAME install_py
+      COMMAND ${Python_EXECUTABLE} -m pytest -q -p no:cacheprovider test/test_install.py
+      WORKING_DIRECTORY ${EDGE_ROOT})
+    SET_TESTS_PROPERTIES(install_py PROPERTIES ENVIRONMENT
+      "EDGE_BUILD_DIR=${CMAKE_BINARY_DIR};EDGE_BUILD_CONFIG=$<CONFIG>;CMAKE_COMMAND=${CMAKE_COMMAND};EDGE_CXX=${CMAKE_CXX_COMPILER};EDGE_CXX_ID=${CMAKE_CXX_COMPILER_ID};PYTHONDONTWRITEBYTECODE=1")
   ENDIF()
   # the CMake helpers a game builds with (EdgeModels.cmake, EdgeRuntime.cmake), each conversion test a project of its own built with Ninja
   IF(CMAKE_GENERATOR MATCHES "Ninja")

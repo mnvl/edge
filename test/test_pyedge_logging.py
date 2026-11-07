@@ -1,10 +1,8 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2004-2026 Manvel Avetisian
 
-"""pyedge logs through one native logger (edge/src/log.h). Loading pyedge's
-binding (the first name of it a program uses) points it at $EDGE_LOG; without
-it nothing is written to disk and warnings and errors go to stderr.
-init_logging() moves it."""
+"""pyedge logs through edge's one native log (edge/src/log.h): its lines go to stderr, warnings and errors by default;
+set_log_level() lets more or fewer through. Nothing is written to disk."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,7 +10,6 @@ from pathlib import Path
 import base64
 import importlib
 import json
-import os
 import struct
 import shutil
 import subprocess
@@ -75,87 +72,70 @@ def _untextured_gltf(directory: Path) -> tuple[Path, str]:
     return path, token
 
 
-def _load(asset: Path) -> None:
-    renderer = pyedge.Renderer(backend="null")
-    scheduler = renderer.create_scheduler()
-    model = pyedge.StaticModelPTBNT(renderer, scheduler)
-    model.load_from_gltf(str(asset))
-    model.check()
-
-
-@pytest.fixture
-def detached_after():
-    yield
-    pyedge.init_logging(None)
-
-
-def test_init_logging_writes_a_model_load_to_the_file(tmp_path, detached_after):
-    log_file = tmp_path / "sub" / "edge.log"  # the directory does not exist yet
-    pyedge.init_logging(str(log_file), level="info")
-    asset = _unique_asset(tmp_path)
-    _load(asset)
-    text = log_file.read_text()
-    assert f"glTF primitive(s) from {asset}" in text
-    assert "gltf_reader.cc:" in text
-    assert " info]" in text
-    assert "vertices: count = " not in text  # debug, off at info
-
-
-def test_debug_level_adds_the_mesh_lines(tmp_path, detached_after):
-    log_file = tmp_path / "edge.log"
-    pyedge.init_logging(str(log_file), level="debug")
-    _load(_unique_asset(tmp_path))
-    pyedge.init_logging(str(log_file), level="info")  # re-init flushes what the debug logger had
-    text = log_file.read_text()
-    assert "vertices: count = " in text
-    assert "bounds = (" in text
-    assert " debug]" in text
-
-
-def test_init_logging_refuses_an_unknown_level(tmp_path):
-    for level in ("loud", "", "off", "INFO"):
+def test_set_log_level_refuses_an_unknown_level():
+    for level in ("loud", "", "off", "INFO", "warnings"):
         with pytest.raises(ValueError):
-            pyedge.init_logging(str(tmp_path / "edge.log"), level=level)
-    assert not (tmp_path / "edge.log").exists()
+            pyedge.set_log_level(level)
 
 
-def test_init_logging_refuses_a_file_it_cannot_create(tmp_path):
-    (tmp_path / "not_a_dir").write_text("x")
-    with pytest.raises(RuntimeError, match="not_a_dir"):
-        pyedge.init_logging(str(tmp_path / "not_a_dir" / "edge.log"))
-
-
-def test_a_check_warning_is_in_the_file(tmp_path, detached_after):
-    log_file = tmp_path / "edge.log"
-    pyedge.init_logging(str(log_file))
-    asset, token = _untextured_gltf(tmp_path)
-    _load(asset)
-    text = log_file.read_text()
-    assert f"mesh '{token}': vertex components not initialized" in text
-    assert " warning]" in text
-
-
-def test_init_logging_none_stops_writing_to_the_previous_file(tmp_path):
-    log_file = tmp_path / "edge.log"
-    pyedge.init_logging(str(log_file))
-    pyedge.init_logging(None)
-    asset = _unique_asset(tmp_path)
-    _load(asset)
-    assert asset.name not in log_file.read_text()
-
-
-def _run_load(asset: Path, env: dict, check: bool = True, cwd: Path | None = None) -> subprocess.CompletedProcess:
+def _run_load(asset: Path, level: str | None = None, before: str = "", cwd: Path | None = None) -> subprocess.CompletedProcess:
+    """A model loaded and checked in a process of its own, at `level` (the default when None): its stderr is the log's."""
     script = (
         "import pyedge\n"
-        'r = pyedge.Renderer(backend="null")\n'
+        + (f"pyedge.set_log_level({level!r})\n" if level is not None else "")
+        + before
+        + 'r = pyedge.Renderer(backend="null")\n'
         "s = r.create_scheduler()\n"
         "m = pyedge.StaticModelPTBNT(r, s)\n"
         f"m.load_from_gltf({str(asset)!r})\n"
         "m.check()\n"
     )
-    inherited = {k: v for k, v in os.environ.items() if k != "EDGE_LOG"}
-    return subprocess.run([sys.executable, "-c", script], cwd=cwd or tempfile.gettempdir(), capture_output=True,
-                          text=True, env={**inherited, **env}, check=check)
+    return subprocess.run([sys.executable, "-c", script], cwd=cwd or tempfile.gettempdir(), capture_output=True, text=True,
+                          check=True)
+
+
+def test_by_default_a_warning_reaches_stderr_and_an_info_line_does_not(tmp_path):
+    asset, token = _untextured_gltf(tmp_path)
+    result = _run_load(asset)
+    assert f"mesh '{token}': vertex components not initialized" in result.stderr, result.stderr
+    assert "[warning " in result.stderr, result.stderr
+    assert "glTF primitive(s) from" not in result.stderr, result.stderr
+    assert "[info " not in result.stderr, result.stderr
+
+
+def test_at_info_the_load_is_on_stderr_with_its_source(tmp_path):
+    asset = _unique_asset(tmp_path)
+    result = _run_load(asset, "info")
+    assert f"glTF primitive(s) from {asset}" in result.stderr, result.stderr
+    assert "[info gltf_reader.cc:" in result.stderr, result.stderr
+    assert "vertices: count = " not in result.stderr, result.stderr  # debug, off at info
+
+
+def test_debug_adds_the_mesh_lines(tmp_path):
+    result = _run_load(_unique_asset(tmp_path), "debug")
+    assert "vertices: count = " in result.stderr, result.stderr
+    assert "bounds = (" in result.stderr, result.stderr
+    assert "[debug " in result.stderr, result.stderr
+
+
+def test_at_error_a_warning_stays_off_stderr(tmp_path):
+    asset, token = _untextured_gltf(tmp_path)
+    result = _run_load(asset, "error")
+    assert token not in result.stderr, result.stderr
+
+
+def test_a_refused_level_leaves_the_level_as_it_was(tmp_path):
+    asset = _unique_asset(tmp_path)
+    refused = (
+        "try:\n"
+        "    pyedge.set_log_level('loud')\n"
+        "except ValueError:\n"
+        "    pass\n"
+        "else:\n"
+        "    raise SystemExit('accepted')\n"
+    )
+    result = _run_load(asset, "info", before=refused)
+    assert f"glTF primitive(s) from {asset}" in result.stderr, result.stderr
 
 
 def _files_under(*roots: Path) -> dict[Path, tuple[int, int]]:
@@ -164,50 +144,14 @@ def _files_under(*roots: Path) -> dict[Path, tuple[int, int]]:
             for p in root.rglob("*") if p.is_file()}
 
 
-def test_without_edge_log_nothing_is_written(tmp_path):
+def test_nothing_is_written_to_disk(tmp_path):
     asset, token = _untextured_gltf(tmp_path)
     workdir = tmp_path / "cwd"
     workdir.mkdir()
     edge_dir = Path(__file__).resolve().parents[1]
     roots = (workdir, edge_dir / "pyedge", edge_dir / "logs")
     before = _files_under(*roots)
-    result = _run_load(asset, {}, cwd=workdir)
+    result = _run_load(asset, "debug", cwd=workdir)
     written = {p for p, stamp in _files_under(*roots).items() if before.get(p) != stamp}
     assert written == set(), written
-    assert token in result.stderr, result.stderr  # the warning still reaches stderr
-    assert " info]" not in result.stderr, result.stderr  # the info lines do not
-
-
-def test_edge_log_is_where_the_log_goes(tmp_path):
-    asset = _unique_asset(tmp_path)
-    log_file = tmp_path / "elsewhere" / "custom.log"  # the directory does not exist yet
-    _run_load(asset, {"EDGE_LOG": str(log_file)})
-    assert f"glTF primitive(s) from {asset}" in log_file.read_text()
-
-
-def test_an_edge_log_that_cannot_be_created_fails_the_first_use_of_the_binding(tmp_path):
-    (tmp_path / "not_a_dir").write_text("x")
-    result = _run_load(_unique_asset(tmp_path), {"EDGE_LOG": str(tmp_path / "not_a_dir" / "edge.log")},
-                       check=False)
-    assert result.returncode != 0
-    assert "not_a_dir" in result.stderr, result.stderr
-
-
-def test_an_empty_edge_log_fails_the_import(tmp_path):
-    result = _run_load(_unique_asset(tmp_path), {"EDGE_LOG": ""}, check=False)
-    assert result.returncode != 0
-    assert "EDGE_LOG" in result.stderr, result.stderr
-
-
-def test_info_lines_stay_off_stderr(tmp_path):
-    asset = _unique_asset(tmp_path)
-    result = _run_load(asset, {"EDGE_LOG": str(tmp_path / "edge.log")})
-    assert asset.name not in result.stderr, result.stderr
-
-
-def test_warnings_reach_stderr_as_well(tmp_path):
-    asset, token = _untextured_gltf(tmp_path)
-    log_file = tmp_path / "edge.log"
-    result = _run_load(asset, {"EDGE_LOG": str(log_file)})
-    assert f"mesh '{token}': vertex components not initialized" in result.stderr, result.stderr
-    assert token in log_file.read_text()
+    assert token in result.stderr, result.stderr

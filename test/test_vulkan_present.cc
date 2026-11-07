@@ -7,10 +7,7 @@
 
 #include <boost/test/unit_test.hpp>
 #include <utility>
-#include <filesystem>
-#include <fstream>
-#include <sstream>
-#include <unistd.h>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 
@@ -105,21 +102,20 @@ size_t count_of(std::string const &text, std::string const &what)
 // and chose is in the log at the default level, so that a run on a phone can be read without a debugger.
 BOOST_AUTO_TEST_CASE(the_renderer_logs_the_device_it_found_and_took)
 {
-	auto const file = std::filesystem::temp_directory_path() / ("edge_test_vulkan_init_" + std::to_string(::getpid()) + ".log");
-	std::filesystem::remove(file);
-	init_logging(file, "info");
 	std::string text;
+	std::mutex text_mutex;
+	set_log_level(LogLevel::info);
+	set_log_sink([&](LogLevel, std::string_view message, char const *, int) {
+		std::lock_guard<std::mutex> lock(text_mutex);
+		text += std::string(message) + "\n";
+	});
 	VulkanInstance::release_unused();      // (the instance is kept between renderers: this one is to make it, and say so)
 	{
 		VulkanFixture f;
 		BOOST_REQUIRE_MESSAGE(f.renderer, f.error);
-		std::ifstream in(file);
-		std::stringstream all;
-		all << in.rdbuf();
-		text = all.str();
 	}
-	init_logging(std::nullopt);
-	std::filesystem::remove(file);
+	set_log_sink(nullptr);
+	set_log_level(LogLevel::warn);
 	for (char const *line : {"Vulkan instance: loader ", "Vulkan device 0: ", "Vulkan device features: textureCompressionBC ", "Vulkan device limits: push constants ",
 			"Vulkan memory heap 0: ", "Vulkan depth format: "})
 		BOOST_CHECK_MESSAGE(text.find(line) != std::string::npos, std::string("the log has no \"") + line + "\":\n" + text);

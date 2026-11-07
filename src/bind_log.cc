@@ -3,32 +3,35 @@
 
 #include "python_bindings.h"
 
-#include <filesystem>
-#include <optional>
+#include <stdexcept>
 #include <string>
 
 #include <nanobind/nanobind.h>
-#include <nanobind/stl/optional.h>
 #include <nanobind/stl/string.h>
 
 #include "log.h"
 
 using namespace nb::literals;
 
+namespace
+{
+
+edge::LogLevel parse_level(std::string const &level)
+{
+	if (level == "debug") return edge::LogLevel::debug;
+	if (level == "info") return edge::LogLevel::info;
+	if (level == "warn" || level == "warning") return edge::LogLevel::warn;
+	if (level == "error") return edge::LogLevel::error;
+	throw std::invalid_argument("set_log_level: level must be debug, info, warn or error, got '" + level + "'");
+}
+
+} // namespace
+
 void bind_log(nb::module_ &m)
 {
-	// src/log.h: where the native side's log goes. pyedge/__init__.py
-	// calls this at import with $EDGE_LOG (None when unset); a caller may
-	// call it again to move the file or turn on debug lines.
+	// src/log.h: the native side's lines go to stderr
 	m.def(
-		"init_logging",
-		[](std::optional<std::string> const &file, std::string const &level) {
-			std::optional<std::filesystem::path> path;
-			if (file.has_value()) path = std::filesystem::path(*file);
-			edge::init_logging(path, level);
-		},
-		"file"_a.none(), "level"_a = "info",
-		"Write the native edge log to `file` (rotating, its directory created as needed) at `level` "
-		"('debug', 'info', 'warn', 'error'); None keeps warnings and errors on stderr only. "
-		"A level outside those is a ValueError.");
+		"set_log_level", [](std::string const &level) { edge::set_log_level(parse_level(level)); }, "level"_a,
+		"Let the native edge log's lines at or above `level` ('debug', 'info', 'warn', 'error') through to stderr; "
+		"'warn' until this is called. A level outside those is a ValueError, and leaves the level as it was.");
 }

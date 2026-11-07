@@ -14,9 +14,8 @@ import pytest
 
 
 def _run(script: str, env: dict, check: bool = True) -> subprocess.CompletedProcess:
-    inherited = {k: v for k, v in os.environ.items() if k != "EDGE_LOG"}
     return subprocess.run([sys.executable, "-c", script], cwd=tempfile.gettempdir(), capture_output=True, text=True,
-                          env={**inherited, "PYTHONDONTWRITEBYTECODE": "1", **env}, check=check)
+                          env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", **env}, check=check)
 
 
 @pytest.fixture
@@ -57,12 +56,6 @@ def test_a_probe_of_a_dunder_name_answers_without_the_binding(no_binding):
     )
     result = _run(script, no_binding)
     assert "probed" in result.stdout, result.stderr
-
-
-def test_an_empty_edge_log_still_fails_the_import_itself(no_binding):
-    result = _run("import pyedge\n", {**no_binding, "EDGE_LOG": ""}, check=False)
-    assert result.returncode != 0
-    assert "EDGE_LOG is set but empty" in result.stderr, result.stderr
 
 
 def test_importing_pyedge_leaves_a_built_binding_unloaded_until_a_name_needs_it():
