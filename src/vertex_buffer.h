@@ -10,6 +10,8 @@
 namespace edge
 {
 
+class VertexTraits;
+
 class VertexBuffer: public std::enable_shared_from_this<VertexBuffer> {
 public:
 	VertexBuffer() = default;
@@ -30,6 +32,12 @@ public:
 
 	virtual size_t size() const = 0;
 
+	/// What is in the buffer (null where the maker did not say): a draw counts its vertices by it.
+	virtual VertexTraits const *vertex_traits() const = 0;
+	/// The renderer the buffer was made by, to tell whether a draw may use it: only compared.
+	void const *owner() const { return owner_; }
+	void set_owner(void const *owner) { owner_ = owner; }
+
 protected:
 	friend class Mapping<VertexBuffer>;
 	friend class Mapping<VertexBuffer const>;
@@ -39,6 +47,9 @@ protected:
 	virtual void do_unlock() const = 0;
 	virtual void *do_lock(bool discard) = 0;
 	virtual void do_unlock() = 0;
+
+private:
+	void const *owner_ = nullptr;
 };
 
 }

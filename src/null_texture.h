@@ -30,7 +30,13 @@ protected:
 	void *do_lock(bool discard) override;
 	void do_unlock() override;
 
+public:
+	/// What says the renderer is in a frame, where a download is refused as on Vulkan
+	void set_in_a_frame(std::shared_ptr<bool const> in_a_frame) { in_a_frame_ = std::move(in_a_frame); }
+
 private:
+	std::shared_ptr<bool const> in_a_frame_;
+
 	mutable std::vector<char> buffer_;
 	bool depth_ = false;
 };

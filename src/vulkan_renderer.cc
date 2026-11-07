@@ -54,14 +54,15 @@ constexpr VkDeviceSize VULKAN_DEFAULT_MATERIAL_PARAMETER_BLOCKS_PER_FRAME = 1638
 VkDeviceSize capacity_from_env(char const *name, VkDeviceSize default_value, VkDeviceSize min_value)
 {
 	char const *value = std::getenv(name);
-	if (value == nullptr || *value == '\0')
+	if (value == nullptr)
 	{
 		return default_value;
 	}
 
+	// (strtoull takes "-5" for a very large number; an empty value is a mistake, as an empty EDGE_VK_SHADER_DIR is)
 	char *end = nullptr;
 	unsigned long long const parsed = std::strtoull(value, &end, 10);
-	if (end == value || *end != '\0' || parsed < min_value)
+	if (*value == '\0' || std::strchr(value, '-') != nullptr || end == value || *end != '\0' || parsed < min_value)
 	{
 		throw std::invalid_argument(std::string(name) + "=" + value + ": not a number of at least " + std::to_string(min_value));
 	}
@@ -1036,9 +1037,28 @@ MaterialPtr VulkanRenderer::create_material()
 void VulkanRenderer::do_draw(DrawCall const &call)
 {
 	VulkanVertexBuffer *const vertex_buffer = dynamic_cast<VulkanVertexBuffer *>(call.vertex_buffer().get());
-	if (!vertex_buffer)
+	if (!vertex_buffer || vertex_buffer->device() != device_)
 	{
 		throw std::invalid_argument("a Vulkan draw of a vertex buffer of another renderer");
+	}
+	// (a buffer or an image of another device is that device's handle: on this one a wrong picture, or the driver crashes)
+	auto const check_texture = [&](TexturePtr const &texture) {
+		if (!texture) return;
+		VulkanTexture const *const vulkan_texture = dynamic_cast<VulkanTexture const *>(texture.get());
+		if (!vulkan_texture || vulkan_texture->device() != device_)
+			throw std::invalid_argument("a Vulkan draw of texture '" + texture->filename() + "' of another renderer");
+	};
+	Material const &checked_material = *call.material();
+	for (size_t i = 0; i < checked_material.diffuse_textures_count(); ++i)
+		check_texture(checked_material.diffuse_texture(i));
+	check_texture(checked_material.texture_blending_weights_texture());
+	check_texture(checked_material.normal_map_texture());
+	check_texture(checked_material.metallic_roughness_texture());
+	check_texture(checked_material.emissive_texture());
+	VulkanIndexBuffer *const checked_index_buffer = call.index_buffer() ? dynamic_cast<VulkanIndexBuffer *>(call.index_buffer().get()) : nullptr;
+	if (call.index_buffer() && (!checked_index_buffer || checked_index_buffer->device() != device_))
+	{
+		throw std::invalid_argument("a Vulkan draw of an index buffer of another renderer");
 	}
 	VkCommandBuffer const command_buffer = active_command_buffer();
 	VertexTraits const *const traits = vertex_buffer->vertex_traits();
@@ -1069,14 +1089,9 @@ void VulkanRenderer::do_draw(DrawCall const &call)
 	vkCmdPushConstants(command_buffer, pipeline_layout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
 		sizeof(push_constants), &push_constants);
 
-	VulkanIndexBuffer *index_buffer = nullptr;
-	if (call.index_buffer())
+	VulkanIndexBuffer *const index_buffer = checked_index_buffer;
+	if (index_buffer)
 	{
-		index_buffer = dynamic_cast<VulkanIndexBuffer *>(call.index_buffer().get());
-		if (!index_buffer)
-		{
-			throw std::invalid_argument("a Vulkan draw of an index buffer of another renderer");
-		}
 		vkCmdBindIndexBuffer(command_buffer, index_buffer->get(), 0, index_buffer->index_type());
 	}
 

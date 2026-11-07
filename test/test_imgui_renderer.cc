@@ -280,7 +280,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(an_added_texture_is_drawn_where_the_image_is_and_i
 {
 	Ui<F> u;
 	uint64_t const id = u.ui->add_texture(quad(u.renderer));
-	u.frame([] { ImGui::GetForegroundDrawList()->AddText({4, 4}, IM_COL32(255, 255, 255, 255), "font"); });
+	// (drawn, not only built: until the renderer has been told of the atlas, asking its id is an assertion of Dear ImGui's)
+	u.render([] { ImGui::GetForegroundDrawList()->AddText({4, 4}, IM_COL32(255, 255, 255, 255), "font"); });
 	ImDrawData const *text = ImGui::GetDrawData();
 	BOOST_REQUIRE(text->CmdListsCount > 0 && text->CmdLists[0]->CmdBuffer.Size > 0);
 	BOOST_CHECK_NE(id, uint64_t(text->CmdLists[0]->CmdBuffer[0].GetTexID()));       // not the font's

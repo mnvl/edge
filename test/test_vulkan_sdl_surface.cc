@@ -23,6 +23,7 @@
 #include "texture.h"
 #include "vulkan_device_info.h"
 #include "vulkan_renderer.h"
+#include "vulkan_instance.h"
 #include "vulkan_sdl_surface.h"
 
 using namespace edge;
@@ -113,6 +114,16 @@ std::vector<uint8_t> frame_bytes(int width, int height)
 
 BOOST_FIXTURE_TEST_SUITE(vulkan_sdl_surface, Fixture)
 
+BOOST_AUTO_TEST_CASE(the_device_it_names_for_a_window_can_present_to_it)
+{
+	std::string const uuid = sdl_vulkan_device_for_window(window);
+	BOOST_TEST(!uuid.empty());
+	auto const renderer = std::make_shared<VulkanRenderer>(64, 48, uuid, sdl_vulkan_instance_extensions());
+	BOOST_CHECK_NO_THROW(attach_sdl_window(*renderer, window, false));
+	renderer->detach_surface();
+}
+
+
 BOOST_AUTO_TEST_CASE(the_instance_extensions_of_sdl_s_surfaces_include_the_surface_extension)
 {
 	std::vector<std::string> const extensions = sdl_vulkan_instance_extensions();
@@ -154,6 +165,7 @@ BOOST_AUTO_TEST_CASE(a_second_surface_or_no_window_is_refused)
 
 BOOST_AUTO_TEST_CASE(a_renderer_without_sdl_s_extensions_cannot_take_its_surface)
 {
+	VulkanInstance::release_unused();      // (a kept instance may have them from an earlier renderer)
 	VulkanRenderer renderer(64, 48);
 	BOOST_CHECK_THROW(attach_sdl_window(renderer, window, false), std::runtime_error);
 }

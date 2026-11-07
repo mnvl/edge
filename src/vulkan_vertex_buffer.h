@@ -25,7 +25,8 @@ public:
 
 
 	VkBuffer get() const { return buffer_; }
-	VertexTraits const *vertex_traits() const { return traits_; }
+	VkDevice device() const { return context_->device(); }
+	VertexTraits const *vertex_traits() const override { return traits_; }
 
 	/// Property flags of the memory backing the buffer the GPU reads from.
 	/// Device-local is what keeps geometry off the PCIe bus.

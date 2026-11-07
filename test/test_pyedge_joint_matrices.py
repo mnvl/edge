@@ -74,5 +74,5 @@ def test_none_is_refused(matrices):
 
 
 def test_the_null_renderer_has_none_to_size():
-    with pytest.raises(RuntimeError, match="joint_matrices"):
+    with pytest.raises(ValueError, match="joint_matrices"):
         pyedge.create_renderer(64, 64, backend="null", joint_matrices=64)

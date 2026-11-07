@@ -19,6 +19,11 @@ namespace edge
 /// std::logic_error before SDL's video is started; std::runtime_error with SDL's message when it has no Vulkan.
 std::vector<std::string> sdl_vulkan_instance_extensions();
 
+/// The uuid of the first device that can present to @p window, to make the VulkanRenderer with: where a machine has several, the one
+/// a renderer picks by itself may not be able to (the default ignores windows, as a renderer is made before its surface).  std::runtime_error
+/// when none can, or SDL has no Vulkan.
+std::string sdl_vulkan_device_for_window(SDL_Window *window);
+
 /// Makes @p window's Vulkan surface (the window made with SDL_WINDOW_VULKAN) and attaches it to @p renderer, made with
 /// sdl_vulkan_instance_extensions() (VulkanRenderer::attach_surface; detach_surface() destroys it).  std::invalid_argument for no
 /// window; std::runtime_error with SDL's message when the surface cannot be made; what attach_surface throws, the surface destroyed.

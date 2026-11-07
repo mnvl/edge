@@ -120,6 +120,7 @@ private:
 	void create_image();
 	void create_staging_buffer();
 	void release_staging();
+	void release_all();
 	void upload_to_gpu();
 public:
 	/// What upload_to_gpu() does in two halves, for Renderer::batch_upload_textures(): copy the CPU copy to the staging buffer and

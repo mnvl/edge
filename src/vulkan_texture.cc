@@ -132,8 +132,30 @@ VulkanTexture::VulkanTexture(VulkanRenderer *renderer_ptr, int width, int height
 		}
 	}
 
-	create_image();
-	create_staging_buffer();
+	VkPhysicalDeviceProperties properties;
+	vkGetPhysicalDeviceProperties(context_->physical_device(), &properties);
+	if (static_cast<uint32_t>(width) > properties.limits.maxImageDimension2D || static_cast<uint32_t>(height) > properties.limits.maxImageDimension2D)
+	{
+		throw std::invalid_argument("a texture of " + std::to_string(width) + " x " + std::to_string(height) + ": this device has at most " +
+			std::to_string(properties.limits.maxImageDimension2D) + " on a side (maxImageDimension2D)");
+	}
+	if (usage.array_layers > 0 && static_cast<uint32_t>(usage.array_layers) > properties.limits.maxImageArrayLayers)
+	{
+		throw std::invalid_argument(std::to_string(usage.array_layers) + " array layers: this device has at most " +
+			std::to_string(properties.limits.maxImageArrayLayers) + " (maxImageArrayLayers)");
+	}
+
+	// (a constructor that throws runs no destructor: what it made so far is let go here)
+	try
+	{
+		create_image();
+		create_staging_buffer();
+	}
+	catch (...)
+	{
+		release_all();
+		throw;
+	}
 }
 
 VulkanTexture::VulkanTexture(VulkanRenderer *renderer_ptr, int width, int height, PixelFormat pixel_format, Layers layers):
@@ -225,6 +247,11 @@ VulkanTexture::~VulkanTexture()
 	{
 		context_->require_renderer().wait_submitted();
 	}
+	release_all();
+}
+
+void VulkanTexture::release_all()
+{
 	release_staging();
 
 	if (image_view_ != VK_NULL_HANDLE)

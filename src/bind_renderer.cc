@@ -185,11 +185,11 @@ std::shared_ptr<edge::Renderer> create_renderer(int width, int height, std::stri
     if (backend == "null")
     {
         if (!device_uuid.empty())
-            throw std::runtime_error("the null backend has no device to select by uuid");
+            throw nb::value_error("the null backend has no device to select by uuid");
         if (joint_matrices)
-            throw std::runtime_error("the null backend has no joint_matrices to size");
+            throw nb::value_error("the null backend has no joint_matrices to size");
         if (frames_in_flight)
-            throw std::runtime_error("the null backend keeps no frames in flight (it has one)");
+            throw nb::value_error("the null backend keeps no frames in flight (it has one)");
         return create_null_renderer(width, height);
     }
 

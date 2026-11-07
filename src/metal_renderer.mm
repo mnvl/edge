@@ -379,17 +379,23 @@ void MetalRenderer::do_set_viewport(int x, int y, int width, int height)
 
 VertexBufferPtr MetalRenderer::create_vertex_buffer(VertexTraits const *vertex_traits, size_t size, BufferUsage)
 {
-	return std::make_shared<MetalVertexBuffer>(impl_->context, vertex_traits, size);
+	auto buffer = std::make_shared<MetalVertexBuffer>(impl_->context, vertex_traits, size);
+	buffer->set_owner(this);
+	return buffer;
 }
 
 IndexBufferPtr MetalRenderer::create_index_buffer(IndexFormat index_format, size_t size, BufferUsage)
 {
-	return std::make_shared<MetalIndexBuffer>(impl_->context, index_format, size);
+	auto buffer = std::make_shared<MetalIndexBuffer>(impl_->context, index_format, size);
+	buffer->set_owner(this);
+	return buffer;
 }
 
 TexturePtr MetalRenderer::create_texture(int width, int height, PixelFormat pixel_format, TextureUsage const &usage)
 {
-	return std::make_shared<MetalTexture>(impl_->context, width, height, pixel_format, usage);
+	auto texture = std::make_shared<MetalTexture>(impl_->context, width, height, pixel_format, usage);
+	texture->set_owner(this);
+	return texture;
 }
 
 void MetalRenderer::do_set_frame_constants(void const *data, size_t size)
