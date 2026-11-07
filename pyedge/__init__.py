@@ -73,16 +73,23 @@ def _put_binding_dirs_on_path() -> None:
 
 
 def _import_required_binding(module_name: str) -> ModuleType:
-    # Installed (a wheel): the module is inside the package (and known by its own name too, as a build's is).  The variable picks another
-    # where it names a directory that has one; one that names nothing is no reason to fail with the right module beside this file.
+    # Installed: the module is part of the package, beside this file (a wheel) or where an editable install's import hook has it (and known by its
+    # own name too, as a build's is).  The variable picks another where it names a directory that has one; one that names nothing is no reason to
+    # fail with the right module here.
     explicit = os.environ.get("EDGE_PYTHON_BINDINGS_DIR")
-    if _module_files(Path(__file__).resolve().parent, module_name) and not (explicit and _module_files(Path(explicit).expanduser(), module_name)):
-        if explicit:
-            warnings.warn(f"EDGE_PYTHON_BINDINGS_DIR={explicit} has no {module_name}: using the one this pyedge is installed with",
-                          RuntimeWarning, stacklevel=2)
-        module = importlib.import_module(f"{__name__}.{module_name}")
-        sys.modules.setdefault(module_name, module)
-        return module
+    if not (explicit and _module_files(Path(explicit).expanduser(), module_name)):
+        qualified = f"{__name__}.{module_name}"
+        try:
+            module = importlib.import_module(qualified)
+        except ModuleNotFoundError as exc:
+            if exc.name != qualified:          # (it is there, and something it needs is not: that, and not "build one")
+                raise
+        else:
+            if explicit:
+                warnings.warn(f"EDGE_PYTHON_BINDINGS_DIR={explicit} has no {module_name}: using the one this pyedge is installed with",
+                              RuntimeWarning, stacklevel=2)
+            sys.modules.setdefault(module_name, module)
+            return module
 
     # A source checkout: the module CMake built (e.g. build/lib/_pyedge*.so).
     bindings_dirs = _binding_dirs()

@@ -3,6 +3,13 @@
 All notable changes to edge are written here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- pyedge from `pip install -e .` finds its compiled module: it looked only beside `__init__.py`, where an editable install has none, so every name
+  of the binding raised `AttributeError`, saying to build what was built.
+
 ## [3.0.1] - 2026-11-07
 
 ### Fixed
