@@ -59,10 +59,17 @@ private:
 		std::shared_ptr<DynamicMesh> mesh;
 	};
 
+	/// rove's order of vectors, lexicographic, by a name of its own: libc++ 21's std::map takes a std::less<T> for std::less<>, and so
+	/// for `a < b`, which a rove vector has not (rove's std::less<vec> is skipped).
+	struct ColourOrder
+	{
+		bool operator()(rove::vec<4> const &a, rove::vec<4> const &b) const { return std::less<rove::vec<4>>()(a, b); }
+	};
+
 	RendererPtr renderer_;
 	float width_;
 	int priority_ = 0;
-	std::map<rove::vec<4>, Colour> colours_;           // by colour, lexicographically (std::less of a rove vector)
+	std::map<rove::vec<4>, Colour, ColourOrder> colours_;           // by colour
 };
 
 }
