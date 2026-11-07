@@ -102,6 +102,42 @@ def test_hasattr_answers_when_the_binding_cannot_load():
     assert result.stdout.strip() == "said", result.stderr
 
 
+def _an_installed_package(tmp_path):
+    package = tmp_path / "installed" / "pyedge"
+    package.mkdir(parents=True)
+    shutil.copy(Path(pyedge.__file__), package / "__init__.py")
+    shutil.copy(Path(pyedge._bindings.__file__), package)
+    return package
+
+
+def _which_binding(tmp_path, binding_dir):
+    env = {**os.environ, "EDGE_PYTHON_BINDINGS_DIR": str(binding_dir), "ROVE_PYTHON_BINDINGS_DIR": str(Path(pyrove._bindings.__file__).parent),
+           "PYTHONPATH": os.pathsep.join([str(tmp_path / "installed")] + os.environ.get("PYTHONPATH", "").split(os.pathsep))}
+    code = "import pyedge; print(pyedge._bindings.__file__)"
+    return subprocess.run([sys.executable, "-W", "always", "-c", code], capture_output=True, text=True, env=env, cwd=tmp_path)
+
+
+def test_a_variable_that_names_nothing_leaves_an_installed_package_its_own_module(tmp_path):
+    package = _an_installed_package(tmp_path)
+    (tmp_path / "empty").mkdir()
+    for nothing in (tmp_path / "empty", tmp_path / "missing"):
+        result = _which_binding(tmp_path, nothing)
+        assert result.returncode == 0, result.stderr
+        assert Path(result.stdout.strip()).parent == package
+        assert "EDGE_PYTHON_BINDINGS_DIR" in result.stderr
+
+
+def test_a_variable_that_names_a_module_picks_it(tmp_path):
+    _an_installed_package(tmp_path)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    module = Path(pyedge._bindings.__file__)
+    shutil.copy(module, elsewhere)
+    result = _which_binding(tmp_path, elsewhere)
+    assert result.returncode == 0, result.stderr
+    assert Path(result.stdout.strip()).parent == elsewhere
+
+
 # --- the module, as a wheel has it ------------------------------------------------------------------------------------------------
 
 @pytest.mark.skipif(sys.platform != "linux" or shutil.which("nm") is None, reason="reads an ELF file's symbols")

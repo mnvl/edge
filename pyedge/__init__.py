@@ -73,11 +73,12 @@ def _put_binding_dirs_on_path() -> None:
 
 
 def _import_required_binding(module_name: str) -> ModuleType:
-    # Installed (a wheel): the module is inside the package (and known by its own name too, as a build's is).  It is the right one
-    # whatever the environment says, and a variable that points elsewhere is for a source checkout.
-    if _module_files(Path(__file__).resolve().parent, module_name):
-        if os.environ.get("EDGE_PYTHON_BINDINGS_DIR"):
-            warnings.warn("EDGE_PYTHON_BINDINGS_DIR is for a source checkout: this pyedge is installed and has its own module",
+    # Installed (a wheel): the module is inside the package (and known by its own name too, as a build's is).  The variable picks another
+    # where it names a directory that has one; one that names nothing is no reason to fail with the right module beside this file.
+    explicit = os.environ.get("EDGE_PYTHON_BINDINGS_DIR")
+    if _module_files(Path(__file__).resolve().parent, module_name) and not (explicit and _module_files(Path(explicit).expanduser(), module_name)):
+        if explicit:
+            warnings.warn(f"EDGE_PYTHON_BINDINGS_DIR={explicit} has no {module_name}: using the one this pyedge is installed with",
                           RuntimeWarning, stacklevel=2)
         module = importlib.import_module(f"{__name__}.{module_name}")
         sys.modules.setdefault(module_name, module)

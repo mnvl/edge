@@ -32,7 +32,7 @@ class EdgeConan(ConanFile):
         "with_sdl": [True, False],      # edge::sdl: an SDL3 window's Vulkan surface
     }
     default_options = {"fPIC": True, "asset_tools": True, "with_imgui": False, "with_sdl": False}
-    exports_sources = ("CMakeLists.txt", "LICENSE.md", "THIRD_PARTY.md", "src/*", "include/*", "etc/cmake/*", "etc/patches/*",
+    exports_sources = ("CMakeLists.txt", "LICENSE.md", "THIRD_PARTY.md", "THIRD_PARTY_NOTICES.md", "src/*", "include/*", "etc/cmake/*", "etc/patches/*",
                        "tools/*")
 
     def set_version(self):
