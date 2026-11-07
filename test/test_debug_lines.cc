@@ -127,4 +127,21 @@ BOOST_AUTO_TEST_CASE(one_draw_for_each_colour_and_a_draw_starts_afresh)
 	BOOST_CHECK_THROW(lines.sphere(rove::vec<3>(0, 0, 0), 1.0f, rove::vec<4>(1, 1, 1, 1), 2), std::invalid_argument);
 }
 
+BOOST_AUTO_TEST_CASE(colours_alike_but_for_one_component_are_drawn_apart)
+{
+	// The colours are told apart by every component, the last as the first: red, red with green in it, half-transparent red, and red
+	// again (joining the first).
+	auto const renderer = std::make_shared<NullRenderer>(64, 64);
+	auto const scheduler = std::make_shared<Scheduler>(renderer);
+	DebugLines lines(renderer, 0.05f);
+	lines.line(rove::vec<3>(0, 0, 0), rove::vec<3>(1, 0, 0), rove::vec<4>(1, 0, 0, 1));
+	lines.line(rove::vec<3>(0, 0, 0), rove::vec<3>(1, 0, 0), rove::vec<4>(1, 0.5f, 0, 1));
+	lines.line(rove::vec<3>(0, 0, 0), rove::vec<3>(1, 0, 0), rove::vec<4>(1, 0, 0, 0.5f));
+	lines.line(rove::vec<3>(0, 0, 0), rove::vec<3>(0, 1, 0), rove::vec<4>(1, 0, 0, 1));
+	BOOST_CHECK_EQUAL(lines.segments(), 4u);
+	lines.draw(*scheduler, view());
+	flush_in_a_pass(scheduler);
+	BOOST_CHECK_EQUAL(scheduler->visible_calls_count(), 3u);
+}
+
 BOOST_AUTO_TEST_SUITE_END()
