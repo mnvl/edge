@@ -18,7 +18,7 @@ from conan.tools.files import copy, load
 
 class EdgeConan(ConanFile):
     name = "edge"
-    description = "A small C++/Python renderer for games and tools: Vulkan, OpenGL ES and Metal backends, glTF and its own model format"
+    description = "Minimalistic C++20 rendering library with Vulkan, OpenGL ES 3.0 / WebGL 2 and Metal backends, and Python bindings"
     license = "MIT"
     url = "https://github.com/mnvl/edge"
     homepage = "https://github.com/mnvl/edge"
