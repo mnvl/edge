@@ -414,20 +414,24 @@ SerializedModel Model::read_file(std::string const &filename)
 		throw std::runtime_error("failed to open model file for reading: " + filename);
 	}
 	std::vector<char> const data((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+	return read_bytes(std::string_view(data.data(), data.size()), filename);
+}
 
+SerializedModel Model::read_bytes(std::string_view bytes, std::string const &name)
+{
 	SerializedModel serialized;
-	BoundedInputArchive archive(data.data(), data.size());
+	BoundedInputArchive archive(bytes.data(), bytes.size());
 	try
 	{
 		archive(serialized);
 	}
 	catch (cereal::Exception const &e)
 	{
-		throw std::runtime_error("model file " + filename + " is damaged: " + e.what());
+		throw std::runtime_error("model file " + name + " is damaged: " + e.what());
 	}
 	if (archive.left() != 0)
 	{
-		throw std::runtime_error("model file " + filename + " has bytes after the end of the model");
+		throw std::runtime_error("model file " + name + " has bytes after the end of the model");
 	}
 	return serialized;
 }
@@ -442,6 +446,19 @@ void Model::load_from_file(std::string const &filename, bool keep_cpu_copy)
 	catch (std::runtime_error const &e)
 	{
 		throw std::runtime_error("model file " + filename + ": " + e.what());
+	}
+}
+
+void Model::load_from_bytes(std::string_view bytes, std::string const &name, bool keep_cpu_copy)
+{
+	SerializedModel const serialized = read_bytes(bytes, name);
+	try
+	{
+		load(serialized, keep_cpu_copy);
+	}
+	catch (std::runtime_error const &e)
+	{
+		throw std::runtime_error("model file " + name + ": " + e.what());
 	}
 }
 

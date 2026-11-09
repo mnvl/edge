@@ -37,7 +37,10 @@ void ModelCache::load_file(Model &model, std::string const &filename) const
 	if (filename.size() >= edge_suffix.size() &&
 		filename.compare(filename.size() - edge_suffix.size(), edge_suffix.size(), edge_suffix) == 0)
 	{
-		model.load_from_file(filename, gltf_options_.keep_cpu_copy);
+		if (reader_)
+			model.load_from_bytes(reader_(filename), filename, gltf_options_.keep_cpu_copy);
+		else
+			model.load_from_file(filename, gltf_options_.keep_cpu_copy);
 	}
 	else
 	{
