@@ -191,11 +191,20 @@ def test_the_module_exports_its_entry_and_none_of_what_it_links():
     assert "PyInit__pyedge" in symbols
 
 
-def test_the_summary_names_only_what_the_wheel_has():
-    pyproject = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(encoding="utf-8")
-    summary = next(line for line in pyproject.splitlines() if line.startswith("description"))
-    assert "OpenGL" not in summary and "Metal" not in summary
-    assert "Vulkan" in summary
+def test_every_package_says_what_the_readme_says():
+    # (one sentence for edge wherever it is published: the README's first, PyPI's, Conan's and vcpkg's)
+    import json
+    import re
+    root = Path(__file__).resolve().parents[1]
+    expected = "Minimalistic C++20 rendering library with Vulkan, OpenGL ES 3.0 / WebGL 2 and Metal backends, and Python bindings"
+    readme = (root / "README.md").read_text(encoding="utf-8").splitlines()
+    assert readme[2].startswith(expected + " (`pyedge`)."), readme[2]
+    pyproject = re.findall(r'^description = "([^"]*)"$', (root / "pyproject.toml").read_text(encoding="utf-8"), re.M)
+    assert pyproject == [expected]
+    conan = re.findall(r'^    description = "([^"]*)"$', (root / "conanfile.py").read_text(encoding="utf-8"), re.M)
+    assert conan == [expected]
+    vcpkg = json.loads((root / "ports" / "edge" / "vcpkg.json").read_text(encoding="utf-8"))
+    assert vcpkg["description"] == expected
 
 
 def test_the_readme_says_what_it_needs_and_has_no_relative_links():
