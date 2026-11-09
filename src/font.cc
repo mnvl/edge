@@ -69,26 +69,47 @@ std::vector<int> code_points(std::string const &text)
 
 struct Font::Impl
 {
-	std::vector<unsigned char> data;
+	std::string data;
 	stbtt_fontinfo info;
 	float scale;
 	int ascent, descent;
 };
 
-Font::Font(std::filesystem::path const &path, float pixels): impl_(std::make_unique<Impl>())
+namespace
+{
+
+std::string bytes_of(std::filesystem::path const &path)
 {
 	std::ifstream file(path, std::ios::binary);
 	if (!file)
 		throw std::runtime_error(path.string() + ": no such font");
-	impl_->data.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
-	int const offset = stbtt_GetFontOffsetForIndex(impl_->data.data(), 0);
-	if (offset < 0 || !stbtt_InitFont(&impl_->info, impl_->data.data(), offset))
-		throw std::runtime_error(path.string() + ": not a font stb_truetype reads");
-	impl_->scale = stbtt_ScaleForMappingEmToPixels(&impl_->info, pixels);
+	return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+}
+
+}
+
+Font::Font(std::filesystem::path const &path, float pixels): Font(from_bytes(bytes_of(path), pixels, path.string()))
+{
+}
+
+Font Font::from_bytes(std::string bytes, float pixels, std::string const &name)
+{
+	auto impl = std::make_unique<Impl>();
+	impl->data = std::move(bytes);
+	unsigned char const *const data = reinterpret_cast<unsigned char const *>(impl->data.data());
+	int const offset = impl->data.size() < 12 ? -1 : stbtt_GetFontOffsetForIndex(data, 0);          // (12: a font file's header)
+	if (offset < 0 || !stbtt_InitFont(&impl->info, data, offset))
+		throw std::runtime_error(name + ": not a font stb_truetype reads");
+	impl->scale = stbtt_ScaleForMappingEmToPixels(&impl->info, pixels);
 	int ascent = 0, descent = 0, gap = 0;
-	stbtt_GetFontVMetrics(&impl_->info, &ascent, &descent, &gap);
-	impl_->ascent = int(std::ceil(ascent * impl_->scale));             // as FreeType rounds its metrics: out
-	impl_->descent = int(std::ceil(-descent * impl_->scale));
+	stbtt_GetFontVMetrics(&impl->info, &ascent, &descent, &gap);
+	impl->ascent = int(std::ceil(ascent * impl->scale));             // as FreeType rounds its metrics: out
+	impl->descent = int(std::ceil(-descent * impl->scale));
+	return Font(std::move(impl));
+}
+
+Font::Font(std::unique_ptr<Impl> impl): impl_(std::move(impl))
+{
 }
 
 Font::~Font() = default;

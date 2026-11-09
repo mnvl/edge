@@ -10,6 +10,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 - A `.edge` model from its bytes, kept wherever a program keeps them: `Model::read_bytes()` and `Model::load_from_bytes()`
   (`read_file()` and `load_from_file()` are these of a file's bytes, with the same errors, named by the name given). A `ModelCache`
   reads its `.edge` files with the reader `read_edge_files_with()` gives it, by the name `load()` was given, and never asks the disk.
+- A font from its bytes: `Font::from_bytes()`, the constructor of a file being this of the file's bytes, with the same errors,
+  named by the name given.
 
 ### Changed
 

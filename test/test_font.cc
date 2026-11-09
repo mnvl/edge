@@ -6,6 +6,8 @@
 #include <cstdlib>
 #include <set>
 #include <fstream>
+#include <iterator>
+#include <string>
 #include <stdexcept>
 #include <vector>
 #include <boost/test/unit_test.hpp>
@@ -77,6 +79,57 @@ BOOST_AUTO_TEST_CASE(a_missing_file_or_one_that_is_not_a_font_is_refused)
 	BOOST_CHECK_THROW(edge::Font("/no/such/font.ttf", 14), std::runtime_error);
 	BOOST_CHECK_THROW(edge::Font(edge::TestFixture::graphic_sources_path() + "test/data/test_directions.png", 14),
 		std::runtime_error);
+}
+
+BOOST_AUTO_TEST_CASE(a_font_of_its_bytes_is_the_font_of_its_file)
+{
+	std::string const path = resolve_test_font_path();
+	std::ifstream file(path, std::ios::binary);
+	std::string bytes((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+	BOOST_REQUIRE(!bytes.empty());
+	edge::Font const of_file(path, 20);
+	edge::Font const of_bytes = edge::Font::from_bytes(bytes, 20, "a name");
+	BOOST_CHECK_EQUAL(of_bytes.ascent(), of_file.ascent());
+	BOOST_CHECK_EQUAL(of_bytes.descent(), of_file.descent());
+	for (char const *line : {"H", "Hello, world", "gjpqy"})
+	{
+		edge::TextMask const a = of_file.rasterise(line), b = of_bytes.rasterise(line);
+		BOOST_TEST_CONTEXT(line)
+		{
+			BOOST_CHECK_EQUAL(of_bytes.advance(line), of_file.advance(line));
+			BOOST_REQUIRE_EQUAL(b.coverage.width(), a.coverage.width());
+			BOOST_REQUIRE_EQUAL(b.coverage.height(), a.coverage.height());
+			BOOST_CHECK_EQUAL(b.left, a.left);
+			BOOST_CHECK_EQUAL(b.right, a.right);
+			bool same = true;
+			for (int y = 0; y < a.coverage.height(); ++y)
+				for (int x = 0; x < a.coverage.width(); ++x)
+					same &= a.coverage(x, y) == b.coverage(x, y);
+			BOOST_CHECK(same);
+		}
+	}
+	// (the bytes are the font's own: the caller's copy going does not take the font with it)
+	edge::Font const kept = [&] { std::string copy = bytes; return edge::Font::from_bytes(copy, 20, "a copy"); }();
+	BOOST_CHECK_EQUAL(kept.advance("Hello"), of_file.advance("Hello"));
+}
+
+BOOST_AUTO_TEST_CASE(bytes_that_are_not_a_font_are_refused_by_the_name_given)
+{
+	for (std::string const &bytes : {std::string(), std::string("ttf"), std::string(4096, '\0'), std::string(4096, 'x')})
+	{
+		BOOST_TEST_CONTEXT(bytes.size() << " bytes")
+		{
+			try
+			{
+				(void)edge::Font::from_bytes(bytes, 20, "fonts/The-Name.ttf");
+				BOOST_ERROR("refused nothing");
+			}
+			catch (std::runtime_error const &e)
+			{
+				BOOST_CHECK(std::string(e.what()).find("fonts/The-Name.ttf") != std::string::npos);
+			}
+		}
+	}
 }
 
 BOOST_AUTO_TEST_CASE(a_line_is_a_mask_as_wide_as_its_advance_and_as_high_as_the_font)
