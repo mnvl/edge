@@ -32,6 +32,9 @@ public:
 	/// A font of `pixels` from the top of an em to its bottom (the size CSS and FreeType call
 	/// pixel size).  std::runtime_error if the file is missing or not a font that can be read.
 	Font(std::filesystem::path const &path, float pixels);
+	/// The font of a file's bytes, kept wherever a program keeps them (an archive): as the constructor of its file, the errors
+	/// named by `name` (std::runtime_error for bytes that are not a font that can be read).
+	static Font from_bytes(std::string bytes, float pixels, std::string const &name);
 	~Font();
 	Font(Font &&) noexcept;
 	Font &operator=(Font &&) noexcept;
@@ -52,6 +55,7 @@ public:
 
 private:
 	struct Impl;
+	explicit Font(std::unique_ptr<Impl> impl);
 	std::unique_ptr<Impl> impl_;
 };
 
