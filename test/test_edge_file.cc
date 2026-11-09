@@ -826,4 +826,70 @@ BOOST_AUTO_TEST_CASE(a_missing_file_is_an_error)
 	BOOST_CHECK_THROW(loaded->load_from_file((file.parent_path() / "no_such_model.edge").string()), std::runtime_error);
 }
 
+// A .edge file's bytes, from wherever a program keeps them, are the model its file is: loaded and saved again, the same bytes.
+BOOST_AUTO_TEST_CASE(a_model_from_its_bytes_is_the_model_from_its_file)
+{
+	from_gltf<Animated>("test_figure.glb")->save_to_file(file.string());
+	std::vector<char> const whole = bytes();
+	auto loaded = std::make_shared<Animated>(renderer, scheduler);
+	loaded->load_from_bytes(std::string_view(whole.data(), whole.size()), "figure in memory");
+	std::filesystem::remove(file);
+	loaded->save_to_file(file.string());
+	BOOST_TEST(bytes() == whole);
+}
+
+// The bytes are held to what a file is: one byte more or one less is refused, the error naming what the caller called them.
+BOOST_AUTO_TEST_CASE(bytes_cut_short_or_longer_are_refused_by_their_name)
+{
+	from_gltf<edge::StaticModelPTBNT>("test_gltf_loder_plane.glb")->save_to_file(file.string());
+	std::vector<char> const whole = bytes();
+	std::string longer(whole.begin(), whole.end());
+	longer += '\0';
+	auto const names = [](std::string const &expected) {
+		return [expected](std::runtime_error const &e) { return std::string(e.what()).find(expected) != std::string::npos; };
+	};
+	BOOST_CHECK_EXCEPTION(edge::Model::read_bytes(longer, "plane.edge in the archive"), std::runtime_error,
+		names("plane.edge in the archive has bytes after the end of the model"));
+	BOOST_CHECK_EXCEPTION(edge::Model::read_bytes(std::string_view(whole.data(), whole.size() - 1), "plane.edge in the archive"),
+		std::runtime_error, names("plane.edge in the archive is damaged"));
+	auto loaded = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+	BOOST_CHECK_THROW(loaded->load_from_bytes(std::string_view(), "nothing"), std::runtime_error);
+}
+
+// A cache told how to read a .edge file asks the reader, by the name it was given, once a model; the disk is never asked.
+BOOST_AUTO_TEST_CASE(a_cache_reads_edge_files_with_the_reader_it_is_given)
+{
+	from_gltf<Animated>("test_figure.glb")->save_to_file(file.string());
+	std::vector<char> const whole = bytes();
+	std::filesystem::remove(file);
+	edge::ModelCache cache(renderer);
+	std::vector<std::string> asked;
+	cache.read_edge_files_with([&](std::string const &name) {
+		asked.push_back(name);
+		return std::string(whole.begin(), whole.end());
+	});
+	auto a = cache.load<Animated>("models/player.edge", scheduler);
+	auto b = cache.load<Animated>("models/player.edge", scheduler);
+	BOOST_TEST(asked == std::vector<std::string>{"models/player.edge"}, boost::test_tools::per_element());
+	BOOST_TEST(a->joints().size() == b->joints().size());
+	BOOST_TEST(!a->joints().empty());
+}
+
+// What the reader throws reaches the caller and nothing is cached: the next load asks again.  A glTF is read from its file, not by it.
+BOOST_AUTO_TEST_CASE(a_cache_s_reader_failing_caches_nothing_and_a_gltf_is_not_read_by_it)
+{
+	edge::ModelCache cache(renderer);
+	int asked = 0;
+	cache.read_edge_files_with([&](std::string const &name) -> std::string {
+		++asked;
+		throw std::runtime_error("no " + name + " in the archive");
+	});
+	BOOST_CHECK_THROW(cache.load<edge::StaticModelPTBNT>("ball.edge", scheduler), std::runtime_error);
+	BOOST_CHECK_THROW(cache.load<edge::StaticModelPTBNT>("ball.edge", scheduler), std::runtime_error);
+	BOOST_TEST(asked == 2);
+	BOOST_TEST(cache.prototypes_count() == 0u);
+	BOOST_TEST(cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_plane.glb"), scheduler) != nullptr);
+	BOOST_TEST(asked == 2);
+}
+
 BOOST_AUTO_TEST_SUITE_END()

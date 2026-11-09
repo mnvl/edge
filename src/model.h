@@ -8,6 +8,8 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <vector>
 #include <memory>
 #include <rove/octree.h>
@@ -99,6 +101,11 @@ public:
 	void load_from_file(std::string const &filename, bool keep_cpu_copy = true);
 	/// The model a .edge file holds, as structures; throws what load_from_file() does for the file.
 	static SerializedModel read_file(std::string const &filename);
+	/// The same of a .edge file's bytes, kept wherever a program keeps them (an archive of its own, say); @p name names them in the
+	/// errors, as read_file() names the file.
+	static SerializedModel read_bytes(std::string_view bytes, std::string const &name);
+	/// load_from_file() of a .edge file's bytes (read_bytes()).
+	void load_from_bytes(std::string_view bytes, std::string const &name, bool keep_cpu_copy = true);
 	/// Replaces the model with @p serialized (a .edge file's, read_file(), or a glTF's, GltfLoader::read()), its skinned meshes' pose
 	/// boxes the ones it gives: load_from_file() is this of read_file(), load_from_gltf() of a glTF's, which works the boxes out.
 	/// Throws std::runtime_error for what does not hold together (an index of something that is not there, a mesh of another type

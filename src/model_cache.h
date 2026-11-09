@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cstddef>
+#include <functional>
 #include <map>
 #include <memory>
 #include <stdexcept>
@@ -47,6 +48,12 @@ public:
 	template <class M>
 	std::shared_ptr<M> load(std::string const &filename, SchedulerPtr const &scheduler);
 
+	/// How a .edge file is read from here on: its bytes are what @p reader gives for the name load() was given, and the disk is not
+	/// asked (a program that keeps its models in an archive of its own).  What the reader throws reaches load()'s caller, and nothing is
+	/// cached.  A glTF is read from its file either way.  An empty reader reads the files again.
+	using FileReader = std::function<std::string(std::string const &filename)>;
+	void read_edge_files_with(FileReader reader) { reader_ = std::move(reader); }
+
 	RendererPtr const &renderer() const { return renderer_; }
 	std::size_t prototypes_count() const { return prototypes_.size(); }
 	void clear() { prototypes_.clear(); }
@@ -57,6 +64,7 @@ private:
 	/// The prototypes' own scheduler: they are never drawn.
 	SchedulerPtr const scheduler_;
 	std::map<std::pair<std::type_index, std::string>, ModelPtr> prototypes_;
+	FileReader reader_;
 
 	void check_scheduler(SchedulerPtr const &scheduler) const;
 	void load_file(Model &model, std::string const &filename) const;
