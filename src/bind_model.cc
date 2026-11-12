@@ -314,6 +314,8 @@ void bind_model(nb::module_ &m)
         "sharing the file's GPU buffers and textures, with its own joints,\n"
         "animations and materials.  See edge/src/model_cache.h.")
         .def(nb::init<edge::RendererPtr const &>(), "renderer"_a)
+        .def("sweep", &edge::ModelCache::sweep,
+            "Forget the models no instance holds any more (their memory went with their last instance); returns how many.")
         .def("load", [](edge::ModelCache &self, nb::handle cls, std::string const &filename,
                 edge::SchedulerPtr const &scheduler) -> nb::object {
                 if (cls.is(nb::type<edge::StaticModelPNT>()))

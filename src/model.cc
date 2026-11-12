@@ -43,7 +43,8 @@ Model::Model(RendererPtr const &renderer_ptr, SchedulerPtr const &scheduler_ptr)
 Model::Model(Model const &model, SchedulerPtr const &scheduler_ptr):
 	renderer_(model.renderer_),
 	scheduler_(scheduler_ptr),
-	always_visible_(model.always_visible_)
+	always_visible_(model.always_visible_),
+	prototype_(model.weak_from_this().lock())
 {
 	std::unordered_map<JointPtr, JointPtr> joints_tt;
 	std::unordered_map<MeshPtr, MeshPtr> meshes_tt;
@@ -173,6 +174,7 @@ void Model::clear()
 	always_visible_ = false;
 	cached_pose_.reset();
 	joints_stale_ = false;
+	prototype_.reset();
 }
 
 void Model::bind_animations()

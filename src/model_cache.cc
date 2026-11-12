@@ -31,6 +31,35 @@ void ModelCache::check_scheduler(SchedulerPtr const &scheduler) const
 	}
 }
 
+std::size_t ModelCache::prototypes_count() const
+{
+	std::size_t count = 0;
+	for (auto const &entry : prototypes_)
+	{
+		if (!entry.second.expired())
+			++count;
+	}
+	return count;
+}
+
+std::size_t ModelCache::sweep()
+{
+	std::size_t dropped = 0;
+	for (auto it = prototypes_.begin(); it != prototypes_.end();)
+	{
+		if (it->second.expired())
+		{
+			it = prototypes_.erase(it);
+			++dropped;
+		}
+		else
+		{
+			++it;
+		}
+	}
+	return dropped;
+}
+
 void ModelCache::load_file(Model &model, std::string const &filename) const
 {
 	std::string const edge_suffix = ".edge";

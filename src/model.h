@@ -50,10 +50,16 @@ public:
 	/// copies of its animations that share their keyframes (Sampler).  Whatever a caller changes on one -- pose, material
 	/// settings, mesh flags, morph weights -- stays on that instance.
 	/// Call bind_animations() on the new model once it is owned by a
-	/// shared_ptr (ModelCache does).
+	/// shared_ptr (ModelCache does).  When a shared_ptr owns @p prototype,
+	/// the instance keeps it alive (prototype()).
 	Model(Model const &prototype, SchedulerPtr const &scheduler_ptr);
 	Model(Model const &) = delete;
 	Model &operator=(Model const &) = delete;
+
+	/// The model this one is an instance of, held for as long as this instance lives -- what lets ModelCache hold its prototypes
+	/// weakly and still read a file once while anything draws it.  Null for a model loaded on its own, for an instance of a
+	/// prototype no shared_ptr owned, and after clear().
+	std::shared_ptr<Model const> const &prototype() const { return prototype_; }
 	virtual ~Model();
 
 	RendererPtr const &renderer() const { return renderer_; }
@@ -246,6 +252,7 @@ private:
 	bool joints_stale_ = false;            // cached_pose_ is set and the joints are not built into it
 	bool building_cached_pose_ = false;    // ensure_joints() is rebuilding: that is not posing by hand
 	bool posed_by_hand_ = false;
+	std::shared_ptr<Model const> prototype_;
 };
 
 }
