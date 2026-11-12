@@ -19,6 +19,9 @@ public:
 	/// An instance of @p prototype; see Model(Model const &, SchedulerPtr const &).
 	BasicAnimatedModel(BasicAnimatedModel const &prototype, SchedulerPtr const &scheduler_ptr):
 		Model(prototype, scheduler_ptr) {}
+	/// An instance holding @p prototype; see Model(std::shared_ptr<Model const> const &, SchedulerPtr const &).
+	BasicAnimatedModel(std::shared_ptr<BasicAnimatedModel const> const &prototype, SchedulerPtr const &scheduler_ptr):
+		Model(std::shared_ptr<Model const>(prototype), scheduler_ptr) {}
 	~BasicAnimatedModel() override;
 
 	MeshPtr add_mesh() override;

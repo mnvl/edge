@@ -372,4 +372,40 @@ BOOST_AUTO_TEST_CASE(a_model_loaded_on_its_own_holds_nothing)
 	BOOST_CHECK(!instance->prototype());
 }
 
+// Whether an instance keeps its prototype alive is the caller's choice, made by what it passes: the prototype's shared_ptr
+// (held) or the prototype itself (not held).
+
+BOOST_AUTO_TEST_CASE(an_instance_of_a_shared_prototype_holds_it)
+{
+	auto prototype = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler_a);
+	prototype->load_from_gltf(asset("cone.glb"));
+	std::weak_ptr<edge::StaticModelPTBNT> watch = prototype;
+	auto instance = std::make_shared<edge::StaticModelPTBNT>(
+		std::shared_ptr<edge::StaticModelPTBNT const>(prototype), scheduler_b);
+	BOOST_CHECK(instance->prototype() == prototype);
+	prototype.reset();
+	BOOST_CHECK(!watch.expired());
+	instance.reset();
+	BOOST_CHECK(watch.expired());
+}
+
+BOOST_AUTO_TEST_CASE(an_instance_of_a_prototype_by_reference_holds_nothing)
+{
+	auto prototype = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler_a);
+	prototype->load_from_gltf(asset("cone.glb"));
+	std::weak_ptr<edge::StaticModelPTBNT> watch = prototype;
+	auto instance = std::make_shared<edge::StaticModelPTBNT>(*prototype, scheduler_b);
+	BOOST_CHECK(!instance->prototype());
+	prototype.reset();
+	BOOST_CHECK(watch.expired());
+	// What it shares it keeps: the instance still draws the file's buffers.
+	BOOST_CHECK(static_mesh<edge::VERTEX_PTBNT>(instance->meshes()[0]).vertex_buffer());
+}
+
+BOOST_AUTO_TEST_CASE(a_null_prototype_is_refused)
+{
+	BOOST_CHECK_THROW(edge::StaticModelPTBNT(std::shared_ptr<edge::StaticModelPTBNT const>(), scheduler_a),
+		std::invalid_argument);
+}
+
 BOOST_AUTO_TEST_SUITE_END()

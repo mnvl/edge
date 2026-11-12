@@ -24,8 +24,8 @@ namespace edge
 ///
 /// The first load of a (model type, filename) parses the file and uploads it
 /// into a prototype that is never drawn; every load, the first included,
-/// returns a new instance of that prototype (Model(Model const &,
-/// SchedulerPtr const &)): it shares the prototype's GPU vertex and index
+/// returns a new instance holding that prototype (Model(std::shared_ptr<Model
+/// const> const &, SchedulerPtr const &)): it shares the prototype's GPU vertex and index
 /// buffers and its textures, and owns its joints, animations, materials and
 /// mesh flags, so posing, relabelling or hiding one instance leaves every
 /// other as it was.  The instances' skinned meshes share the poses they work out (AnimatedMeshCache), so a pose set with
@@ -99,7 +99,7 @@ std::shared_ptr<M> ModelCache::load(std::string const &filename, SchedulerPtr co
 	}
 
 	// The instance holds the prototype from here on (Model::prototype()).
-	auto instance = std::make_shared<M>(static_cast<M const &>(*prototype), scheduler);
+	auto instance = std::make_shared<M>(std::static_pointer_cast<M const>(prototype), scheduler);
 	instance->bind_animations();
 	return instance;
 }

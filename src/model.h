@@ -50,15 +50,19 @@ public:
 	/// copies of its animations that share their keyframes (Sampler).  Whatever a caller changes on one -- pose, material
 	/// settings, mesh flags, morph weights -- stays on that instance.
 	/// Call bind_animations() on the new model once it is owned by a
-	/// shared_ptr (ModelCache does).  When a shared_ptr owns @p prototype,
-	/// the instance keeps it alive (prototype()).
+	/// shared_ptr (ModelCache does).  The instance keeps alive what it
+	/// shares with @p prototype, not the prototype itself.
 	Model(Model const &prototype, SchedulerPtr const &scheduler_ptr);
+	/// The same instance, holding @p prototype for as long as it lives
+	/// (prototype()): what ModelCache hands out, so that a cache can hold its
+	/// prototypes weakly.  Throws std::invalid_argument for a null @p prototype.
+	Model(std::shared_ptr<Model const> const &prototype, SchedulerPtr const &scheduler_ptr);
 	Model(Model const &) = delete;
 	Model &operator=(Model const &) = delete;
 
-	/// The model this one is an instance of, held for as long as this instance lives -- what lets ModelCache hold its prototypes
-	/// weakly and still read a file once while anything draws it.  Null for a model loaded on its own, for an instance of a
-	/// prototype no shared_ptr owned, and after clear().
+	/// The model this one is an instance of, when it was made from the prototype's shared_ptr (and then held for as long as
+	/// this instance lives -- what lets ModelCache hold its prototypes weakly and still read a file once while anything draws
+	/// it).  Null for a model loaded on its own, for an instance made from the prototype itself, and after clear().
 	std::shared_ptr<Model const> const &prototype() const { return prototype_; }
 	virtual ~Model();
 

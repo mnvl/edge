@@ -40,11 +40,30 @@ Model::Model(RendererPtr const &renderer_ptr, SchedulerPtr const &scheduler_ptr)
 	}
 }
 
+namespace
+{
+
+Model const &non_null(std::shared_ptr<Model const> const &prototype)
+{
+	if (!prototype)
+	{
+		throw std::invalid_argument("Model: an instance needs a prototype, got a null one");
+	}
+	return *prototype;
+}
+
+}
+
+Model::Model(std::shared_ptr<Model const> const &prototype, SchedulerPtr const &scheduler_ptr):
+	Model(non_null(prototype), scheduler_ptr)
+{
+	prototype_ = prototype;
+}
+
 Model::Model(Model const &model, SchedulerPtr const &scheduler_ptr):
 	renderer_(model.renderer_),
 	scheduler_(scheduler_ptr),
-	always_visible_(model.always_visible_),
-	prototype_(model.weak_from_this().lock())
+	always_visible_(model.always_visible_)
 {
 	std::unordered_map<JointPtr, JointPtr> joints_tt;
 	std::unordered_map<MeshPtr, MeshPtr> meshes_tt;
