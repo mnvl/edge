@@ -94,5 +94,27 @@ def test_clear_rereads_and_keeps_instances(renderer):
     identity = pyrove.mat4()
     identity.identity()
     assert a.bounds(identity).hi.x > a.bounds(identity).lo.x
-    cache.load(pyedge.StaticModelPTBNT, _asset_path("cone.glb"), scheduler)
+    b = cache.load(pyedge.StaticModelPTBNT, _asset_path("cone.glb"), scheduler)
     assert cache.prototypes_count == 1
+    assert b.bounds(identity).hi.x > b.bounds(identity).lo.x
+
+
+def test_a_model_is_cached_while_python_holds_an_instance_of_it(renderer):
+    """The cache holds its prototypes weakly; the instances Python holds
+    keep theirs alive, whatever Python's wrapper of them owns."""
+    import gc
+
+    cache = pyedge.ModelCache(renderer)
+    scheduler = renderer.create_scheduler()
+    a = cache.load(pyedge.StaticModelPTBNT, _asset_path("cone.glb"), scheduler)
+    b = cache.load(pyedge.StaticModelPTBNT, _asset_path("cone.glb"), scheduler)
+    del a
+    gc.collect()
+    assert cache.prototypes_count == 1
+    del b
+    gc.collect()
+    assert cache.prototypes_count == 0
+    assert cache.sweep() == 1
+    assert cache.sweep() == 0
+    c = cache.load(pyedge.StaticModelPTBNT, _asset_path("cone.glb"), scheduler)
+    assert cache.prototypes_count == 1 and c is not None

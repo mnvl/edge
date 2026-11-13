@@ -15,6 +15,10 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- `ModelCache` holds its prototypes weakly and each instance holds its prototype (`Model::prototype()`): a file is read once
+  for as long as any instance of it lives, and its GPU buffers and textures go with its last instance -- a cache kept for a
+  process holds what it draws now, not every file it ever drew. `ModelCache::sweep()` (pyedge: `ModelCache.sweep()`) forgets
+  the released entries; `prototypes_count()` counts the live ones.
 - The log is edge's own, on the standard library: spdlog (and its fmt) is no longer fetched, linked, installed or asked for by
   `find_package(edge)`, and no public header includes it. Lines at or above the level go to `std::cerr`, or to a sink:
   `edge::set_log_sink()`, `edge::set_log_level()` (`warn` by default), `pyedge.set_log_level()`. `EDGE_LOG_*` take

@@ -317,4 +317,95 @@ BOOST_AUTO_TEST_CASE(instances_outlive_a_cleared_cache)
 		static_mesh<edge::VERTEX_PTBNT>(b->meshes()[0]).vertex_buffer());
 }
 
+// The cache holds its prototypes weakly and each instance holds its prototype: a model is read once for as long as anything draws
+// it, and its GPU memory goes with its last instance.
+
+BOOST_AUTO_TEST_CASE(a_model_stays_cached_while_an_instance_of_it_lives)
+{
+	auto a = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"), scheduler_a);
+	auto b = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"), scheduler_b);
+	auto const buffer = static_mesh<edge::VERTEX_PTBNT>(a->meshes()[0]).vertex_buffer();
+	a.reset();
+	auto c = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"), scheduler_a);
+	BOOST_CHECK(static_mesh<edge::VERTEX_PTBNT>(c->meshes()[0]).vertex_buffer() == buffer);
+	BOOST_CHECK_EQUAL(cache.prototypes_count(), 1u);
+}
+
+BOOST_AUTO_TEST_CASE(a_model_no_instance_uses_is_released)
+{
+	auto a = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"), scheduler_a);
+	std::weak_ptr<edge::VertexBuffer> buffer = static_mesh<edge::VERTEX_PTBNT>(a->meshes()[0]).vertex_buffer();
+	BOOST_REQUIRE(!buffer.expired());
+	a.reset();
+	BOOST_CHECK(buffer.expired());
+	BOOST_CHECK_EQUAL(cache.prototypes_count(), 0u);
+}
+
+BOOST_AUTO_TEST_CASE(a_released_model_is_read_again)
+{
+	auto a = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"), scheduler_a);
+	auto const bytes = vertex_bytes<edge::VERTEX_PTBNT>(a->meshes()[0]);
+	a.reset();
+	auto b = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"), scheduler_a);
+	BOOST_CHECK(vertex_bytes<edge::VERTEX_PTBNT>(b->meshes()[0]) == bytes);
+	BOOST_CHECK_EQUAL(cache.prototypes_count(), 1u);
+}
+
+BOOST_AUTO_TEST_CASE(sweep_drops_the_entries_of_released_models)
+{
+	auto a = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"), scheduler_a);
+	auto b = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_directions.glb"), scheduler_a);
+	a.reset();
+	BOOST_CHECK_EQUAL(cache.sweep(), 1u);
+	BOOST_CHECK_EQUAL(cache.sweep(), 0u);
+	BOOST_CHECK_EQUAL(cache.prototypes_count(), 1u);
+}
+
+BOOST_AUTO_TEST_CASE(a_model_loaded_on_its_own_holds_nothing)
+{
+	auto direct = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler_a);
+	direct->load_from_gltf(asset("cone.glb"));
+	BOOST_CHECK(!direct->prototype());
+	auto instance = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"), scheduler_a);
+	BOOST_REQUIRE(instance->prototype());
+	instance->clear();
+	BOOST_CHECK(!instance->prototype());
+}
+
+// Whether an instance keeps its prototype alive is the caller's choice, made by what it passes: the prototype's shared_ptr
+// (held) or the prototype itself (not held).
+
+BOOST_AUTO_TEST_CASE(an_instance_of_a_shared_prototype_holds_it)
+{
+	auto prototype = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler_a);
+	prototype->load_from_gltf(asset("cone.glb"));
+	std::weak_ptr<edge::StaticModelPTBNT> watch = prototype;
+	auto instance = std::make_shared<edge::StaticModelPTBNT>(
+		std::shared_ptr<edge::StaticModelPTBNT const>(prototype), scheduler_b);
+	BOOST_CHECK(instance->prototype() == prototype);
+	prototype.reset();
+	BOOST_CHECK(!watch.expired());
+	instance.reset();
+	BOOST_CHECK(watch.expired());
+}
+
+BOOST_AUTO_TEST_CASE(an_instance_of_a_prototype_by_reference_holds_nothing)
+{
+	auto prototype = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler_a);
+	prototype->load_from_gltf(asset("cone.glb"));
+	std::weak_ptr<edge::StaticModelPTBNT> watch = prototype;
+	auto instance = std::make_shared<edge::StaticModelPTBNT>(*prototype, scheduler_b);
+	BOOST_CHECK(!instance->prototype());
+	prototype.reset();
+	BOOST_CHECK(watch.expired());
+	// What it shares it keeps: the instance still draws the file's buffers.
+	BOOST_CHECK(static_mesh<edge::VERTEX_PTBNT>(instance->meshes()[0]).vertex_buffer());
+}
+
+BOOST_AUTO_TEST_CASE(a_null_prototype_is_refused)
+{
+	BOOST_CHECK_THROW(edge::StaticModelPTBNT(std::shared_ptr<edge::StaticModelPTBNT const>(), scheduler_a),
+		std::invalid_argument);
+}
+
 BOOST_AUTO_TEST_SUITE_END()
