@@ -36,7 +36,7 @@ std::shared_ptr<edge::ModelBuilder> load(edge::RendererPtr const &renderer, std:
 	edge::GltfOptions const &options = edge::GltfOptions())
 {
 	edge::SchedulerPtr scheduler(new edge::Scheduler(renderer));
-	auto model = std::make_shared<edge::ModelBuilder>(renderer, scheduler);
+	auto model = std::make_shared<edge::ModelBuilder>(renderer);
 	model->load_from_gltf(asset(name), options);
 	return model;
 }
@@ -139,8 +139,8 @@ BOOST_AUTO_TEST_CASE(a_model_cache_loads_with_its_options)
 				return m;
 		return edge::MaterialPtr();
 	};
-	auto a = find(plain.load<edge::StaticModelPTBNT>(asset("test_gltf_loader_pbr.glb"), scheduler));
-	auto b = find(game.load<edge::StaticModelPTBNT>(asset("test_gltf_loader_pbr.glb"), scheduler));
+	auto a = find(plain.load<edge::StaticModelPTBNT>(asset("test_gltf_loader_pbr.glb")));
+	auto b = find(game.load<edge::StaticModelPTBNT>(asset("test_gltf_loader_pbr.glb")));
 	BOOST_REQUIRE(a && b);
 	BOOST_CHECK(!a->diffuse_texture()->is_srgb());
 	BOOST_CHECK(b->diffuse_texture()->is_srgb());

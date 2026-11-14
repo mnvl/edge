@@ -24,7 +24,7 @@ renderer = pyedge.create_renderer(64, 64, backend="auto", offscreen=True)
 scheduler = renderer.create_scheduler()
 
 # Build
-builder = pyedge.ModelBuilder(renderer, scheduler)
+builder = pyedge.ModelBuilder(renderer)
 material = renderer.create_material()
 material.name = "floor"
 material.set_diffuse_texture("textures/floor.png")
@@ -44,7 +44,7 @@ builder.attach_mesh_to_joint(mesh)
 builder.save_to_file("scene.edge")
 
 # Render
-model = pyedge.StaticModelPTBNT(renderer, scheduler)
+model = pyedge.StaticModelPTBNT(renderer)
 model.load_from_file("scene.edge")
 model.check()
 model.always_visible = True
@@ -60,7 +60,7 @@ rt = renderer.create_render_target(width, height)
 clear = pyedge.RenderPassClearState()
 
 renderer.begin_frame()
-model.draw(camera, world)
+model.draw(scheduler, camera, world)
 renderer.begin_pass(rt, clear)
 scheduler.flush()
 renderer.end_pass()

@@ -14,7 +14,6 @@
 
 #include "forward.h"
 #include "model.h"
-#include "scheduler.h"
 
 namespace edge
 {
@@ -25,7 +24,7 @@ namespace edge
 /// The first load of a (model type, filename) parses the file and uploads it
 /// into a prototype that is never drawn; every load, the first included,
 /// returns a new instance holding that prototype (Model(std::shared_ptr<Model
-/// const> const &, SchedulerPtr const &)): it shares the prototype's GPU vertex and index
+/// const> const &)): it shares the prototype's GPU vertex and index
 /// buffers and its textures, and owns its joints, animations, materials and
 /// mesh flags, so posing, relabelling or hiding one instance leaves every
 /// other as it was.  The instances' skinned meshes share the poses they work out (AnimatedMeshCache), so a pose set with
@@ -48,12 +47,12 @@ public:
 	/// what the options say it has already been settled when it was made from the glTF).
 	explicit ModelCache(RendererPtr const &renderer, GltfOptions const &gltf_options = GltfOptions());
 
-	/// A new instance of @p filename as a model of type @p M, drawing through
-	/// @p scheduler, which must belong to this cache's renderer.  A glTF file
-	/// is read with load_from_gltf(), a .edge file with load_from_file().
-	/// A file that fails to load leaves nothing cached.
+	/// A new instance of @p filename as a model of type @p M, of this cache's
+	/// renderer (it draws into any scheduler of it).  A glTF file is read with
+	/// load_from_gltf(), a .edge file with load_from_file().  A file that fails
+	/// to load leaves nothing cached.
 	template <class M>
-	std::shared_ptr<M> load(std::string const &filename, SchedulerPtr const &scheduler);
+	std::shared_ptr<M> load(std::string const &filename);
 
 	/// How a .edge file is read from here on: its bytes are what @p reader gives for the name load() was given, and the disk is not
 	/// asked (a program that keeps its models in an archive of its own).  What the reader throws reaches load()'s caller, and nothing is
@@ -71,20 +70,15 @@ public:
 private:
 	RendererPtr const renderer_;
 	GltfOptions const gltf_options_;
-	/// The prototypes' own scheduler: they are never drawn.
-	SchedulerPtr const scheduler_;
 	std::map<std::pair<std::type_index, std::string>, std::weak_ptr<Model>> prototypes_;
 	FileReader reader_;
 
-	void check_scheduler(SchedulerPtr const &scheduler) const;
 	void load_file(Model &model, std::string const &filename) const;
 };
 
 template <class M>
-std::shared_ptr<M> ModelCache::load(std::string const &filename, SchedulerPtr const &scheduler)
+std::shared_ptr<M> ModelCache::load(std::string const &filename)
 {
-	check_scheduler(scheduler);
-
 	auto const key = std::make_pair(std::type_index(typeid(M)), filename);
 	ModelPtr prototype;
 	auto it = prototypes_.find(key);
@@ -92,14 +86,14 @@ std::shared_ptr<M> ModelCache::load(std::string const &filename, SchedulerPtr co
 		prototype = it->second.lock();
 	if (!prototype)
 	{
-		auto loaded = std::make_shared<M>(renderer_, scheduler_);
+		auto loaded = std::make_shared<M>(renderer_);
 		load_file(*loaded, filename);
 		prototypes_[key] = loaded;
 		prototype = loaded;
 	}
 
 	// The instance holds the prototype from here on (Model::prototype()).
-	auto instance = std::make_shared<M>(std::static_pointer_cast<M const>(prototype), scheduler);
+	auto instance = std::make_shared<M>(std::static_pointer_cast<M const>(prototype));
 	instance->bind_animations();
 	return instance;
 }

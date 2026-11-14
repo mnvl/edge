@@ -123,7 +123,7 @@ BOOST_AUTO_TEST_CASE(a_models_and_a_meshs_levels_are_chosen_as_they_stray_where_
 	std::filesystem::path const file = std::filesystem::temp_directory_path() / "edge_lod_choice.edge";
 	edge::convert_gltf_to_edge(edge::TestFixture::graphic_sources_path() + "test/data/test_figure.glb", file.string(), edge::GltfOptions(),
 		edge::LodOptions{{0.5f, 0.2f, 0.06f}, 0});
-	auto model = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer, scheduler);
+	auto model = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer);
 	model->load_from_file(file.string());
 	std::filesystem::remove(file);
 	BOOST_REQUIRE_EQUAL(model->lod_count(), 4u);

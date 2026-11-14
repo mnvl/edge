@@ -42,7 +42,7 @@ struct CullingFixture
 	{
 		renderer = std::make_shared<edge::NullRenderer>(320, 200);
 		scheduler = std::make_shared<edge::Scheduler>(renderer);
-		model = std::make_shared<model_type>(renderer, scheduler);
+		model = std::make_shared<model_type>(renderer);
 		model->load_from_gltf(edge::TestFixture::graphic_sources_path() + "test/data/test_figure.glb");
 		BOOST_REQUIRE(!model->animations().empty());
 		BOOST_REQUIRE(!model->joints().empty());
@@ -116,7 +116,7 @@ struct CullingFixture
 		rove::matrix<4,4> const &world)
 	{
 		scheduler->clear();
-		mesh->draw(joint, camera, world);
+		mesh->draw(*scheduler, joint, camera, world);
 		edge::flush_in_a_pass(scheduler);
 		BOOST_REQUIRE_EQUAL(scheduler->visible_calls_count() + scheduler->invisible_calls_count(),
 			mesh->triangles().size());

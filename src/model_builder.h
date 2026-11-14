@@ -14,7 +14,7 @@ namespace edge {
 // It cannot render — load saved .edge files with StaticModel/AnimatedModel for rendering.
 class ModelBuilder: public Model {
 public:
-	ModelBuilder(RendererPtr const &renderer_ptr, SchedulerPtr const &scheduler_ptr);
+	explicit ModelBuilder(RendererPtr const &renderer_ptr);
 	~ModelBuilder() override;
 
 	MeshBuilderPtr mesh_by_id(std::string const &id) {
@@ -39,7 +39,7 @@ public:
 
 	using Model::draw;
 	/// A ModelBuilder does not draw: std::runtime_error.  Save it and load it as a StaticModelPTBNT.
-	void draw(CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod = 0) override;
+	void draw(Scheduler &scheduler, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod = 0) override;
 };
 
 }

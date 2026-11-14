@@ -63,7 +63,7 @@ struct Fixture
 	template <class M>
 	std::shared_ptr<M> from_gltf(std::string const &name, edge::GltfOptions const &options = edge::GltfOptions())
 	{
-		auto model = std::make_shared<M>(renderer, scheduler);
+		auto model = std::make_shared<M>(renderer);
 		model->load_from_gltf(asset(name), options);
 		return model;
 	}
@@ -72,7 +72,7 @@ struct Fixture
 	std::shared_ptr<M> reloaded(M const &model)
 	{
 		model.save_to_file(file.string());
-		auto loaded = std::make_shared<M>(renderer, scheduler);
+		auto loaded = std::make_shared<M>(renderer);
 		loaded->load_from_file(file.string());
 		return loaded;
 	}
@@ -110,7 +110,7 @@ struct Fixture
 	template <class M>
 	void refused(std::string const &expected)
 	{
-		auto loaded = std::make_shared<M>(renderer, scheduler);
+		auto loaded = std::make_shared<M>(renderer);
 		try
 		{
 			loaded->load_from_file(file.string());
@@ -126,7 +126,7 @@ struct Fixture
 	template <class M, class V>
 	std::uintmax_t file_size_with(size_t count)
 	{
-		auto model = std::make_shared<M>(renderer, scheduler);
+		auto model = std::make_shared<M>(renderer);
 		edge::MeshPtr const mesh = model->add_mesh();
 		std::vector<edge::GenericVertex> vertices(count);
 		std::memset(vertices.data(), 0, vertices.size() * sizeof(edge::GenericVertex));
@@ -334,7 +334,7 @@ template <class M> void the_same_from_either_file(Fixture &f, std::string const 
 	auto const direct = f.from_gltf<M>(name, keep);
 	direct->save_to_file(f.file.string());
 	std::vector<char> const first = f.bytes();
-	auto const loaded = std::make_shared<M>(f.renderer, f.scheduler);
+	auto const loaded = std::make_shared<M>(f.renderer);
 	loaded->load_from_file(f.file.string());
 	loaded->save_to_file(f.file.string());
 	BOOST_CHECK_MESSAGE(f.bytes() == first, name << ": the model from its .edge file is not the one from the glTF");
@@ -540,10 +540,10 @@ BOOST_AUTO_TEST_CASE(drawing_a_loaded_model_submits_what_the_gltf_model_submits)
 	for (int i = 0; i < 2; ++i)
 	{
 		auto &model = i == 0 ? *original : *loaded;
-		model.scheduler()->clear();
-		model.draw(camera, identity);
-		edge::flush_in_a_pass(model.scheduler());
-		calls[i] = model.scheduler()->visible_calls_count();
+		scheduler->clear();
+		model.draw(*scheduler, camera, identity);
+		edge::flush_in_a_pass(scheduler);
+		calls[i] = scheduler->visible_calls_count();
 	}
 	BOOST_CHECK_GT(calls[0], 0u);
 	BOOST_CHECK_EQUAL(calls[0], calls[1]);
@@ -554,8 +554,8 @@ BOOST_AUTO_TEST_CASE(loading_through_the_cache_gives_instances_with_their_own_cl
 	auto original = from_gltf<Animated>("test_figure.glb");
 	original->save_to_file(file.string());
 	edge::ModelCache cache(renderer);
-	auto a = cache.load<Animated>(file.string(), scheduler);
-	auto b = cache.load<Animated>(file.string(), scheduler);
+	auto a = cache.load<Animated>(file.string());
+	auto b = cache.load<Animated>(file.string());
 	BOOST_CHECK_EQUAL(cache.prototypes_count(), 1u);
 	BOOST_REQUIRE_EQUAL(a->animations().size(), original->animations().size());
 	a->animations().at(2)->pose(0.5f);
@@ -573,9 +573,9 @@ BOOST_AUTO_TEST_CASE(a_load_can_drop_the_cpu_copy_of_the_textures)
 {
 	auto original = from_gltf<edge::StaticModelPTBNT>("test_gltf_loader_pbr.glb");
 	original->save_to_file(file.string());
-	auto kept = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+	auto kept = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	kept->load_from_file(file.string(), true);
-	auto dropped = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+	auto dropped = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	dropped->load_from_file(file.string(), false);
 	bool checked = false;
 	for (size_t m = 0; m < kept->materials().size(); ++m)
@@ -607,7 +607,7 @@ BOOST_AUTO_TEST_CASE(a_model_whose_textures_kept_no_cpu_copy_cannot_be_saved_and
 
 BOOST_AUTO_TEST_CASE(a_skinned_mesh_without_a_pose_box_cannot_be_saved)
 {
-	auto model = std::make_shared<Animated>(renderer, scheduler);
+	auto model = std::make_shared<Animated>(renderer);
 	model->add_mesh();
 	BOOST_CHECK_THROW(model->save_to_file(file.string()), std::logic_error);
 }
@@ -634,7 +634,7 @@ BOOST_AUTO_TEST_CASE(a_file_with_the_wrong_magic_is_refused)
 	std::vector<char> data = bytes();
 	data[0] ^= 0x55;
 	write(data);
-	auto loaded = std::make_shared<Animated>(renderer, scheduler);
+	auto loaded = std::make_shared<Animated>(renderer);
 	BOOST_CHECK_THROW(loaded->load_from_file(file.string()), std::runtime_error);
 }
 
@@ -647,7 +647,7 @@ BOOST_AUTO_TEST_CASE(a_truncated_file_is_refused_wherever_it_is_cut)
 	for (size_t keep = 0; keep < whole.size(); keep += std::max<size_t>(1, whole.size() / 64))
 	{
 		write(std::vector<char>(whole.begin(), whole.begin() + std::ptrdiff_t(keep)));
-		auto loaded = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+		auto loaded = std::make_shared<edge::StaticModelPTBNT>(renderer);
 		BOOST_CHECK_THROW(loaded->load_from_file(file.string()), std::exception);
 	}
 }
@@ -659,7 +659,7 @@ BOOST_AUTO_TEST_CASE(bytes_after_the_end_of_the_model_are_refused)
 	std::vector<char> data = bytes();
 	data.push_back(0);
 	write(data);
-	auto loaded = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+	auto loaded = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	BOOST_CHECK_THROW(loaded->load_from_file(file.string()), std::runtime_error);
 }
 
@@ -822,7 +822,7 @@ BOOST_AUTO_TEST_CASE(the_file_s_numbers_are_as_wide_on_every_machine)
 
 BOOST_AUTO_TEST_CASE(a_missing_file_is_an_error)
 {
-	auto loaded = std::make_shared<Animated>(renderer, scheduler);
+	auto loaded = std::make_shared<Animated>(renderer);
 	BOOST_CHECK_THROW(loaded->load_from_file((file.parent_path() / "no_such_model.edge").string()), std::runtime_error);
 }
 
@@ -831,7 +831,7 @@ BOOST_AUTO_TEST_CASE(a_model_from_its_bytes_is_the_model_from_its_file)
 {
 	from_gltf<Animated>("test_figure.glb")->save_to_file(file.string());
 	std::vector<char> const whole = bytes();
-	auto loaded = std::make_shared<Animated>(renderer, scheduler);
+	auto loaded = std::make_shared<Animated>(renderer);
 	loaded->load_from_bytes(std::string_view(whole.data(), whole.size()), "figure in memory");
 	std::filesystem::remove(file);
 	loaded->save_to_file(file.string());
@@ -852,7 +852,7 @@ BOOST_AUTO_TEST_CASE(bytes_cut_short_or_longer_are_refused_by_their_name)
 		names("plane.edge in the archive has bytes after the end of the model"));
 	BOOST_CHECK_EXCEPTION(edge::Model::read_bytes(std::string_view(whole.data(), whole.size() - 1), "plane.edge in the archive"),
 		std::runtime_error, names("plane.edge in the archive is damaged"));
-	auto loaded = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+	auto loaded = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	BOOST_CHECK_THROW(loaded->load_from_bytes(std::string_view(), "nothing"), std::runtime_error);
 }
 
@@ -868,8 +868,8 @@ BOOST_AUTO_TEST_CASE(a_cache_reads_edge_files_with_the_reader_it_is_given)
 		asked.push_back(name);
 		return std::string(whole.begin(), whole.end());
 	});
-	auto a = cache.load<Animated>("models/player.edge", scheduler);
-	auto b = cache.load<Animated>("models/player.edge", scheduler);
+	auto a = cache.load<Animated>("models/player.edge");
+	auto b = cache.load<Animated>("models/player.edge");
 	BOOST_TEST(asked == std::vector<std::string>{"models/player.edge"}, boost::test_tools::per_element());
 	BOOST_TEST(a->joints().size() == b->joints().size());
 	BOOST_TEST(!a->joints().empty());
@@ -884,11 +884,11 @@ BOOST_AUTO_TEST_CASE(a_cache_s_reader_failing_caches_nothing_and_a_gltf_is_not_r
 		++asked;
 		throw std::runtime_error("no " + name + " in the archive");
 	});
-	BOOST_CHECK_THROW(cache.load<edge::StaticModelPTBNT>("ball.edge", scheduler), std::runtime_error);
-	BOOST_CHECK_THROW(cache.load<edge::StaticModelPTBNT>("ball.edge", scheduler), std::runtime_error);
+	BOOST_CHECK_THROW(cache.load<edge::StaticModelPTBNT>("ball.edge"), std::runtime_error);
+	BOOST_CHECK_THROW(cache.load<edge::StaticModelPTBNT>("ball.edge"), std::runtime_error);
 	BOOST_TEST(asked == 2);
 	BOOST_TEST(cache.prototypes_count() == 0u);
-	BOOST_TEST(cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_plane.glb"), scheduler) != nullptr);
+	BOOST_TEST(cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_plane.glb")) != nullptr);
 	BOOST_TEST(asked == 2);
 }
 

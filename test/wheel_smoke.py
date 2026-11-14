@@ -88,7 +88,7 @@ def main() -> int:
     renderer = pyedge.create_renderer(SIZE, SIZE, backend=backend)
     print(f"renderer: {renderer.backend}")
     scheduler = renderer.create_scheduler()
-    model = pyedge.load_model(renderer, scheduler, str(model_file))
+    model = pyedge.load_model(renderer, str(model_file))
     print(f"model: {type(model).__name__}, {model.meshes_count} meshes")
 
     # pyrove's types into pyedge and back
@@ -109,7 +109,7 @@ def main() -> int:
     clear.clear_color_r = clear.clear_color_g = clear.clear_color_b = 0.0
     clear.clear_color_a = 1.0
     renderer.begin_frame()
-    model.draw(camera, world)
+    model.draw(scheduler, camera, world)
     renderer.begin_pass(target, clear)
     scheduler.flush()
     renderer.end_pass()

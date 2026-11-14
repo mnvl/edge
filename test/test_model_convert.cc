@@ -134,7 +134,7 @@ BOOST_AUTO_TEST_CASE(the_files_of_a_test_model_with_an_external_texture_are_it_a
 BOOST_AUTO_TEST_CASE(a_skinned_glTF_becomes_an_animated_model_file_with_its_clips_and_pose_box)
 {
 	edge::convert_gltf_to_edge(asset("test_figure.glb"), out("figure.edge"), edge::GltfOptions());
-	auto model = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer, scheduler);
+	auto model = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer);
 	model->load_from_file(out("figure.edge"));
 	BOOST_CHECK_EQUAL(model->animations().size(), 3u);
 	BOOST_REQUIRE(!model->meshes().empty());
@@ -144,7 +144,7 @@ BOOST_AUTO_TEST_CASE(a_skinned_glTF_becomes_an_animated_model_file_with_its_clip
 BOOST_AUTO_TEST_CASE(a_glTF_without_a_skin_becomes_a_static_model_file)
 {
 	edge::convert_gltf_to_edge(asset("test_gltf_loder_plane.glb"), out("plane.edge"), edge::GltfOptions());
-	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	model->load_from_file(out("plane.edge"));
 	BOOST_CHECK(!model->meshes().empty());
 }
@@ -152,7 +152,7 @@ BOOST_AUTO_TEST_CASE(a_glTF_without_a_skin_becomes_a_static_model_file)
 BOOST_AUTO_TEST_CASE(a_file_is_made_for_the_kind_of_model_its_glTF_is_so_the_other_kind_refuses_it)
 {
 	edge::convert_gltf_to_edge(asset("test_figure.glb"), out("figure.edge"), edge::GltfOptions());
-	auto wrong = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+	auto wrong = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	BOOST_CHECK_THROW(wrong->load_from_file(out("figure.edge")), std::runtime_error);
 }
 
@@ -164,7 +164,7 @@ BOOST_AUTO_TEST_CASE(the_options_decide_how_the_textures_are_made)
 	game.mipmaps = true;
 	game.keep_cpu_copy = false;         // the file keeps the texels all the same: they are what it is made of
 	edge::convert_gltf_to_edge(asset("test_gltf_loader_pbr.glb"), out("pbr.edge"), game);
-	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	model->load_from_file(out("pbr.edge"));
 	// colour is sRGB, data (normals, metallic-roughness) linear, and every one has its mip chain: each texture, not some
 	size_t colour = 0, data = 0;
@@ -193,7 +193,7 @@ BOOST_AUTO_TEST_CASE(the_textures_are_BC7_with_their_whole_mip_chain_unless_aske
 	edge::GltfOptions game;
 	game.srgb_color = true;
 	edge::convert_gltf_to_edge(asset("test_gltf_loader_pbr.glb"), out("pbr.edge"), game);
-	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	model->load_from_file(out("pbr.edge"));
 	size_t colour = 0, data = 0;
 	auto check = [](edge::TexturePtr const &t, bool srgb, std::string const &what) {
@@ -265,7 +265,7 @@ BOOST_AUTO_TEST_CASE(with_astc_the_textures_are_astc_of_their_use_s_block_with_t
 	edge::TextureOptions phone;
 	phone.codec = edge::TextureCodec::ASTC;
 	edge::convert_gltf_to_edge(asset("test_gltf_loader_pbr.glb"), out("pbr_astc.edge"), game, edge::LodOptions(), 0, phone);
-	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	model->load_from_file(out("pbr_astc.edge"));
 	auto check = [](edge::TexturePtr const &t, std::set<edge::PixelFormat> const &blocks, std::string const &what) {
 		BOOST_CHECK_MESSAGE(blocks.count(t->pixel_format()), what << " is of pixel format " << t->pixel_format());
@@ -342,7 +342,7 @@ BOOST_AUTO_TEST_CASE(mipmaps_by_the_GPU_are_for_textures_that_are_not_compressed
 BOOST_AUTO_TEST_CASE(a_texture_the_glTF_brings_compressed_is_kept_as_it_is)
 {
 	edge::convert_gltf_to_edge(asset("test_gltf_loader_dds.glb"), out("dds.edge"), edge::GltfOptions());
-	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	model->load_from_file(out("dds.edge"));
 	size_t found = 0;
 	for (auto const &m : model->materials())
@@ -364,7 +364,7 @@ BOOST_AUTO_TEST_CASE(an_atlas_puts_the_textures_of_the_materials_in_one_set_and_
 	edge::convert_gltf_to_edge(asset("test_figure.glb"), out("plain.edge"), edge::GltfOptions());
 	// (the textures, not their addresses: a model's textures go with it)
 	auto distinct_diffuse = [&](std::string const &file) {
-		auto model = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer, scheduler);
+		auto model = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer);
 		model->load_from_file(file);
 		std::set<edge::TexturePtr> diffuse;
 		for (auto const &m : model->materials())
@@ -392,7 +392,7 @@ BOOST_AUTO_TEST_CASE(an_xatlas_atlas_takes_every_textured_material_even_one_that
 	textures.atlas = edge::TextureOptions::Atlas::Xatlas;
 	textures.atlas_size = 1024;
 	edge::convert_gltf_to_edge(asset("test_figure.glb"), out("xatlas.edge"), edge::GltfOptions(), edge::LodOptions(), 0, textures);
-	auto model = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer, scheduler);
+	auto model = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer);
 	model->load_from_file(out("xatlas.edge"));
 	std::set<edge::Texture const *> diffuse, normal;
 	for (auto const &m : model->materials())
@@ -414,7 +414,7 @@ BOOST_AUTO_TEST_CASE(without_emissive_nothing_glows)
 {
 	auto glowing = [&](edge::TextureOptions const &textures) {
 		edge::convert_gltf_to_edge(asset("test_gltf_loader_pbr.glb"), out("glow.edge"), edge::GltfOptions(), edge::LodOptions(), 0, textures);
-		auto model = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+		auto model = std::make_shared<edge::StaticModelPTBNT>(renderer);
 		model->load_from_file(out("glow.edge"));
 		size_t n = 0;
 		for (auto const &m : model->materials())
@@ -434,9 +434,9 @@ BOOST_AUTO_TEST_CASE(the_pose_margin_is_in_the_box_the_file_keeps)
 	margined.pose_margin = 0.5f;
 	edge::convert_gltf_to_edge(asset("test_figure.glb"), out("plain.edge"), edge::GltfOptions());
 	edge::convert_gltf_to_edge(asset("test_figure.glb"), out("margined.edge"), margined);
-	auto plain = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer, scheduler);
+	auto plain = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer);
 	plain->load_from_file(out("plain.edge"));
-	auto grown = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer, scheduler);
+	auto grown = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer);
 	grown->load_from_file(out("margined.edge"));
 	auto const &a = static_cast<edge::AnimatedMeshPTBNJWT const &>(*plain->meshes().at(0)).pose_bounds();
 	auto const &b = static_cast<edge::AnimatedMeshPTBNJWT const &>(*grown->meshes().at(0)).pose_bounds();

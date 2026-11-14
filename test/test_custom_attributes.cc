@@ -43,7 +43,7 @@ struct Fixture
 
 	std::shared_ptr<edge::StaticModelPTBNT> load(std::string const &name)
 	{
-		auto model = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+		auto model = std::make_shared<edge::StaticModelPTBNT>(renderer);
 		model->load_from_gltf(asset(name));
 		return model;
 	}
@@ -95,7 +95,7 @@ BOOST_AUTO_TEST_CASE(integers_are_read_as_their_value_and_normalised_integers_as
 
 BOOST_AUTO_TEST_CASE(a_skinned_meshs_custom_attribute_is_kept_with_it)
 {
-	auto model = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer, scheduler);
+	auto model = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer);
 	model->load_from_gltf(asset("test_skinned_groups.glb"));
 	auto const &attributes = only_mesh(*model).custom_attributes();
 	BOOST_REQUIRE_EQUAL(attributes.size(), 1u);
@@ -104,7 +104,7 @@ BOOST_AUTO_TEST_CASE(a_skinned_meshs_custom_attribute_is_kept_with_it)
 
 BOOST_AUTO_TEST_CASE(a_file_without_any_has_none)
 {
-	auto model = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer, scheduler);
+	auto model = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer);
 	model->load_from_gltf(asset("test_figure.glb"));
 	for (auto const &mesh : model->meshes())
 		BOOST_CHECK(mesh->custom_attributes().empty());
@@ -119,7 +119,7 @@ BOOST_AUTO_TEST_CASE(the_primitives_of_a_mesh_give_one_run_of_values)
 
 BOOST_AUTO_TEST_CASE(an_attribute_on_some_primitives_of_a_mesh_and_not_on_others_is_refused_by_name)
 {
-	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	try
 	{
 		model->load_from_gltf(asset("test_attributes_mixed.glb"));
@@ -133,7 +133,7 @@ BOOST_AUTO_TEST_CASE(an_attribute_on_some_primitives_of_a_mesh_and_not_on_others
 
 BOOST_AUTO_TEST_CASE(an_attribute_that_changes_width_between_primitives_is_refused_by_name)
 {
-	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	try
 	{
 		model->load_from_gltf(asset("test_attributes_widths.glb"));
@@ -147,7 +147,7 @@ BOOST_AUTO_TEST_CASE(an_attribute_that_changes_width_between_primitives_is_refus
 
 BOOST_AUTO_TEST_CASE(a_matrix_is_not_a_custom_attribute)
 {
-	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	try
 	{
 		model->load_from_gltf(asset("test_attributes_matrix.glb"));
@@ -163,7 +163,7 @@ BOOST_AUTO_TEST_CASE(the_edge_file_keeps_them_exactly)
 {
 	auto original = load("test_attributes.glb");
 	original->save_to_file(file.string());
-	auto loaded = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+	auto loaded = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	loaded->load_from_file(file.string());
 	auto const &a = only_mesh(*original).custom_attributes(), &b = only_mesh(*loaded).custom_attributes();
 	BOOST_REQUIRE_EQUAL(a.size(), b.size());
@@ -178,7 +178,7 @@ BOOST_AUTO_TEST_CASE(the_edge_file_keeps_them_exactly)
 BOOST_AUTO_TEST_CASE(an_instance_from_the_cache_has_them_too)
 {
 	edge::ModelCache cache(renderer);
-	auto instance = cache.load<edge::StaticModelPTBNT>(asset("test_attributes.glb"), scheduler);
+	auto instance = cache.load<edge::StaticModelPTBNT>(asset("test_attributes.glb"));
 	BOOST_CHECK_EQUAL(only_mesh(*instance).custom_attributes().size(), 4u);
 }
 

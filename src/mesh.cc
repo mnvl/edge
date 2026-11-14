@@ -51,14 +51,14 @@ std::size_t Mesh::morph_targets_count() const
 	return 0;
 }
 
-void Mesh::draw(Joint *joint_ptr, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod)
+void Mesh::draw(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod)
 {
 }
 
-void Mesh::draw_instances(Joint *joint_ptr, CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices, unsigned lod)
+void Mesh::draw_instances(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices, unsigned lod)
 {
 	for (rove::matrix<4,4> const &world_matrix : world_matrices)
-		draw(joint_ptr, camera, world_matrix, lod);
+		draw(scheduler, joint_ptr, camera, world_matrix, lod);
 }
 
 std::string Mesh::serialization_type() const

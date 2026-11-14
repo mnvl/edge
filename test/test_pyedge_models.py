@@ -31,9 +31,8 @@ def _asset_path(name: str) -> str:
 
 def test_render_models_load_gltf_assets():
     renderer = pyedge.Renderer(backend="null")
-    scheduler = renderer.create_scheduler()
 
-    plane = pyedge.StaticModelPTBNT(renderer, scheduler)
+    plane = pyedge.StaticModelPTBNT(renderer)
     plane.load_from_gltf(_asset_path("test_gltf_loder_plane.glb"))
     plane.check()
 
@@ -49,7 +48,7 @@ def test_render_models_load_gltf_assets():
     plane.clear_materials_shader_program()
     assert first_material.shader_program is None
 
-    animated = pyedge.AnimatedModelPTBNJWT(renderer, scheduler)
+    animated = pyedge.AnimatedModelPTBNJWT(renderer)
     animated.load_from_gltf(_asset_path("test_gltf_loder_animation.glb"))
     animated.check()
     assert animated.animations_count >= 1
@@ -59,9 +58,8 @@ def test_render_models_load_gltf_assets():
 def test_model_builder_numpy_geometry_and_binary_roundtrip(tmp_path: Path):
 
     renderer = pyedge.Renderer(backend="null")
-    scheduler = renderer.create_scheduler()
 
-    model = pyedge.ModelBuilder(renderer, scheduler)
+    model = pyedge.ModelBuilder(renderer)
     mesh = model.add_mesh_builder("quad", "quad")
 
     positions = np.array(
@@ -104,7 +102,7 @@ def test_model_builder_numpy_geometry_and_binary_roundtrip(tmp_path: Path):
     assert out_file.exists()
     assert out_file.stat().st_size > 0
 
-    loaded_model = pyedge.ModelBuilder(renderer, scheduler)
+    loaded_model = pyedge.ModelBuilder(renderer)
     loaded_model.load_from_file(str(out_file))
 
     assert loaded_model.meshes_count == 1
@@ -119,10 +117,9 @@ def test_model_builder_numpy_geometry_and_binary_roundtrip(tmp_path: Path):
 def test_model_builder_to_static_model_cross_load(tmp_path: Path):
 
     renderer = pyedge.Renderer(backend="null")
-    scheduler = renderer.create_scheduler()
 
     # Build a two-mesh model with ModelBuilder.
-    model = pyedge.ModelBuilder(renderer, scheduler)
+    model = pyedge.ModelBuilder(renderer)
 
     mesh_a = model.add_mesh_builder("floor", "floor")
     positions_a = np.array(
@@ -163,7 +160,7 @@ def test_model_builder_to_static_model_cross_load(tmp_path: Path):
     assert edge_file.stat().st_size > 0
 
     # Load the same file with StaticModelPTBNT.
-    static_model = pyedge.StaticModelPTBNT(renderer, scheduler)
+    static_model = pyedge.StaticModelPTBNT(renderer)
     static_model.load_from_file(str(edge_file))
     static_model.check()
 
@@ -173,9 +170,8 @@ def test_model_builder_to_static_model_cross_load(tmp_path: Path):
 
 def test_static_model_octree_build_and_query():
     renderer = pyedge.Renderer(backend="null")
-    scheduler = renderer.create_scheduler()
 
-    model = pyedge.StaticModelPTBNT(renderer, scheduler)
+    model = pyedge.StaticModelPTBNT(renderer)
     model.load_from_gltf(_asset_path("test_gltf_loder_plane.glb"))
 
     world = pyrove.mat4()
@@ -201,32 +197,31 @@ def test_static_model_octree_build_and_query():
 def test_load_model_gives_the_class_the_file_is(tmp_path):
     """A .edge file's meshes name the model's class, a glTF's contents decide it: what opens any model need not know it."""
     renderer = pyedge.Renderer(backend="null")
-    scheduler = renderer.create_scheduler()
-    assert type(pyedge.load_model(renderer, scheduler, _asset_path("test_gltf_loder_plane.glb"))) is pyedge.StaticModelPTBNT
-    coloured = pyedge.load_model(renderer, scheduler, _asset_path("test_vertex_colors.glb"))
+    assert type(pyedge.load_model(renderer, _asset_path("test_gltf_loder_plane.glb"))) is pyedge.StaticModelPTBNT
+    coloured = pyedge.load_model(renderer, _asset_path("test_vertex_colors.glb"))
     assert type(coloured) is pyedge.StaticModelPTBNTC
-    assert type(pyedge.load_model(renderer, scheduler, _asset_path("test_skinned_groups.glb"))) is pyedge.AnimatedModelPTBNJWT
+    assert type(pyedge.load_model(renderer, _asset_path("test_skinned_groups.glb"))) is pyedge.AnimatedModelPTBNJWT
 
     # coloured files, static and skinned, open as what they are
     coloured.save_to_file(str(tmp_path / "c.edge"))
-    assert type(pyedge.load_model(renderer, scheduler, str(tmp_path / "c.edge"))) is pyedge.StaticModelPTBNTC
-    skinned = pyedge.AnimatedModelPTBNJWTC(renderer, scheduler)
+    assert type(pyedge.load_model(renderer, str(tmp_path / "c.edge"))) is pyedge.StaticModelPTBNTC
+    skinned = pyedge.AnimatedModelPTBNJWTC(renderer)
     skinned.load_from_gltf(_asset_path("test_skinned_colors.glb"))
     skinned.save_to_file(str(tmp_path / "s.edge"))
-    again = pyedge.load_model(renderer, scheduler, str(tmp_path / "s.edge"))
+    again = pyedge.load_model(renderer, str(tmp_path / "s.edge"))
     assert type(again) is pyedge.AnimatedModelPTBNJWTC
     assert again.meshes_count == skinned.meshes_count
 
     with pytest.raises(ValueError):
-        pyedge.load_model(renderer, scheduler, _asset_path("test_white.png"))
+        pyedge.load_model(renderer, _asset_path("test_white.png"))
     with pytest.raises(RuntimeError):
-        pyedge.load_model(renderer, scheduler, str(tmp_path / "not_there.edge"))
+        pyedge.load_model(renderer, str(tmp_path / "not_there.edge"))
 
 
 def test_a_model_drawn_as_instances_draws_each_instance_in_view():
     renderer = pyedge.Renderer(backend="null")
     scheduler = renderer.create_scheduler()
-    cone = pyedge.StaticModelPTBNT(renderer, scheduler)
+    cone = pyedge.StaticModelPTBNT(renderer)
     cone.load_from_gltf(_asset_path("cone.glb"))
     camera = pyedge.Camera()
     camera.set_orthographic_projection(10.0, 10.0, 0.1, 20.0)
@@ -245,16 +240,69 @@ def test_a_model_drawn_as_instances_draws_each_instance_in_view():
         renderer.end_pass()
         renderer.finish_frame()
 
-    cone.draw(camera, at(0.0))
+    cone.draw(scheduler, camera, at(0.0))
     flush()
     one = scheduler.executed_triangles_count
     assert one > 0
     # two in view and one far out of it: one draw call, the triangles of two cones drawn and of three offered
-    cone.draw_instances(camera, [at(-2.0), at(2.0), at(100.0)])
+    cone.draw_instances(scheduler, camera, [at(-2.0), at(2.0), at(100.0)])
     flush()
     assert scheduler.visible_calls_count == 1
     assert scheduler.executed_triangles_count - one == 2 * one
     assert scheduler.offered_triangles_count - one == 3 * one
-    cone.draw_instances(camera, [])
+    cone.draw_instances(scheduler, camera, [])
     flush()
     assert scheduler.visible_calls_count == 0
+
+
+def test_a_model_draws_into_the_scheduler_it_is_given():
+    """The scheduler is the draw's, not the model's: one model, two schedulers, each flushing what was drawn into it."""
+    renderer = pyedge.Renderer(backend="null")
+    a, b = renderer.create_scheduler(), renderer.create_scheduler()
+    cone = pyedge.StaticModelPTBNT(renderer)
+    cone.load_from_gltf(_asset_path("cone.glb"))
+    camera = pyedge.Camera()
+    camera.set_orthographic_projection(10.0, 10.0, 0.1, 20.0)
+    camera.look_at(pyrove.vec3(0, 0, 10), pyrove.vec3(0, 0, 0), pyrove.vec3(0, 1, 0))
+    world = pyrove.mat4()
+    world.identity()
+
+    def offered(scheduler):
+        renderer.begin_frame()
+        renderer.begin_pass(renderer.default_render_target)
+        scheduler.flush()
+        renderer.end_pass()
+        renderer.finish_frame()
+        return scheduler.visible_calls_count + scheduler.invisible_calls_count
+
+    cone.draw(a, camera, world)
+    one = offered(a)
+    assert one > 0
+    cone.draw(a, camera, world)
+    cone.draw(b, camera, world)
+    cone.draw(b, camera, world)
+    cone.draw(b, camera, world)
+    assert offered(a) == one
+    assert offered(b) == 3 * one
+
+
+def test_a_scheduler_of_another_renderer_is_refused():
+    renderer = pyedge.Renderer(backend="null")
+    foreign = pyedge.Renderer(backend="null").create_scheduler()
+    cone = pyedge.StaticModelPTBNT(renderer)
+    cone.load_from_gltf(_asset_path("cone.glb"))
+    camera = pyedge.Camera()
+    world = pyrove.mat4()
+    world.identity()
+    with pytest.raises(ValueError, match="another renderer"):
+        cone.draw(foreign, camera, world)
+    with pytest.raises(ValueError, match="another renderer"):
+        cone.draw_instances(foreign, camera, [world])
+
+
+def test_a_model_takes_no_scheduler():
+    renderer = pyedge.Renderer(backend="null")
+    with pytest.raises(TypeError):
+        pyedge.StaticModelPTBNT(renderer, renderer.create_scheduler())
+    with pytest.raises(TypeError):
+        pyedge.ModelCache(renderer).load(pyedge.StaticModelPTBNT, _asset_path("cone.glb"), renderer.create_scheduler())

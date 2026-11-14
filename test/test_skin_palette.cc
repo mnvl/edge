@@ -35,14 +35,14 @@ struct Rig
 	{
 		renderer = std::make_shared<edge::NullRenderer>(320, 200);
 		scheduler = std::make_shared<edge::Scheduler>(renderer);
-		model = std::make_shared<model_type>(renderer, scheduler);
+		model = std::make_shared<model_type>(renderer);
 		model->load_from_gltf(edge::TestFixture::graphic_sources_path() + "test/data/test_figure.glb");
 		BOOST_REQUIRE(!model->animations().empty());
 	}
 
 	std::shared_ptr<model_type> instance() const
 	{
-		auto copy = std::make_shared<model_type>(static_cast<model_type const &>(*model), scheduler);
+		auto copy = std::make_shared<model_type>(std::shared_ptr<model_type const>(model));
 		copy->bind_animations();
 		return copy;
 	}

@@ -82,32 +82,32 @@ BOOST_FIXTURE_TEST_SUITE(load_model, Fixture)
 
 BOOST_AUTO_TEST_CASE(a_edge_file_makes_a_model_of_the_type_its_meshes_are)
 {
-	is_a<edge::StaticModelPTBNT>(edge::load_model(renderer, scheduler, converted("test_gltf_loder_plane.glb")), "a plain file");
-	is_a<edge::StaticModelPTBNTC>(edge::load_model(renderer, scheduler, converted("test_vertex_colors.glb")), "a coloured file");
-	is_a<edge::AnimatedModelPTBNJWT>(edge::load_model(renderer, scheduler, converted("test_skinned_groups.glb")), "a skinned file");
-	is_a<edge::AnimatedModelPTBNJWTC>(edge::load_model(renderer, scheduler, converted("test_skinned_colors.glb", true)), "a coloured skinned file");
+	is_a<edge::StaticModelPTBNT>(edge::load_model(renderer, converted("test_gltf_loder_plane.glb")), "a plain file");
+	is_a<edge::StaticModelPTBNTC>(edge::load_model(renderer, converted("test_vertex_colors.glb")), "a coloured file");
+	is_a<edge::AnimatedModelPTBNJWT>(edge::load_model(renderer, converted("test_skinned_groups.glb")), "a skinned file");
+	is_a<edge::AnimatedModelPTBNJWTC>(edge::load_model(renderer, converted("test_skinned_colors.glb", true)), "a coloured skinned file");
 }
 
 BOOST_AUTO_TEST_CASE(the_model_is_the_one_its_type_loads)
 {
 	std::string const file = converted("test_figure.glb");
-	edge::ModelPtr const any = edge::load_model(renderer, scheduler, file);
-	auto typed = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer, scheduler);
+	edge::ModelPtr const any = edge::load_model(renderer, file);
+	auto typed = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer);
 	typed->load_from_file(file);
 	BOOST_CHECK(saved(*any, "any.edge") == saved(*typed, "typed.edge"));
 }
 
 BOOST_AUTO_TEST_CASE(a_glTF_makes_the_model_the_converter_would_make_of_it)
 {
-	is_a<edge::StaticModelPTBNT>(edge::load_model(renderer, scheduler, asset("test_gltf_loder_plane.glb")), "a plain glTF");
-	is_a<edge::StaticModelPTBNTC>(edge::load_model(renderer, scheduler, asset("test_vertex_colors.glb")), "a coloured glTF");
-	is_a<edge::AnimatedModelPTBNJWT>(edge::load_model(renderer, scheduler, asset("test_skinned_groups.glb")), "a skinned glTF");
-	is_a<edge::AnimatedModelPTBNJWT>(edge::load_model(renderer, scheduler, asset("test_skinned_colors.glb")), "a coloured skinned glTF");
-	is_a<edge::StaticModelPTBNT>(edge::load_model(renderer, scheduler, asset("test_uv_set_1.gltf")), "a .gltf");
+	is_a<edge::StaticModelPTBNT>(edge::load_model(renderer, asset("test_gltf_loder_plane.glb")), "a plain glTF");
+	is_a<edge::StaticModelPTBNTC>(edge::load_model(renderer, asset("test_vertex_colors.glb")), "a coloured glTF");
+	is_a<edge::AnimatedModelPTBNJWT>(edge::load_model(renderer, asset("test_skinned_groups.glb")), "a skinned glTF");
+	is_a<edge::AnimatedModelPTBNJWT>(edge::load_model(renderer, asset("test_skinned_colors.glb")), "a coloured skinned glTF");
+	is_a<edge::StaticModelPTBNT>(edge::load_model(renderer, asset("test_uv_set_1.gltf")), "a .gltf");
 	// its options are the glTF's loading options
 	edge::GltfOptions keep;
 	keep.keep_cpu_copy = false;
-	edge::ModelPtr const gpu_only = edge::load_model(renderer, scheduler, asset("test_gltf_loader_pbr.glb"), keep);
+	edge::ModelPtr const gpu_only = edge::load_model(renderer, asset("test_gltf_loader_pbr.glb"), keep);
 	BOOST_CHECK_THROW(gpu_only->save_to_file(out("gpu.edge")), std::runtime_error);      // no CPU copy of the textures to save
 }
 
@@ -120,7 +120,7 @@ BOOST_AUTO_TEST_CASE(a_file_of_no_known_type_or_of_two_is_refused_naming_them)
 	edge::Model::write_file(model, out("unknown.edge"));
 	try
 	{
-		edge::load_model(renderer, scheduler, out("unknown.edge"));
+		edge::load_model(renderer, out("unknown.edge"));
 		BOOST_FAIL("a mesh type nothing loads was taken");
 	}
 	catch (std::runtime_error const &e)
@@ -132,14 +132,14 @@ BOOST_AUTO_TEST_CASE(a_file_of_no_known_type_or_of_two_is_refused_naming_them)
 	edge::SerializedModel const skinned = edge::Model::read_file(converted("test_skinned_groups.glb"));
 	two.meshes.push_back(skinned.meshes.at(0));
 	edge::Model::write_file(two, out("two.edge"));
-	BOOST_CHECK_THROW(edge::load_model(renderer, scheduler, out("two.edge")), std::runtime_error);
+	BOOST_CHECK_THROW(edge::load_model(renderer, out("two.edge")), std::runtime_error);
 	edge::SerializedModel none = edge::Model::read_file(file);
 	none.meshes.clear();
 	none.joints.clear();
 	edge::Model::write_file(none, out("none.edge"));
-	BOOST_CHECK_THROW(edge::load_model(renderer, scheduler, out("none.edge")), std::runtime_error);
-	BOOST_CHECK_THROW(edge::load_model(renderer, scheduler, out("not_there.edge")), std::runtime_error);
-	BOOST_CHECK_THROW(edge::load_model(renderer, scheduler, asset("test_white.png")), std::invalid_argument);
+	BOOST_CHECK_THROW(edge::load_model(renderer, out("none.edge")), std::runtime_error);
+	BOOST_CHECK_THROW(edge::load_model(renderer, out("not_there.edge")), std::runtime_error);
+	BOOST_CHECK_THROW(edge::load_model(renderer, asset("test_white.png")), std::invalid_argument);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

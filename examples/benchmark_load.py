@@ -27,8 +27,8 @@ except (ModuleNotFoundError, ImportError) as exc:
     ) from exc
 
 
-def _load_file(path: Path, renderer, scheduler) -> None:
-    model = pyedge.StaticModelPTBNT(renderer, scheduler)
+def _load_file(path: Path, renderer) -> None:
+    model = pyedge.StaticModelPTBNT(renderer)
     if path.suffix.lower() in (".gltf", ".glb"):
         model.load_from_gltf(str(path))
     else:
@@ -73,12 +73,11 @@ def main() -> int:
 
     renderer = pyedge.create_renderer(1, 1, backend=args.backend, offscreen=True)
     print(f"Backend: {renderer.backend}")
-    scheduler = renderer.create_scheduler()
 
     # Warm-up: one silent load of the first file so the first timed result
     # is not penalised by driver/shader initialisation.
     try:
-        _load_file(paths[0], renderer, scheduler)
+        _load_file(paths[0], renderer)
     except Exception:
         pass
 
@@ -89,7 +88,7 @@ def main() -> int:
         for _ in range(repeats):
             t0 = time.perf_counter()
             try:
-                _load_file(path, renderer, scheduler)
+                _load_file(path, renderer)
             except Exception as exc:
                 errors[path] = str(exc)
                 break

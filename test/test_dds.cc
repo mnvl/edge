@@ -302,7 +302,7 @@ BOOST_AUTO_TEST_CASE(the_gltf_loader_prefers_msft_texture_dds)
 {
 	RendererPtr renderer(new NullRenderer(320, 200));
 	SchedulerPtr scheduler(new Scheduler(renderer));
-	auto model = std::make_shared<ModelBuilder>(renderer, scheduler);
+	auto model = std::make_shared<ModelBuilder>(renderer);
 	GltfOptions o;
 	o.compress_textures = false;
 	o.srgb_color = true;
@@ -358,7 +358,7 @@ BOOST_AUTO_TEST_CASE(a_large_external_dds_is_read_at_disk_speed)
 	}
 	RendererPtr renderer(new NullRenderer(320, 200));
 	SchedulerPtr scheduler(new Scheduler(renderer));
-	auto model = std::make_shared<ModelBuilder>(renderer, scheduler);
+	auto model = std::make_shared<ModelBuilder>(renderer);
 	GltfOptions o;
 	o.compress_textures = false;
 	o.mipmaps = false;

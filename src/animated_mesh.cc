@@ -388,7 +388,7 @@ void BasicAnimatedMesh<V>::insert_triangles(Mesh::octree_type &octree, int id, s
 }
 
 template <skinned_vertex_layout V>
-void BasicAnimatedMesh<V>::draw(Joint *joint_ptr, CameraPtr const &camera,
+void BasicAnimatedMesh<V>::draw(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera,
 	rove::matrix<4,4> const &world_matrix, unsigned lod)
 {
 	// one palette for the calls (shared, not copied for each)
@@ -414,12 +414,12 @@ void BasicAnimatedMesh<V>::draw(Joint *joint_ptr, CameraPtr const &camera,
 		draw_call->set_always_visible(this->always_visible_);
 		draw_call->commit();
 
-		Mesh::model()->scheduler()->add(draw_call);
+		scheduler.add(draw_call);
 	}
 }
 
 template <skinned_vertex_layout V>
-void BasicAnimatedMesh<V>::draw_instances(Joint *joint_ptr, CameraPtr const &camera,
+void BasicAnimatedMesh<V>::draw_instances(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera,
 	std::vector<rove::matrix<4,4>> const &world_matrices, unsigned lod)
 {
 	if (world_matrices.empty())
@@ -447,7 +447,7 @@ void BasicAnimatedMesh<V>::draw_instances(Joint *joint_ptr, CameraPtr const &cam
 		draw_call->set_always_visible(this->always_visible_);
 		draw_call->commit();
 
-		Mesh::model()->scheduler()->add(draw_call);
+		scheduler.add(draw_call);
 	}
 }
 

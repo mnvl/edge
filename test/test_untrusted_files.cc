@@ -61,7 +61,7 @@ struct Files
 	template <class M>
 	std::shared_ptr<M> from_gltf(std::string const &name)
 	{
-		auto model = std::make_shared<M>(renderer, scheduler);
+		auto model = std::make_shared<M>(renderer);
 		model->load_from_gltf(asset(name), edge::GltfOptions());
 		return model;
 	}
@@ -70,7 +70,7 @@ struct Files
 	template <class M>
 	bool loads_and_draws(edge::SerializedModel const &serialized)
 	{
-		auto model = std::make_shared<M>(renderer, scheduler);
+		auto model = std::make_shared<M>(renderer);
 		model->load(serialized, false);
 		draw(*model);
 		return true;
@@ -81,16 +81,16 @@ struct Files
 		edge::CameraPtr const camera = std::make_shared<edge::Camera>();
 		rove::matrix<4, 4> world;
 		world.identity();
-		model.scheduler()->clear();
-		model.draw(camera, world);
-		edge::flush_in_a_pass(model.scheduler());
+		scheduler->clear();
+		model.draw(*scheduler, camera, world);
+		edge::flush_in_a_pass(scheduler);
 	}
 
 	/// What a load of the serialized model throws: a std::runtime_error that names @p expected.
 	template <class M>
 	void refused(edge::SerializedModel const &serialized, std::string const &expected)
 	{
-		auto model = std::make_shared<M>(renderer, scheduler);
+		auto model = std::make_shared<M>(renderer);
 		try
 		{
 			model->load(serialized, false);
@@ -350,7 +350,7 @@ BOOST_FIXTURE_TEST_CASE(a_bare_file_name_loads, Files)
 	std::filesystem::copy_file(asset("cone.glb"), dir / "bare.glb");
 	std::filesystem::current_path(dir);
 	struct Back { std::filesystem::path to; ~Back() { std::filesystem::current_path(to); } } const back{previous};
-	auto model = std::make_shared<Static>(renderer, scheduler);
+	auto model = std::make_shared<Static>(renderer);
 	model->load_from_gltf("bare.glb", edge::GltfOptions());
 	BOOST_TEST(model->meshes().size() >= 1u);
 }
@@ -375,7 +375,7 @@ BOOST_FIXTURE_TEST_CASE(a_glb_of_changed_bytes_is_loaded_or_refused, Files)
 				data[where(rng)] = char(what(rng));
 			write(mutated, data);
 			try {
-				auto model = std::make_shared<Animated>(renderer, scheduler);
+				auto model = std::make_shared<Animated>(renderer);
 				model->load_from_gltf(mutated.string(), edge::GltfOptions());
 				draw(*model);
 			} catch (std::exception const &) {
@@ -398,7 +398,7 @@ BOOST_FIXTURE_TEST_CASE(an_edge_file_of_changed_bytes_is_loaded_or_refused, File
 			data[where(rng)] = char(what(rng));
 		write(file, data);
 		try {
-			auto model = std::make_shared<Animated>(renderer, scheduler);
+			auto model = std::make_shared<Animated>(renderer);
 			model->load_from_file(file.string());
 			draw(*model);
 		} catch (std::exception const &) {

@@ -36,8 +36,8 @@ public:
 
 	void check() override;
 
-	void draw(Joint *joint_ptr, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod = 0) override;
-	void draw_instances(Joint *joint_ptr, CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
+	void draw(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod = 0) override;
+	void draw_instances(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
 		unsigned lod = 0) override;
 
 	void set_vertices(GenericVertex *vertices, GenericVertex::format_type format, size_t count) override;
@@ -69,7 +69,7 @@ public:
 
 protected:
 	/// draw() and draw_instances(): the triangle groups' draw calls at @p world_matrix, drawn once for each of @p instances if any
-	void submit(Joint *joint_ptr, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod,
+	void submit(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod,
 		std::vector<rove::matrix<4,4>> const *instances);
 	using vertex_array_type = VertexArray<V>;
 	using index_array_type = IndexArray32;

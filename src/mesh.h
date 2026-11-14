@@ -138,12 +138,12 @@ public:
 
 	virtual void check();
 
-	/// Submits the mesh's draw calls for level of detail @p lod (a level past the last draws the last).
-	virtual void draw(Joint *joint_ptr, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod = 0);
+	/// Submits the mesh's draw calls to @p scheduler for level of detail @p lod (a level past the last draws the last).
+	virtual void draw(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod = 0);
 	/// Submits the mesh's draw calls once for each of @p world_matrices, as draw() at each.  The static and skinned meshes make
 	/// instanced draws (DrawCall::instances); a mesh that does not (one of a game's own) is drawn by draw() at each, which is the
 	/// same picture.
-	virtual void draw_instances(Joint *joint_ptr, CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
+	virtual void draw_instances(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
 		unsigned lod = 0);
 
 	virtual std::string serialization_type() const;

@@ -9,8 +9,8 @@
 namespace edge
 {
 
-ModelBuilder::ModelBuilder(RendererPtr const &renderer_ptr, SchedulerPtr const &scheduler_ptr):
-	Model(renderer_ptr, scheduler_ptr)
+ModelBuilder::ModelBuilder(RendererPtr const &renderer_ptr):
+	Model(renderer_ptr)
 {
 }
 
@@ -98,7 +98,7 @@ MeshPtr ModelBuilder::add_mesh()
 	return meshes().back();
 }
 
-void ModelBuilder::draw(CameraPtr const &, rove::matrix<4,4> const &, unsigned)
+void ModelBuilder::draw(Scheduler &, CameraPtr const &, rove::matrix<4,4> const &, unsigned)
 {
 	throw std::runtime_error("ModelBuilder cannot render. Save the model with save_to_file() "
 		"and load it with StaticModel/AnimatedModel for rendering.");

@@ -19,26 +19,26 @@ namespace
 {
 
 /// A model of the type whose meshes are @p mesh_type; none for a type nothing loads.
-ModelPtr model_of_type(std::string const &mesh_type, RendererPtr const &renderer, SchedulerPtr const &scheduler)
+ModelPtr model_of_type(std::string const &mesh_type, RendererPtr const &renderer)
 {
 	if (mesh_type == BasicStaticMesh<VERTEX_PTBNT>::class_serialization_type())
-		return std::make_shared<StaticModelPTBNT>(renderer, scheduler);
+		return std::make_shared<StaticModelPTBNT>(renderer);
 	if (mesh_type == BasicStaticMesh<VERTEX_PTBNTC>::class_serialization_type())
-		return std::make_shared<StaticModelPTBNTC>(renderer, scheduler);
+		return std::make_shared<StaticModelPTBNTC>(renderer);
 	if (mesh_type == BasicStaticMesh<VERTEX_PNT>::class_serialization_type())
-		return std::make_shared<StaticModelPNT>(renderer, scheduler);
+		return std::make_shared<StaticModelPNT>(renderer);
 	if (mesh_type == BasicAnimatedMesh<VERTEX_PTBNJWT>::class_serialization_type())
-		return std::make_shared<AnimatedModelPTBNJWT>(renderer, scheduler);
+		return std::make_shared<AnimatedModelPTBNJWT>(renderer);
 	if (mesh_type == BasicAnimatedMesh<VERTEX_PTBNJWTC>::class_serialization_type())
-		return std::make_shared<AnimatedModelPTBNJWTC>(renderer, scheduler);
+		return std::make_shared<AnimatedModelPTBNJWTC>(renderer);
 	if (mesh_type == BasicAnimatedMesh<VERTEX_PNJWT>::class_serialization_type())
-		return std::make_shared<AnimatedModelPNJWT>(renderer, scheduler);
+		return std::make_shared<AnimatedModelPNJWT>(renderer);
 	return ModelPtr();
 }
 
 }
 
-ModelPtr load_model(RendererPtr const &renderer, SchedulerPtr const &scheduler, std::string const &filename, GltfOptions const &options)
+ModelPtr load_model(RendererPtr const &renderer, std::string const &filename, GltfOptions const &options)
 {
 	std::string const extension = std::filesystem::path(filename).extension().string();
 	if (extension == ".edge")
@@ -55,7 +55,7 @@ ModelPtr load_model(RendererPtr const &renderer, SchedulerPtr const &scheduler, 
 			throw std::runtime_error("model file " + filename + " has meshes of " + std::to_string(types.size()) + " types (" + names +
 				"): a model is of one");
 		}
-		ModelPtr const model = model_of_type(*types.begin(), renderer, scheduler);
+		ModelPtr const model = model_of_type(*types.begin(), renderer);
 		if (!model)
 			throw std::runtime_error("model file " + filename + " has meshes of type " + *types.begin() + ", which no model of edge's loads");
 		try
@@ -73,11 +73,11 @@ ModelPtr load_model(RendererPtr const &renderer, SchedulerPtr const &scheduler, 
 		GltfContents const contents = gltf_contents(filename);
 		ModelPtr model;
 		if (contents.skin)
-			model = std::make_shared<AnimatedModelPTBNJWT>(renderer, scheduler);
+			model = std::make_shared<AnimatedModelPTBNJWT>(renderer);
 		else if (contents.vertex_colors)
-			model = std::make_shared<StaticModelPTBNTC>(renderer, scheduler);
+			model = std::make_shared<StaticModelPTBNTC>(renderer);
 		else
-			model = std::make_shared<StaticModelPTBNT>(renderer, scheduler);
+			model = std::make_shared<StaticModelPTBNT>(renderer);
 		model->load_from_gltf(filename, options);
 		return model;
 	}

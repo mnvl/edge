@@ -85,8 +85,7 @@ def _run_load(asset: Path, level: str | None = None, before: str = "", cwd: Path
         + (f"pyedge.set_log_level({level!r})\n" if level is not None else "")
         + before
         + 'r = pyedge.Renderer(backend="null")\n'
-        "s = r.create_scheduler()\n"
-        "m = pyedge.StaticModelPTBNT(r, s)\n"
+        "m = pyedge.StaticModelPTBNT(r)\n"
         f"m.load_from_gltf({str(asset)!r})\n"
         "m.check()\n"
     )

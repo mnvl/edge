@@ -7,8 +7,8 @@ namespace edge
 {
 
 template <vertex_layout V>
-BasicStaticModel<V>::BasicStaticModel(RendererPtr const &renderer_ptr, SchedulerPtr const &scheduler_ptr):
-	Model(renderer_ptr, scheduler_ptr)
+BasicStaticModel<V>::BasicStaticModel(RendererPtr const &renderer_ptr):
+	Model(renderer_ptr)
 {
 }
 

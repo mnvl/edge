@@ -32,10 +32,10 @@ public:
 	/// What serialization_type() says of every mesh of this type.
 	static std::string class_serialization_type();
 
-    void draw(Joint *joint_ptr, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod = 0) override;
+    void draw(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod = 0) override;
 	/// One instanced draw for each triangle group: every instance in the pose the model is in (a crowd in step, as a cached pose
 	/// shared by the instances of one prototype is).
-	void draw_instances(Joint *joint_ptr, CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
+	void draw_instances(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
 		unsigned lod = 0) override;
 	void set_vertices(GenericVertex *vertices, GenericVertex::format_type format, size_t count) override;
 
