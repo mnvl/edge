@@ -248,6 +248,41 @@ BOOST_AUTO_TEST_CASE(streaming_materials_through_one_renderer_never_exhausts_the
 	MaterialPtr last = make_material(renderer, RED);
 	BOOST_CHECK_EQUAL(quad.render_with(renderer, last), rgb(RED));
 	BOOST_CHECK_EQUAL(renderer->material_descriptor_set_count(), 1u);
+	// Reclaimed, not outgrown: a pool would be added if the dead sets were not freed.
+	BOOST_CHECK_EQUAL(renderer->material_descriptor_pool_count(), 1u);
+}
+
+// More materials alive at once than a pool holds: another pool is made, every material draws as itself, and their sets go back to
+// the pools they came from when they die.
+BOOST_AUTO_TEST_CASE(more_live_materials_than_a_pool_holds_get_another_pool,
+	*boost::unit_test::timeout(CASE_TIMEOUT_S))
+{
+	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
+	Quad quad(renderer);
+
+	std::vector<MaterialPtr> live;
+	for (size_t i = 0; i < MATERIALS_TO_STREAM; ++i)
+	{
+		uint32_t const colour = (i % 2 == 0) ? RED : GREEN;
+		live.push_back(make_material(renderer, colour));
+		if (i % 32 != 31)
+		{
+			BOOST_REQUIRE_NO_THROW(quad.render(renderer, live.back()));
+			continue;
+		}
+		uint32_t pixel = 0;
+		BOOST_REQUIRE_NO_THROW(pixel = quad.render_with(renderer, live.back()));
+		BOOST_REQUIRE_MESSAGE(pixel == rgb(colour), "live material #" << i << " rendered 0x" << std::hex << pixel);
+	}
+	BOOST_CHECK_EQUAL(renderer->material_descriptor_pool_count(), 2u);
+	// The first, from the first pool, still draws as itself.
+	BOOST_CHECK_EQUAL(quad.render_with(renderer, live.front()), rgb(RED));
+
+	live.clear();
+	MaterialPtr last = make_material(renderer, GREEN);
+	BOOST_CHECK_EQUAL(quad.render_with(renderer, last), rgb(GREEN));
+	BOOST_CHECK_EQUAL(quad.render_with(renderer, last), rgb(GREEN));
+	BOOST_CHECK_EQUAL(renderer->material_descriptor_set_count(), 1u);
 }
 
 // Live materials keep their sets; only dead ones are reclaimed.
