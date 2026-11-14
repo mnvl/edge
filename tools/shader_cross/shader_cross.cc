@@ -25,7 +25,7 @@
 //
 //     stage vertex|fragment
 //     ubo <block name> <buffer index>               set 0 binding N is buffer(N), N below kMslFirstVertexBuffer or from kMslFirstHighUbo
-//                                                   to kMslLastHighUbo (the material parameters and the previous frame's blocks: 20 to 22)
+//                                                   to kMslLastHighUbo (the material parameters: 20)
 //     sampler <name> <texture index> <sampler index>   set 0 binding N is texture(N); the sampler states of the stage are numbered from 0
 //                                                       in the order of the bindings (Metal has 16 a stage; the bindings go to 19)
 //     push <buffer index>                           the push constants, one buffer: kMslPushBuffer in every shader

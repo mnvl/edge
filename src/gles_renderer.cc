@@ -160,10 +160,6 @@ void GLESProgram::bind_resources(Map const &map_in)
 			glUniformBlockBinding(id, block, binding);
 			if (binding == 20)
 				reads_material_parameters = true;
-			else if (binding == 21)
-				reads_previous_instances = true;
-			else if (binding == 22)
-				reads_previous_joint_matrices = true;
 		}
 	}
 	std::ranges::sort(map.samplers, {}, &std::pair<std::string, int>::second);
@@ -263,13 +259,11 @@ void GLESRenderer::init()
 	glGenVertexArrays(1, &vertex_array_);
 	glBindVertexArray(vertex_array_);
 	// uniform blocks, zeroed to begin with
-	for (auto const &[buffer, size] : {std::pair{&draw_constants_buffer_, 4 * 16 * sizeof(float)},
+	for (auto const &[buffer, size] : {std::pair{&draw_constants_buffer_, 2 * 16 * sizeof(float)},
 			std::pair{&frame_constants_buffer_, FRAME_CONSTANTS_SIZE},
 			std::pair{&joint_matrices_buffer_, MAX_JOINT_MATRICES * 16 * sizeof(float)},
 			std::pair{&instances_buffer_, MAX_INSTANCES * 16 * sizeof(float)},
-			std::pair{&material_parameters_buffer_, Material::PARAMETERS_SIZE},
-			std::pair{&previous_instances_buffer_, MAX_INSTANCES * 16 * sizeof(float)},
-			std::pair{&previous_joint_matrices_buffer_, MAX_JOINT_MATRICES * 16 * sizeof(float)}})
+			std::pair{&material_parameters_buffer_, Material::PARAMETERS_SIZE}})
 	{
 		std::vector<unsigned char> const zeros(size, 0);
 		glGenBuffers(1, buffer);
@@ -320,8 +314,6 @@ GLESRenderer::~GLESRenderer()
 	glDeleteBuffers(1, &joint_matrices_buffer_);
 	glDeleteBuffers(1, &instances_buffer_);
 	glDeleteBuffers(1, &material_parameters_buffer_);
-	glDeleteBuffers(1, &previous_instances_buffer_);
-	glDeleteBuffers(1, &previous_joint_matrices_buffer_);
 	glDeleteSamplers(1, &material_sampler_);
 	glDeleteSamplers(1, &global_sampler_);
 	glDeleteSamplers(1, &compare_sampler_);
@@ -442,21 +434,16 @@ void GLESRenderer::do_set_global_texture(unsigned slot, TexturePtr const &textur
 	global_compare_[slot] = compare;
 }
 
-void GLESRenderer::bind_draw_constants(rove::matrix<4,4> const &world_view_projection, rove::matrix<4,4> const &world_matrix,
-	rove::matrix<4,4> const &previous_world_view_projection, rove::matrix<4,4> const &previous_world_matrix)
+void GLESRenderer::bind_draw_constants(rove::matrix<4,4> const &world_view_projection, rove::matrix<4,4> const &world_matrix)
 {
-	float constants[64];
+	float constants[32];
 	std::memcpy(constants, &world_view_projection.ij[0][0], 16 * sizeof(float));
 	std::memcpy(constants + 16, &world_matrix.ij[0][0], 16 * sizeof(float));
-	std::memcpy(constants + 32, &previous_world_view_projection.ij[0][0], 16 * sizeof(float));
-	std::memcpy(constants + 48, &previous_world_matrix.ij[0][0], 16 * sizeof(float));
 	glBindBuffer(GL_UNIFORM_BUFFER, draw_constants_buffer_);
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(constants), constants);
 	glBindBufferBase(GL_UNIFORM_BUFFER, 6, joint_matrices_buffer_);
 	glBindBufferBase(GL_UNIFORM_BUFFER, 7, instances_buffer_);
 	glBindBufferBase(GL_UNIFORM_BUFFER, 20, material_parameters_buffer_);
-	glBindBufferBase(GL_UNIFORM_BUFFER, 21, previous_instances_buffer_);
-	glBindBufferBase(GL_UNIFORM_BUFFER, 22, previous_joint_matrices_buffer_);
 	glBindBufferBase(GL_UNIFORM_BUFFER, 8, draw_constants_buffer_);
 	glBindBufferBase(GL_UNIFORM_BUFFER, 9, frame_constants_buffer_);
 }

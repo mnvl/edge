@@ -37,8 +37,6 @@ enum Binding : uint32_t
 	BINDING_EMISSIVE = 11,
 	BINDING_GLOBAL_TEXTURE_0 = 12,           // to 12 + Renderer::GLOBAL_TEXTURES_COUNT - 1
 	BINDING_MATERIAL_PARAMETERS = 20,        // both stages: Material::parameters
-	BINDING_PREVIOUS_INSTANCES = 21,         // vertex stage: an instanced draw's matrices the frame before (edge_motion.glsl)
-	BINDING_PREVIOUS_JOINT_MATRICES = 22,    // vertex stage: a skinned draw's joint matrices the frame before (edge_motion.glsl)
 };
 
 /// PushConstants::flags, edge.glsl's EDGE_FLAG_*: what a material has (every draw), and what the uber draw call draws (texture
@@ -53,7 +51,6 @@ enum Flag : uint32_t
 	FLAG_METALLIC_ROUGHNESS_MAP = 32u,
 	FLAG_EMISSIVE_MAP = 64u,
 	FLAG_OCCLUSION_MAP = 128u,               // the metallic-roughness texture's red is occlusion (Material::occlusion)
-	FLAG_PREVIOUS_UNKNOWN = 256u,            // the draw's previous frame is not known (!DrawCall::has_previous()): no history to reuse
 };
 
 /// PushConstants::flags' bits from this one up (16 to 31): the material's occlusion strength in 65535ths of 1 where it has occlusion
@@ -87,7 +84,7 @@ static_assert(offsetof(PushConstants, flags) == 124, "flags are the fourth word 
 /// the uber draw call (@p uber), the flags of what it draws: texture blending (a weights texture, or the vertex's second set of
 /// coordinates) and a skin (@p skin, its joint matrices given).
 PushConstants push_constants(Material const &material, VertexTraits const &traits, bool uber, bool skin, rove::vec<3> const &eye,
-	bool instanced = false, bool previous_unknown = false);
+	bool instanced = false);
 
 /// The shaders that draw a vertex of @p traits with @p program: the program's own where it names one, or the built-in ones (a .spv
 /// name, which each renderer finds its translation of): vertex_skin for a skinned vertex, vertex_blend for one with a second set of

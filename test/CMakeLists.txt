@@ -50,7 +50,6 @@ SET(EDGE_TEST_SOURCES
   test_model_convert.cc
   test_model_textures.cc
   test_model_lod.cc
-  test_motion.cc
   test_occlusion.cc
   test_pose_bounds.cc
   test_renderer.cc

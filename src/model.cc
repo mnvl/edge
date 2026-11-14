@@ -972,15 +972,6 @@ void Model::draw_instances(CameraPtr const &camera, std::vector<rove::matrix<4,4
 	}
 }
 
-void Model::reset_previous()
-{
-	for (MeshPtr const &mesh : meshes())
-	{
-		if (mesh)
-			mesh->reset_previous();
-	}
-}
-
 unsigned Model::lod_count() const
 {
 	std::size_t count = 1;

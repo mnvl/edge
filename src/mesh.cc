@@ -61,20 +61,6 @@ void Mesh::draw_instances(Joint *joint_ptr, CameraPtr const &camera, std::vector
 		draw(joint_ptr, camera, world_matrix, lod);
 }
 
-Placement const *Mesh::previous_placement(Joint const *owner, CameraPtr const &camera, Placement placement)
-{
-	if (!model_)
-		throw std::logic_error("mesh '" + name() + "' drawn without a model");
-	RendererPtr const &renderer = model_->renderer();
-	return previous_.by_owner[owner].use(renderer->frame_index(), renderer->previous_frame(camera), std::move(placement));
-}
-
-void Mesh::give_previous(UberDrawCall &call, Placement const *previous)
-{
-	if (previous)
-		call.set_previous(*previous);
-}
-
 std::string Mesh::serialization_type() const
 {
 	return "mesh";

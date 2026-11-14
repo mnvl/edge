@@ -391,19 +391,16 @@ template <skinned_vertex_layout V>
 void BasicAnimatedMesh<V>::draw(Joint *joint_ptr, CameraPtr const &camera,
 	rove::matrix<4,4> const &world_matrix, unsigned lod)
 {
-	// one palette for the calls and what the mesh keeps of the frame (shared, not copied)
-	Placement::Matrices const joint_matrix_array = std::make_shared<std::vector<rove::matrix<4,4>> const>(skin_matrices());
+	// one palette for the calls (shared, not copied for each)
+	SharedMatrices const joint_matrix_array = std::make_shared<std::vector<rove::matrix<4,4>> const>(skin_matrices());
 
 	// Cull against the box that holds the mesh in every pose, not the bind pose: a walking foot swings well outside it.
 	rove::obb<3> const bounds = placed_pose_bounds(world_matrix);
-	Placement const *const previous = this->previous_placement(joint_ptr, camera, Placement{world_matrix, nullptr, joint_matrix_array});
 
 	typename Mesh::triangles_list_type const &level = this->triangles_of_lod(lod);
 	for (auto const &triangles : level)
 	{
 		UberDrawCallPtr draw_call = Mesh::model()->renderer()->create_uber_draw_call();
-		Mesh::give_previous(*draw_call, previous);
-
 		draw_call->set_obb(bounds);
 		draw_call->set_vertex_buffer(this->vertex_array_->vertex_buffer());
 		draw_call->set_index_buffer(this->index_array_->index_buffer());
@@ -427,17 +424,16 @@ void BasicAnimatedMesh<V>::draw_instances(Joint *joint_ptr, CameraPtr const &cam
 {
 	if (world_matrices.empty())
 		return;
-	Placement::Matrices const joint_matrix_array = std::make_shared<std::vector<rove::matrix<4,4>> const>(skin_matrices());
-	Placement::Matrices const instances = std::make_shared<std::vector<rove::matrix<4,4>> const>(world_matrices);
+	// one palette and one list of instances for the calls (shared, not copied for each)
+	SharedMatrices const joint_matrix_array = std::make_shared<std::vector<rove::matrix<4,4>> const>(skin_matrices());
+	SharedMatrices const instances = std::make_shared<std::vector<rove::matrix<4,4>> const>(world_matrices);
 	// the pose's box in the model's own space, each instance placing it by its world
 	rove::obb<3> const bounds = placed_pose_bounds(rove::matrix<4,4>());
-	Placement const *const previous = this->previous_placement(joint_ptr, camera, Placement{rove::matrix<4,4>(), instances, joint_matrix_array});
 
 	typename Mesh::triangles_list_type const &level = this->triangles_of_lod(lod);
 	for (auto const &triangles : level)
 	{
 		UberDrawCallPtr draw_call = Mesh::model()->renderer()->create_uber_draw_call();
-		Mesh::give_previous(*draw_call, previous);
 		draw_call->set_obb(bounds);
 		draw_call->set_vertex_buffer(this->vertex_array_->vertex_buffer());
 		draw_call->set_index_buffer(this->index_array_->index_buffer());

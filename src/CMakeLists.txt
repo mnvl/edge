@@ -63,8 +63,6 @@ SET(EDGE_CORE_SOURCES
   model_builder.h
   model_cache.cc
   model_cache.h
-  motion.cc
-  motion.h
   null_index_buffer.cc
   null_index_buffer.h
   null_render_target.cc
@@ -406,7 +404,7 @@ ENDIF()
 # the converter, the CMake lists (they pin the libraries fetched), the patches, rove (its sources, or an installed rove's headers) -- worked out by every build and written only when
 # it changes (etc/cmake/edge_pipeline.cmake), so a source left unhashed is a model that is not made again.
 SET(EDGE_PIPELINE_SOURCES ${EDGE_CORE_SOURCES} ${EDGE_ASSET_SOURCES})
-LIST(FILTER EDGE_PIPELINE_SOURCES EXCLUDE REGEX "^(debug_lines|dynamic_mesh|fullscreen_copy|font|camera|scheduler|draw_call|uber_draw_call|lod_choice|motion|shader_dirs)\\.")
+LIST(FILTER EDGE_PIPELINE_SOURCES EXCLUDE REGEX "^(debug_lines|dynamic_mesh|fullscreen_copy|font|camera|scheduler|draw_call|uber_draw_call|lod_choice|shader_dirs)\\.")
 LIST(TRANSFORM EDGE_PIPELINE_SOURCES PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/)
 FILE(GLOB EDGE_PIPELINE_ROVE ${EDGE_ROVE_HASHED_DIR}/*.h ${EDGE_ROVE_HASHED_DIR}/*.cc)
 LIST(FILTER EDGE_PIPELINE_ROVE EXCLUDE REGEX "/bind_[^/]*$")

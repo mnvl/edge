@@ -171,20 +171,13 @@ public:
 
 
 	uint32_t update_joint_matrices(std::vector<rove::matrix<4,4>> const &joint_matrices);
-	uint32_t update_draw_constants(rove::matrix<4,4> const &world_view_projection,
-		rove::matrix<4,4> const &world_matrix, rove::matrix<4,4> const &previous_world_view_projection,
-		rove::matrix<4,4> const &previous_world_matrix);
+	uint32_t update_draw_constants(rove::matrix<4,4> const &world_view_projection, rove::matrix<4,4> const &world_matrix);
 	VkPipeline pipeline(VertexTraits const *traits, MaterialPtr const &material);
 	VkDescriptorSet material_descriptor_set(MaterialPtr const &material);
-	/// A draw's block of a buffer and its block of the frame before's (the same where they are the same).
-	struct Blocks
-	{
-		uint32_t offset, previous_offset;
-	};
 	/// Binds a material's set for a draw: its blocks of the joint matrices (none: not skinned) and of the instances (none: not
 	/// instanced), of the draw constants and of the material parameters, and the frame's region of the frame constants.
-	void bind_descriptor_set(VkCommandBuffer command_buffer, VkDescriptorSet set, std::optional<Blocks> joint_matrices,
-		std::optional<Blocks> instances, uint32_t draw_constants_offset, uint32_t material_parameters_offset);
+	void bind_descriptor_set(VkCommandBuffer command_buffer, VkDescriptorSet set, std::optional<uint32_t> joint_matrices_offset,
+		std::optional<uint32_t> instances_offset, uint32_t draw_constants_offset, uint32_t material_parameters_offset);
 	/// Descriptor sets currently cached: one per live material that has been
 	/// drawn, plus those of materials that died since the last frame boundary
 	/// (reclaimed by the next begin_frame).  Exposed so tests can prove dead

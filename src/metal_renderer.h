@@ -68,9 +68,6 @@ public:
 	uint64_t frame_serial() const override;
 	/// Joint matrices of the skeleton a draw is skinned by, at most this many (std::length_error for more).
 	static constexpr size_t MAX_JOINT_MATRICES = 256;
-	/// The blocks of the previous frame's instances and joint matrices (bindings 21 and 22, edge_motion.glsl) written since the renderer
-	/// was made: one for each batch of an instanced draw and each skinned draw whose program reads them.
-	uint64_t previous_block_writes() const;
 
 	/// What the Metal translations bind (shader_cross.cc's map): the buffer the push constants are at, and where the vertex buffer and
 	/// the attributes a vertex buffer lacks are.

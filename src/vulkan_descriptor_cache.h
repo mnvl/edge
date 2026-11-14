@@ -21,7 +21,7 @@ namespace edge
 /// set per live material.
 ///
 /// Bindings: 0-5 material textures, 6 joint matrices, 7 instances, 8 draw constants, 9 frame constants, 10-11 the material's PBR
-/// textures, 12-19 the global textures, 20 the material's parameters, 21 the previous instances, 22 the previous joint matrices.  The
+/// textures, 12-19 the global textures, 20 the material's parameters.  The
 /// uniform buffers are bound with dynamic offsets, in binding order: a draw's own blocks, and the region of the frame it is recorded in
 /// for the frame constants.
 class VulkanDescriptorCache {
@@ -34,9 +34,8 @@ public:
 	/// Sets the pool holds: live materials at once (a dead one's set is reclaimed at the next frame boundary).
 	static constexpr uint32_t MAX_SETS = 8192;
 	/// The uniform buffers of a set, bound with dynamic offsets in binding order: 6 joint matrices, 7 instances, 8 draw constants, 9 frame
-	/// constants, 20 material parameters, 21 the previous instances (in the instances' buffer), 22 the previous joint matrices (in the
-	/// joint matrices' buffer).  Vulkan promises 8 dynamic ones a set.
-	static constexpr uint32_t UNIFORM_BUFFERS = 7;
+	/// constants, 20 material parameters.  Vulkan promises 8 dynamic ones a set.
+	static constexpr uint32_t UNIFORM_BUFFERS = 5;
 
 	/// The uniform buffers the sets point at.  They must be created before the first get() and outlive the cache.
 	struct Constants

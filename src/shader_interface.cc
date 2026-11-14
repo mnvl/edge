@@ -49,7 +49,7 @@ bool skinned(VertexTraits const &traits)
 }
 
 PushConstants push_constants(Material const &material, VertexTraits const &traits, bool uber, bool skin, rove::vec<3> const &eye,
-	bool instanced, bool previous_unknown)
+	bool instanced)
 {
 	PushConstants pc;
 	std::memset(&pc, 0, sizeof(pc));
@@ -89,8 +89,6 @@ PushConstants push_constants(Material const &material, VertexTraits const &trait
 		pc.flags |= FLAG_OCCLUSION_MAP | static_cast<uint32_t>(std::lround(material.occlusion_strength() * 65535.0f)) << OCCLUSION_STRENGTH_SHIFT;
 	if (instanced)
 		pc.flags |= FLAG_INSTANCED;
-	if (previous_unknown)
-		pc.flags |= FLAG_PREVIOUS_UNKNOWN;
 	if (uber)
 	{
 		if (skin)

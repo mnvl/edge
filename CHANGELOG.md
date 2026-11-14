@@ -42,6 +42,17 @@ versions follow [Semantic Versioning](https://semver.org/).
 - `libedge_imgui.a`, and from an install of edge built by itself, the ImGui it fetched: `libedge_imgui_core.a`, `edge::imgui_core` and
   ImGui's headers under `include/edge/imgui`. A program links its own ImGui.
 - `edge::BoundedInputArchive`, and the structures' `serialize`, `save` and `load` members: read a file with `Model::read_file()`.
+- The previous frame's matrices (motion vectors), which every draw paid for and nothing drew with: `motion.h` (`Placement`,
+  `PlacementHistory`), `edge_motion.glsl`; `DrawCall::set_previous_world_matrix()`, `set_previous_instances()`, `set_previous()`,
+  `reset_previous()`, `shader_previous_world_view_projection()`, `shader_previous_world()`, `previous_visible_instances()`,
+  `previous_joint_matrices()`, `has_previous()`, `shared_joint_matrices()`; `UberDrawCall::set_previous_joint_matrix_array()`;
+  `Model::reset_previous()`, `Mesh::reset_previous()`; `Camera::cut()`, `cuts()`; `Renderer::frame_index()`, `previous_frame()`;
+  `GLESRenderer::previous_block_writes()`, `MetalRenderer::previous_block_writes()`; and pyedge's of these. In `edge.glsl` the draw
+  constants (`dc`) are `world_view_projection` and `world_matrix` alone (128 bytes, were 256): `previous_world_view_projection`,
+  `previous_world_matrix`, `EDGE_BINDING_PREVIOUS_INSTANCES` (21), `EDGE_BINDING_PREVIOUS_JOINT_MATRICES` (22) and
+  `EDGE_FLAG_PREVIOUS_UNKNOWN` (256) are gone, and with them the descriptor set's bindings 21 and 22. `DrawCall::commit()` no longer
+  reads or writes the renderer's record of each camera, a model's mesh keeps no history of its draws, and a skin's joint matrices set
+  after `commit()` are drawn whatever their count. Shaders that include `edge.glsl` are rebuilt against it.
 
 ### Fixed
 

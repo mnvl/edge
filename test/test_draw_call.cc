@@ -248,4 +248,66 @@ BOOST_AUTO_TEST_CASE(an_uber_call_is_drawn_as_one_and_skinned_only_with_joints)
 	BOOST_CHECK(rove::equal(renderer->given[1].joint_matrices[1], joints[1], 0.0f));
 }
 
+BOOST_AUTO_TEST_CASE(a_skin_is_drawn_with_the_joint_matrices_it_has_when_drawn_of_any_count)
+{
+	// (they are read as the call is drawn, not at its commit: three where two were committed, in the commit's frame, draw three)
+	auto const renderer = std::make_shared<ReadingRenderer>();
+	DrawCallFixture fixture;
+	edge::UberDrawCallPtr const dc = renderer->create_uber_draw_call();
+	dc->set_vertex_buffer(renderer->create_vertex_buffer(nullptr, 1));
+	dc->set_material(renderer->create_material());
+	dc->set_camera(fixture.make_camera());
+	dc->set_triangles_count(1);
+	dc->set_always_visible(true);
+	dc->set_joint_matrix_array(std::vector<rove::matrix<4,4>>{moved(1, 0, 0), moved(0, 1, 0)});
+	dc->commit();
+	std::vector<rove::matrix<4,4>> const three{moved(1, 2, 3), moved(-4, 5, -6), moved(7, -8, 9)};
+	dc->set_joint_matrix_array(three);
+	execute_in_a_pass(renderer, *dc);
+	dc->set_joint_matrix_array(std::vector<rove::matrix<4,4>>{moved(0, 0, 1)});
+	execute_in_a_pass(renderer, *dc);
+
+	BOOST_REQUIRE_EQUAL(renderer->given.size(), 2u);
+	BOOST_REQUIRE_EQUAL(renderer->given[0].joint_matrices.size(), 3u);
+	for (size_t i = 0; i < 3; ++i)
+		BOOST_CHECK(rove::equal(renderer->given[0].joint_matrices[i], three[i], 0.0f));
+	BOOST_REQUIRE_EQUAL(renderer->given[1].joint_matrices.size(), 1u);
+	BOOST_CHECK(rove::equal(renderer->given[1].joint_matrices[0], moved(0, 0, 1), 0.0f));
+}
+
+BOOST_AUTO_TEST_CASE(a_call_drawn_in_later_frames_is_drawn_with_the_matrices_of_its_commit)
+{
+	// (what changed since is not seen before the next commit: neither the world matrix set nor the camera moved)
+	auto const renderer = std::make_shared<ReadingRenderer>();
+	DrawCallFixture fixture;
+	edge::CameraPtr const camera = fixture.make_camera();
+	edge::DrawCallPtr const dc = renderer->create_draw_call();
+	dc->set_vertex_buffer(renderer->create_vertex_buffer(nullptr, 1));
+	dc->set_material(renderer->create_material());
+	dc->set_camera(camera);
+	dc->set_triangles_count(1);
+	dc->set_always_visible(true);
+	rove::matrix<4,4> const world = moved(0.5f, -0.25f, 1);
+	dc->set_world_matrix(world);
+	dc->commit();
+	rove::matrix<4,4> const world_view_projection = camera->projection_matrix() * camera->view_matrix() * world;
+	execute_in_a_pass(renderer, *dc);
+	dc->set_world_matrix(moved(3, 3, 3));
+	camera->look_at(rove::vec<3>(5, 0, 0), rove::vec<3>(0, 0, 0), rove::vec<3>(0, 1, 0));
+	execute_in_a_pass(renderer, *dc);
+	execute_in_a_pass(renderer, *dc);
+	dc->commit();
+	execute_in_a_pass(renderer, *dc);
+
+	BOOST_REQUIRE_EQUAL(renderer->given.size(), 4u);
+	for (size_t i = 0; i < 3; ++i)
+	{
+		BOOST_CHECK_MESSAGE(rove::equal(renderer->given[i].world, world, 0.0f), "draw " << i);
+		BOOST_CHECK_MESSAGE(rove::equal(renderer->given[i].world_view_projection, world_view_projection, 0.0f), "draw " << i);
+	}
+	BOOST_CHECK(rove::equal(renderer->given[3].world, moved(3, 3, 3), 0.0f));
+	BOOST_CHECK(rove::equal(renderer->given[3].world_view_projection, camera->projection_matrix() * camera->view_matrix() * moved(3, 3, 3),
+		1e-6f));
+}
+
 BOOST_AUTO_TEST_SUITE_END()

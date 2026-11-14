@@ -85,8 +85,6 @@ void bind_render_model(nb::module_ &m, char const *model_name)
                 unsigned lod) { model.draw_instances(camera, world_matrices, lod); },
             "camera"_a, "world_matrices"_a, "lod"_a = 0u,
             "The model once for each world matrix, in one instanced draw for each triangle group, each instance culled on its own.")
-        .def("reset_previous", &ModelType::reset_previous,
-            "Forgets where the model was drawn the frames before (motion vectors): from its next draw on, it was where it is")
         .def("build_octree", &ModelType::build_octree, "world_matrix"_a, nb::call_guard<nb::gil_scoped_release>())
         .def("bounds", static_cast<rove::aabb<3> (ModelType::*)(rove::matrix<4,4> const &) const>(&ModelType::bounds), "world_matrix"_a)
         .def("get_bounds", pyedge::deprecated<ModelType>("Model.get_bounds(w) is Model.bounds(w)",

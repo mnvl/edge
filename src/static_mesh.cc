@@ -163,16 +163,14 @@ void BasicStaticMesh<T>::submit(Joint *joint_ptr, CameraPtr const &camera, rove:
 	rove::matrix<4,4> const transform = world_matrix * joint_ptr->matrix;
 	rove::obb<3> const bounds = conservative_bounds(Mesh::model()->joints(), *joint_ptr, world_matrix);
 
-	// one list of instances for the calls and what the mesh keeps of the frame (shared, not copied)
-	Placement::Matrices const shared_instances = instances ? std::make_shared<std::vector<rove::matrix<4,4>> const>(*instances) : nullptr;
-	Placement const *const previous = previous_placement(joint_ptr, camera, Placement{transform, shared_instances, nullptr});
+	// one list of instances for the calls (shared, not copied for each)
+	SharedMatrices const shared_instances = instances ? std::make_shared<std::vector<rove::matrix<4,4>> const>(*instances) : nullptr;
 
 	triangles_list_type const &level = triangles_of_lod(lod);
 	for (auto const &triangles : level)
 	{
 		UberDrawCallPtr draw_call = Mesh::model()->renderer()->create_uber_draw_call();
 		draw_call->set_obb(bounds);
-		give_previous(*draw_call, previous);
 
 		draw_call->set_vertex_buffer(vertex_array_->vertex_buffer());
 		draw_call->set_index_buffer(index_array_->index_buffer());

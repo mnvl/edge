@@ -109,14 +109,6 @@ id<MTLFunction> load_function(MetalContext &context, std::string const &library_
 
 }
 
-bool MetalProgram::reads(int binding) const
-{
-	for (Stage const *stage : {&vertex_stage, &fragment_stage})
-		if (std::find(stage->ubos.begin(), stage->ubos.end(), binding) != stage->ubos.end())
-			return true;
-	return false;
-}
-
 MetalArena::Piece MetalArena::allocate(id<MTLDevice> device, size_t size)
 {
 	size_t const aligned = (size + 255) & ~size_t(255);
@@ -258,7 +250,6 @@ int MetalRenderer::screen_width() const { return width_; }
 int MetalRenderer::screen_height() const { return height_; }
 MetalContextPtr const &MetalRenderer::context() const { return impl_->context; }
 uint64_t MetalRenderer::frame_serial() const { return impl_->frame_serial; }
-uint64_t MetalRenderer::previous_block_writes() const { return impl_->previous_block_writes; }
 GpuTimer &MetalRenderer::gpu_timer() const { return *impl_->timer; }
 
 void MetalRenderer::resize(int width, int height)

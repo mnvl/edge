@@ -201,17 +201,15 @@ void MetalRenderer::do_draw(DrawCall const &call)
 	};
 	Block const zeros{impl.zeros, 0};
 	rove::matrix<4,4> const &world_view_projection = call.shader_world_view_projection(), &world = call.shader_world();
-	float constants[64];
+	float constants[32];
 	std::memcpy(constants, &world_view_projection.ij[0][0], 16 * sizeof(float));
 	std::memcpy(constants + 16, &world.ij[0][0], 16 * sizeof(float));
-	std::memcpy(constants + 32, &call.shader_previous_world_view_projection().ij[0][0], 16 * sizeof(float));
-	std::memcpy(constants + 48, &call.shader_previous_world().ij[0][0], 16 * sizeof(float));
 	Block const draw_constants = from_arena(constants, sizeof(constants), sizeof(constants));
 	std::vector<unsigned char> const &parameters = material.parameters();
 	Block const material_parameters = parameters.empty() ? zeros
 		: from_arena(parameters.data(), parameters.size(), Material::PARAMETERS_SIZE);
 	std::vector<rove::matrix<4,4>> const *const joint_matrices = call.joint_matrices();
-	Block joints = zeros, previous_joints = zeros;
+	Block joints = zeros;
 	if (joint_matrices)
 	{
 		if (joint_matrices->size() > MAX_JOINT_MATRICES)
@@ -219,16 +217,11 @@ void MetalRenderer::do_draw(DrawCall const &call)
 				+ std::to_string(MAX_JOINT_MATRICES));
 		size_t const bytes = joint_matrices->size() * sizeof(rove::matrix<4,4>);
 		joints = from_arena(joint_matrices->data(), bytes, MAX_JOINT_MATRICES * sizeof(rove::matrix<4,4>));
-		if (program->reads(shader::BINDING_PREVIOUS_JOINT_MATRICES))
-		{
-			previous_joints = from_arena(call.previous_joint_matrices()->data(), bytes, MAX_JOINT_MATRICES * sizeof(rove::matrix<4,4>));
-			++impl.previous_block_writes;
-		}
 	}
 
 	// the push constants, one buffer
 	shader::PushConstants const push = shader::push_constants(material, traits, call.is_uber(), joint_matrices != nullptr,
-		call.camera()->eye_point(), call.is_instanced(), !call.has_previous());
+		call.camera()->eye_point(), call.is_instanced());
 	if (program->vertex_stage.push)
 		[encoder setVertexBytes:&push length:sizeof(push) atIndex:PUSH_BUFFER];
 	if (program->fragment_stage.push)
@@ -304,7 +297,7 @@ void MetalRenderer::do_draw(DrawCall const &call)
 	if (index_buffer)
 		index_buffer->store().used();
 
-	auto const bind_blocks = [&](Block const &instances, Block const &previous_instances)
+	auto const bind_blocks = [&](Block const &instances)
 	{
 		for (bool vertex_stage : {true, false})
 		{
@@ -319,8 +312,6 @@ void MetalRenderer::do_draw(DrawCall const &call)
 				case shader::BINDING_DRAW_CONSTANTS:          block = draw_constants; break;
 				case shader::BINDING_FRAME_CONSTANTS:         block = {impl.frame_constants, 0}; break;
 				case shader::BINDING_MATERIAL_PARAMETERS:     block = material_parameters; break;
-				case shader::BINDING_PREVIOUS_INSTANCES:      block = previous_instances; break;
-				case shader::BINDING_PREVIOUS_JOINT_MATRICES: block = previous_joints; break;
 				default:
 					throw std::logic_error("a uniform block at binding " + std::to_string(index) + ", which has none");
 				}
@@ -332,24 +323,18 @@ void MetalRenderer::do_draw(DrawCall const &call)
 		}
 	};
 
-	// one draw, or the instances in batches of MAX_INSTANCES, each batch's matrices in the block at binding 7, the frame before's at 21
+	// one draw, or the instances in batches of MAX_INSTANCES, each batch's matrices in the block at binding 7
 	size_t const instances = call.instance_count();
 	for (size_t first = 0; first < instances; first += MAX_INSTANCES)
 	{
 		size_t const batch = std::min(MAX_INSTANCES, instances - first);
-		Block batch_instances = zeros, batch_previous = zeros;
+		Block batch_instances = zeros;
 		if (call.is_instanced())
 		{
 			size_t const bytes = batch * sizeof(rove::matrix<4,4>);
 			batch_instances = from_arena(call.visible_instances().data() + first, bytes, MAX_INSTANCES * sizeof(rove::matrix<4,4>));
-			if (program->reads(shader::BINDING_PREVIOUS_INSTANCES))
-			{
-				batch_previous = from_arena(call.previous_visible_instances().data() + first, bytes,
-					MAX_INSTANCES * sizeof(rove::matrix<4,4>));
-				++impl.previous_block_writes;
-			}
 		}
-		bind_blocks(batch_instances, batch_previous);
+		bind_blocks(batch_instances);
 		if (index_buffer)
 		{
 			[encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:call.triangles_count() * 3

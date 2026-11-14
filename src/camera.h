@@ -137,18 +137,6 @@ public:
 	void set_cube_face(rove::vec<3> const &eye, int face, rove::scalar z_near, rove::scalar z_far);
 
 	/// @}
-	/// @name Motion
-	/// @{
-
-	/// A cut: what the camera sees from now on is not seen from where it looked, so the draws committed through it from now on, to the
-	/// end of the frame they are in, take its view-projection as they commit it for the previous frame's too
-	/// (DrawCall::shader_previous_world_view_projection()): no motion of the camera's.  What they see keeps its own.  The frame
-	/// after has the camera's motion again.
-	void cut() { ++cuts_; }
-	/// How many times cut() was called.
-	std::uint64_t cuts() const { return cuts_; }
-
-	/// @}
 
 private:
 	rove::vec<3> eye_point_;
@@ -165,7 +153,6 @@ private:
 	rove::scalar far_plane_;
 	rove::matrix<4,4> projection_matrix_;
 	rove::matrix<4,4> inverted_projection_matrix_;
-	std::uint64_t cuts_ = 0;
 };
 
 }

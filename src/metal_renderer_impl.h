@@ -36,7 +36,6 @@ struct MetalProgram
 	};
 	id<MTLFunction> vertex = nil, fragment = nil;
 	Stage vertex_stage, fragment_stage;
-	bool reads(int binding) const;
 };
 
 /// Where a draw's uniform data goes: the frame's arena of shared memory, 256-byte aligned pieces.
@@ -86,7 +85,6 @@ struct MetalRenderer::Impl
 	TexturePtr white_texture;
 	TexturePtr global_textures[Renderer::GLOBAL_TEXTURES_COUNT];
 	bool global_compare[Renderer::GLOBAL_TEXTURES_COUNT] = {};
-	uint64_t previous_block_writes = 0;
 	std::unique_ptr<MetalGpuTimer> timer;
 	// show_frame
 	id<MTLRenderPipelineState> show_pipeline = nil;

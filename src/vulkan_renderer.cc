@@ -76,15 +76,7 @@ struct VulkanDrawConstants
 {
 	rove::matrix<4,4> world_view_projection;
 	rove::matrix<4,4> world_matrix;
-	rove::matrix<4,4> previous_world_view_projection;
-	rove::matrix<4,4> previous_world_matrix;
 };
-
-/// Whether two runs of matrices are the same, bit for bit: the frame before's that are this frame's take no room of their own.
-bool same_matrices(rove::matrix<4,4> const *a, rove::matrix<4,4> const *b, size_t count)
-{
-	return std::memcmp(a, b, count * sizeof(rove::matrix<4,4>)) == 0;
-}
 
 }
 
@@ -365,16 +357,14 @@ VkDescriptorSet VulkanRenderer::material_descriptor_set(MaterialPtr const &mater
 	return descriptors_->get(material, global_textures_, global_compare_, default_texture_, frame_serial_);
 }
 
-void VulkanRenderer::bind_descriptor_set(VkCommandBuffer command_buffer, VkDescriptorSet set, std::optional<Blocks> joint_matrices,
-	std::optional<Blocks> instances, uint32_t draw_constants_offset, uint32_t material_parameters_offset)
+void VulkanRenderer::bind_descriptor_set(VkCommandBuffer command_buffer, VkDescriptorSet set, std::optional<uint32_t> joint_matrices_offset,
+	std::optional<uint32_t> instances_offset, uint32_t draw_constants_offset, uint32_t material_parameters_offset)
 {
-	// in binding order: 6 joint matrices, 7 instances, 8 draw constants, 9 frame constants, 20 material parameters, 21 the previous
-	// instances, 22 the previous joint matrices (the last two in the instances' and the joint matrices' buffers)
-	uint32_t const joints_offset = joint_matrices ? joint_matrices->offset : joint_matrices_ubo_->region_offset();
-	uint32_t const instances_offset = instances ? instances->offset : instances_ubo_->region_offset();
+	// in binding order: 6 joint matrices, 7 instances, 8 draw constants, 9 frame constants, 20 material parameters
 	uint32_t const offsets[VulkanDescriptorCache::UNIFORM_BUFFERS] = {
-		joints_offset, instances_offset, draw_constants_offset, frame_constants_ubo_->region_offset(), material_parameters_offset,
-		instances ? instances->previous_offset : instances_offset, joint_matrices ? joint_matrices->previous_offset : joints_offset};
+		joint_matrices_offset ? *joint_matrices_offset : joint_matrices_ubo_->region_offset(),
+		instances_offset ? *instances_offset : instances_ubo_->region_offset(),
+		draw_constants_offset, frame_constants_ubo_->region_offset(), material_parameters_offset};
 	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, descriptors_->pipeline_layout(), 0, 1, &set,
 		VulkanDescriptorCache::UNIFORM_BUFFERS, offsets);
 }
@@ -620,14 +610,11 @@ uint32_t VulkanRenderer::update_joint_matrices(std::vector<rove::matrix<4,4>> co
 }
 
 uint32_t VulkanRenderer::update_draw_constants(rove::matrix<4,4> const &world_view_projection,
-	rove::matrix<4,4> const &world_matrix, rove::matrix<4,4> const &previous_world_view_projection,
-	rove::matrix<4,4> const &previous_world_matrix)
+	rove::matrix<4,4> const &world_matrix)
 {
 	VulkanDrawConstants constants;
 	constants.world_view_projection = world_view_projection;
 	constants.world_matrix = world_matrix;
-	constants.previous_world_view_projection = previous_world_view_projection;
-	constants.previous_world_matrix = previous_world_matrix;
 
 	return draw_constants_ubo_->write(&constants, sizeof(constants),
 		"Vulkan draw constants buffer overflow. Increase EDGE_VK_DRAW_CONSTANTS_BLOCKS");
@@ -1099,22 +1086,16 @@ void VulkanRenderer::do_draw(DrawCall const &call)
 	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
 
 	std::vector<rove::matrix<4,4>> const *const joint_matrices = call.joint_matrices();
-	std::optional<Blocks> joint_blocks;      // none: not skinned
+	std::optional<uint32_t> joints_offset;      // none: not skinned
 	if (joint_matrices)
-	{
-		std::vector<rove::matrix<4,4>> const &previous = *call.previous_joint_matrices();
-		uint32_t const offset = update_joint_matrices(*joint_matrices);
-		joint_blocks = Blocks{offset, same_matrices(previous.data(), joint_matrices->data(), joint_matrices->size()) ? offset
-			: update_joint_matrices(previous)};
-	}
-	uint32_t const draw_constants_offset = update_draw_constants(call.shader_world_view_projection(), call.shader_world(),
-		call.shader_previous_world_view_projection(), call.shader_previous_world());
+		joints_offset = update_joint_matrices(*joint_matrices);
+	uint32_t const draw_constants_offset = update_draw_constants(call.shader_world_view_projection(), call.shader_world());
 	std::vector<unsigned char> const &parameters = call.material()->parameters();
 	uint32_t const material_parameters_offset = parameters.empty() ? material_zero_offset_
 		: material_parameters_ubo_->write(parameters.data(), parameters.size(),
 			"Vulkan material parameters buffer overflow. Increase EDGE_VK_MATERIAL_PARAMETER_BLOCKS");
 	shader::PushConstants const push_constants = shader::push_constants(*call.material(), *traits, call.is_uber(),
-		joint_matrices != nullptr, call.camera()->eye_point(), call.is_instanced(), !call.has_previous());
+		joint_matrices != nullptr, call.camera()->eye_point(), call.is_instanced());
 	vkCmdPushConstants(command_buffer, pipeline_layout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
 		sizeof(push_constants), &push_constants);
 
@@ -1129,17 +1110,11 @@ void VulkanRenderer::do_draw(DrawCall const &call)
 	for (size_t first = 0; first < instances; first += MAX_INSTANCES)
 	{
 		size_t const batch = std::min(MAX_INSTANCES, instances - first);
-		std::optional<Blocks> instance_blocks;
+		std::optional<uint32_t> instances_offset;
 		if (call.is_instanced())
-		{
-			rove::matrix<4,4> const *const current = call.visible_instances().data() + first;
-			rove::matrix<4,4> const *const previous = call.previous_visible_instances().data() + first;
-			char const *const overflow = "Vulkan instances buffer overflow. Increase EDGE_VK_INSTANCE_BLOCKS";
-			uint32_t const offset = instances_ubo_->write(current, batch * sizeof(rove::matrix<4,4>), overflow);
-			instance_blocks = Blocks{offset, same_matrices(previous, current, batch) ? offset
-				: instances_ubo_->write(previous, batch * sizeof(rove::matrix<4,4>), overflow)};
-		}
-		bind_descriptor_set(command_buffer, descriptor_set, joint_blocks, instance_blocks, draw_constants_offset,
+			instances_offset = instances_ubo_->write(call.visible_instances().data() + first, batch * sizeof(rove::matrix<4,4>),
+				"Vulkan instances buffer overflow. Increase EDGE_VK_INSTANCE_BLOCKS");
+		bind_descriptor_set(command_buffer, descriptor_set, joints_offset, instances_offset, draw_constants_offset,
 			material_parameters_offset);
 		if (index_buffer)
 		{
