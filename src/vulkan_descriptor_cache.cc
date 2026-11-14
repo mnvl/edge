@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <tuple>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -30,7 +31,8 @@ float VulkanDescriptorCache::sampler_anisotropy(char const *device_name, float l
 VulkanDescriptorCache::VulkanDescriptorCache(VkDevice device, VkPhysicalDevice physical_device, bool anisotropy_enabled,
 	Constants const &constants, VkFormat depth_format, uint32_t max_sets):
 	device_(device),
-	constants_(constants)
+	constants_(constants),
+	max_sets_(max_sets)
 {
 	// Whatever was made before a throw goes with it: a destructor does not run for a constructor that threw.
 	try
@@ -99,25 +101,7 @@ VulkanDescriptorCache::VulkanDescriptorCache(VkDevice device, VkPhysicalDevice p
 		check_vk_result(vkCreatePipelineLayout(device_, &pipeline_layout_info, nullptr, &pipeline_layout_),
 			"vkCreatePipelineLayout");
 
-		// the uniform buffers are bound with dynamic offsets: each frame in flight reads its own region of them
-		VkDescriptorPoolSize pool_sizes[2];
-		std::memset(&pool_sizes, 0, sizeof(pool_sizes));
-		pool_sizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		pool_sizes[0].descriptorCount = max_sets * DESCRIPTOR_TEXTURES;
-		pool_sizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-		pool_sizes[1].descriptorCount = max_sets * UNIFORM_BUFFERS;
-
-		VkDescriptorPoolCreateInfo pool_info;
-		std::memset(&pool_info, 0, sizeof(pool_info));
-		pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-		// Sets are returned to the pool one at a time as their materials die.
-		pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-		pool_info.maxSets = max_sets;
-		pool_info.poolSizeCount = 2;
-		pool_info.pPoolSizes = pool_sizes;
-
-		check_vk_result(vkCreateDescriptorPool(device_, &pool_info, nullptr, &pool_),
-			"vkCreateDescriptorPool");
+		pools_.push_back(Pool{create_pool(), 0});
 
 		VkSamplerCreateInfo sampler_info;
 		std::memset(&sampler_info, 0, sizeof(sampler_info));
@@ -178,7 +162,7 @@ VulkanDescriptorCache::~VulkanDescriptorCache()
 
 void VulkanDescriptorCache::destroy()
 {
-	// The pool takes the sets with it; no need to free them individually.
+	// The pools take the sets with them; no need to free them individually.
 	sets_.clear();
 	retired_.clear();
 	if (compare_sampler_ != VK_NULL_HANDLE)
@@ -196,11 +180,11 @@ void VulkanDescriptorCache::destroy()
 		vkDestroySampler(device_, texture_sampler_, nullptr);
 		texture_sampler_ = VK_NULL_HANDLE;
 	}
-	if (pool_ != VK_NULL_HANDLE)
+	for (Pool const &pool : pools_)
 	{
-		vkDestroyDescriptorPool(device_, pool_, nullptr);
-		pool_ = VK_NULL_HANDLE;
+		vkDestroyDescriptorPool(device_, pool.pool, nullptr);
 	}
+	pools_.clear();
 	if (pipeline_layout_ != VK_NULL_HANDLE)
 	{
 		vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
@@ -258,18 +242,12 @@ VkDescriptorSet VulkanDescriptorCache::get(MaterialPtr const &material, TextureP
 		// gone or wrong.  It may be recorded in the current frame's command
 		// buffer already, so it is freed once that frame is drawn rather
 		// than rewritten under the GPU's feet.
-		retired_.push_back({entry.descriptor_set, frame});
+		retired_.push_back({entry.descriptor_set, entry.pool, frame});
 		entry.descriptor_set = VK_NULL_HANDLE;
+		entry.pool = VK_NULL_HANDLE;
 	}
 
-	VkDescriptorSetAllocateInfo alloc_info;
-	std::memset(&alloc_info, 0, sizeof(alloc_info));
-	alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	alloc_info.descriptorPool = pool_;
-	alloc_info.descriptorSetCount = 1;
-	alloc_info.pSetLayouts = &layout_;
-	check_vk_result(vkAllocateDescriptorSets(device_, &alloc_info, &entry.descriptor_set),
-		"vkAllocateDescriptorSets");
+	std::tie(entry.descriptor_set, entry.pool) = allocate();
 	entry.material = material;
 
 	VulkanTexture *fallback_texture = dynamic_cast<VulkanTexture *>(default_texture.get());
@@ -395,7 +373,7 @@ void VulkanDescriptorCache::reclaim(uint64_t recorded, uint64_t completed)
 			// A null set is an entry whose allocation threw: nothing to free.
 			if (it->second.descriptor_set != VK_NULL_HANDLE)
 			{
-				retired_.push_back({it->second.descriptor_set, recorded});
+				retired_.push_back({it->second.descriptor_set, it->second.pool, recorded});
 			}
 			it = sets_.erase(it);
 		}
@@ -410,19 +388,81 @@ void VulkanDescriptorCache::reclaim(uint64_t recorded, uint64_t completed)
 
 void VulkanDescriptorCache::free_drawn(uint64_t completed)
 {
-	std::vector<VkDescriptorSet> drawn;
+	// Each set goes back to the pool it came from.
+	std::map<VkDescriptorPool, std::vector<VkDescriptorSet>> drawn;
 	std::vector<Retired> held;
 	for (Retired const &r : retired_)
 	{
-		(r.frame <= completed ? drawn.push_back(r.set) : held.push_back(r));
+		(r.frame <= completed ? drawn[r.pool].push_back(r.set) : held.push_back(r));
 	}
-	if (!drawn.empty())
+	for (auto const &[pool, sets] : drawn)
 	{
-		check_vk_result(vkFreeDescriptorSets(device_, pool_,
-			static_cast<uint32_t>(drawn.size()),
-			drawn.data()), "vkFreeDescriptorSets");
+		check_vk_result(vkFreeDescriptorSets(device_, pool, static_cast<uint32_t>(sets.size()), sets.data()),
+			"vkFreeDescriptorSets");
+		auto const owner = std::find_if(pools_.begin(), pools_.end(), [&](Pool const &p) { return p.pool == pool; });
+		if (owner == pools_.end() || owner->sets < sets.size())
+			throw std::logic_error("descriptor sets freed back to a pool that did not hand them out");
+		owner->sets -= static_cast<uint32_t>(sets.size());
 	}
 	retired_.swap(held);
+}
+
+VkDescriptorPool VulkanDescriptorCache::create_pool()
+{
+	// the uniform buffers are bound with dynamic offsets: each frame in flight reads its own region of them
+	VkDescriptorPoolSize pool_sizes[2];
+	std::memset(&pool_sizes, 0, sizeof(pool_sizes));
+	pool_sizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	pool_sizes[0].descriptorCount = max_sets_ * DESCRIPTOR_TEXTURES;
+	pool_sizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+	pool_sizes[1].descriptorCount = max_sets_ * UNIFORM_BUFFERS;
+
+	VkDescriptorPoolCreateInfo pool_info;
+	std::memset(&pool_info, 0, sizeof(pool_info));
+	pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	// Sets are returned to the pool one at a time as their materials die.
+	pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+	pool_info.maxSets = max_sets_;
+	pool_info.poolSizeCount = 2;
+	pool_info.pPoolSizes = pool_sizes;
+
+	VkDescriptorPool pool = VK_NULL_HANDLE;
+	check_vk_result(vkCreateDescriptorPool(device_, &pool_info, nullptr, &pool), "vkCreateDescriptorPool");
+	return pool;
+}
+
+std::pair<VkDescriptorSet, VkDescriptorPool> VulkanDescriptorCache::allocate()
+{
+	VkDescriptorSetAllocateInfo alloc_info;
+	std::memset(&alloc_info, 0, sizeof(alloc_info));
+	alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	alloc_info.descriptorSetCount = 1;
+	alloc_info.pSetLayouts = &layout_;
+	VkDescriptorSet set = VK_NULL_HANDLE;
+	// The newest pool with room first: the older ones are full, but for the sets freed back into them since.  A pool is full at
+	// max_sets_ sets by its own count -- a driver need not refuse past maxSets -- and by the driver's word, which may come
+	// sooner (a fragmented pool).
+	for (auto it = pools_.rbegin(); it != pools_.rend(); ++it)
+	{
+		if (it->sets >= max_sets_)
+			continue;
+		alloc_info.descriptorPool = it->pool;
+		VkResult const result = vkAllocateDescriptorSets(device_, &alloc_info, &set);
+		if (result == VK_SUCCESS)
+		{
+			++it->sets;
+			return {set, it->pool};
+		}
+		if (result != VK_ERROR_OUT_OF_POOL_MEMORY && result != VK_ERROR_FRAGMENTED_POOL)
+		{
+			check_vk_result(result, "vkAllocateDescriptorSets");
+		}
+	}
+	pools_.push_back(Pool{create_pool(), 0});
+	alloc_info.descriptorPool = pools_.back().pool;
+	check_vk_result(vkAllocateDescriptorSets(device_, &alloc_info, &set), "vkAllocateDescriptorSets");
+	++pools_.back().sets;
+	return {set, pools_.back().pool};
 }
 
 }

@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <map>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "material.h"
@@ -31,7 +32,8 @@ public:
 	static constexpr size_t MATERIAL_TEXTURES = 8;
 	static constexpr unsigned GLOBAL_TEXTURES_COUNT = Renderer::GLOBAL_TEXTURES_COUNT;
 	static constexpr size_t DESCRIPTOR_TEXTURES = MATERIAL_TEXTURES + GLOBAL_TEXTURES_COUNT;
-	/// Sets the pool holds: live materials at once (a dead one's set is reclaimed at the next frame boundary).
+	/// Sets a pool holds; when every pool is full another is made (a dead material's set is reclaimed at the next frame boundary,
+	/// into the pool it came from, so a renderer that streams materials keeps to one).
 	static constexpr uint32_t MAX_SETS = 8192;
 	/// The uniform buffers of a set, bound with dynamic offsets in binding order: 6 joint matrices, 7 instances, 8 draw constants, 9 frame
 	/// constants, 20 material parameters.  Vulkan promises 8 dynamic ones a set.
@@ -53,11 +55,11 @@ public:
 	static float sampler_anisotropy(char const *device_name, float limit);
 
 	/// anisotropy_enabled: the device was made with samplerAnisotropy.  depth_format: the renderer's, which a shadow texture's
-	/// comparison sampler filters linearly where the device can.  max_sets: the pool's capacity (MAX_SETS by default; a test
-	/// shrinking it to make a stream that exhausts the pool affordable passes a smaller one instead).
+	/// comparison sampler filters linearly where the device can.  max_sets: each pool's capacity (MAX_SETS by default; a test
+	/// shrinking it to make a stream that exhausts a pool affordable passes a smaller one instead).
 	VulkanDescriptorCache(VkDevice device, VkPhysicalDevice physical_device, bool anisotropy_enabled,
 		Constants const &constants, VkFormat depth_format, uint32_t max_sets = MAX_SETS);
-	/// The GPU must be idle.  The pool takes the sets with it.
+	/// The GPU must be idle.  The pools take the sets with them.
 	~VulkanDescriptorCache();
 	VulkanDescriptorCache(VulkanDescriptorCache const &) = delete;
 	VulkanDescriptorCache &operator=(VulkanDescriptorCache const &) = delete;
@@ -80,6 +82,8 @@ public:
 	/// Sets allocated: one per live material that has been drawn, those of materials that died since the last reclaim(), and the
 	/// retired ones a frame in flight may still hold.
 	size_t count() const { return sets_.size() + retired_.size(); }
+	/// Pools made: one, until more materials lived at once than it holds.
+	size_t pool_count() const { return pools_.size(); }
 
 private:
 	/// One entry per live material.  The map is keyed by the material's address for lookup, but the address alone
@@ -98,18 +102,30 @@ private:
 			bool const (&compare)[GLOBAL_TEXTURES_COUNT]) const;
 
 		VkDescriptorSet descriptor_set;
+		VkDescriptorPool pool = VK_NULL_HANDLE;   // descriptor_set's
 		std::weak_ptr<Material const> material;
 		std::weak_ptr<Texture const> bound_textures[DESCRIPTOR_TEXTURES];
 		bool bound_compare[GLOBAL_TEXTURES_COUNT] = {};
 	};
 
 	void destroy();
+	VkDescriptorPool create_pool();
+	/// A set of the layout from the newest pool with room, or from a new one when none has.
+	std::pair<VkDescriptorSet, VkDescriptorPool> allocate();
 
 	VkDevice device_;
 	Constants constants_;
 	VkDescriptorSetLayout layout_ = VK_NULL_HANDLE;
 	VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
-	VkDescriptorPool pool_ = VK_NULL_HANDLE;
+	uint32_t max_sets_;
+	/// A pool and the sets allocated from it and not yet freed: a pool with max_sets_ of them is full, whether or not the driver
+	/// would refuse another (past maxSets, an allocation *may* fail -- NVIDIA's does, lavapipe's does not).
+	struct Pool
+	{
+		VkDescriptorPool pool = VK_NULL_HANDLE;
+		uint32_t sets = 0;
+	};
+	std::vector<Pool> pools_;
 	VkSampler texture_sampler_ = VK_NULL_HANDLE;
 	VkSampler clamp_sampler_ = VK_NULL_HANDLE;      // the global textures
 	VkSampler compare_sampler_ = VK_NULL_HANDLE;    // a shadow texture's
@@ -118,6 +134,7 @@ private:
 	struct Retired
 	{
 		VkDescriptorSet set;
+		VkDescriptorPool pool;
 		uint64_t frame;
 	};
 	std::vector<Retired> retired_;
