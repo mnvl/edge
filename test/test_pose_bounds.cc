@@ -45,7 +45,7 @@ struct Fixture
 	{
 		edge::GltfOptions options;
 		options.pose_margin = pose_margin;
-		auto model = std::make_shared<Model>(renderer, scheduler);
+		auto model = std::make_shared<Model>(renderer);
 		model->load_from_gltf(edge::TestFixture::graphic_sources_path() + "test/data/" + name, options);
 		return model;
 	}
@@ -227,7 +227,7 @@ BOOST_AUTO_TEST_CASE(the_culling_box_is_the_model_space_box_through_the_world_ma
 /// A mesh whose box was never worked out has none: asking for it is an error, not an empty or unit box.
 BOOST_AUTO_TEST_CASE(a_mesh_without_a_computed_box_refuses_to_give_one)
 {
-	auto model = std::make_shared<Model>(renderer, scheduler);
+	auto model = std::make_shared<Model>(renderer);
 	edge::MeshPtr const mesh = model->add_mesh();
 	auto const *skinned_mesh = dynamic_cast<Mesh const *>(mesh.get());
 	BOOST_REQUIRE(skinned_mesh);
@@ -237,8 +237,8 @@ BOOST_AUTO_TEST_CASE(a_mesh_without_a_computed_box_refuses_to_give_one)
 BOOST_AUTO_TEST_CASE(an_instance_has_the_box_of_its_prototype)
 {
 	edge::ModelCache cache(renderer);
-	auto a = cache.load<Model>(edge::TestFixture::graphic_sources_path() + "test/data/test_figure.glb", scheduler);
-	auto b = cache.load<Model>(edge::TestFixture::graphic_sources_path() + "test/data/test_figure.glb", scheduler);
+	auto a = cache.load<Model>(edge::TestFixture::graphic_sources_path() + "test/data/test_figure.glb");
+	auto b = cache.load<Model>(edge::TestFixture::graphic_sources_path() + "test/data/test_figure.glb");
 	rove::aabb<3> const ba = skinned(*a).front()->pose_bounds(), bb = skinned(*b).front()->pose_bounds();
 	BOOST_CHECK_SMALL((ba.lo - bb.lo).length() + (ba.hi - bb.hi).length(), 1e-6f);
 }

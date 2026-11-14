@@ -73,7 +73,7 @@ def _drawn_and_filled(renderer, scheduler, model, world, view_dir) -> tuple[np.n
     clear.clear_color_r, clear.clear_color_g, clear.clear_color_b = (c / 255.0 for c in CLEAR)
     clear.clear_color_a = 1.0
     renderer.begin_frame()
-    model.draw(camera, world)
+    model.draw(scheduler, camera, world)
     renderer.begin_pass(target, clear)
     scheduler.flush()
     renderer.end_pass()
@@ -145,7 +145,7 @@ def _world():
 ])
 def test_animated_octree_is_the_drawn_pose(renderer, animation, time):
     scheduler = renderer.create_scheduler()
-    model = pyedge.AnimatedModelPTBNJWT(renderer, scheduler)
+    model = pyedge.AnimatedModelPTBNJWT(renderer)
     model.load_from_gltf(str(EDGE_TEST / "test_figure.glb"))
     model.always_visible = True
     if animation is not None:
@@ -156,15 +156,14 @@ def test_animated_octree_is_the_drawn_pose(renderer, animation, time):
 @pytest.mark.parametrize("asset", ["cone.glb", "cylinder_30_degrees.glb", "test_figure.glb"])
 def test_static_octree_is_the_drawn_mesh(renderer, asset):
     scheduler = renderer.create_scheduler()
-    model = pyedge.StaticModelPTBNT(renderer, scheduler)
+    model = pyedge.StaticModelPTBNT(renderer)
     model.load_from_gltf(str(EDGE_TEST / asset))
     model.always_visible = True
     _assert_collider_is_the_drawing(renderer, scheduler, model, _world(), asset)
 
 
 def test_animated_octree_follows_the_pose(renderer):
-    scheduler = renderer.create_scheduler()
-    model = pyedge.AnimatedModelPTBNJWT(renderer, scheduler)
+    model = pyedge.AnimatedModelPTBNJWT(renderer)
     model.load_from_gltf(str(EDGE_TEST / "test_figure.glb"))
     walk = {a.name: a for a in model.animations}["Walk"]
     world = _world()

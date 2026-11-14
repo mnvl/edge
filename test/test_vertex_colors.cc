@@ -63,7 +63,7 @@ struct Fixture
 
 	std::shared_ptr<edge::StaticModelPTBNTC> load(std::string const &name)
 	{
-		auto model = std::make_shared<edge::StaticModelPTBNTC>(renderer, scheduler);
+		auto model = std::make_shared<edge::StaticModelPTBNTC>(renderer);
 		model->load_from_gltf(asset(name));
 		return model;
 	}
@@ -151,7 +151,7 @@ BOOST_AUTO_TEST_CASE(a_file_without_colors_is_refused_by_a_model_that_needs_them
 
 BOOST_AUTO_TEST_CASE(a_model_of_a_type_without_a_color_loads_the_file_and_leaves_the_colors_out)
 {
-	auto plain = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+	auto plain = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	plain->load_from_gltf(asset("test_vertex_colors.glb"));
 	auto with = load("test_vertex_colors.glb");
 	BOOST_REQUIRE_EQUAL(plain->meshes().size(), 1u);
@@ -174,7 +174,7 @@ BOOST_AUTO_TEST_CASE(the_edge_file_keeps_the_colors_exactly_and_the_rest_of_the_
 {
 	auto original = load("test_vertex_colors.glb");
 	original->save_to_file(out("a.edge"));
-	auto loaded = std::make_shared<edge::StaticModelPTBNTC>(renderer, scheduler);
+	auto loaded = std::make_shared<edge::StaticModelPTBNTC>(renderer);
 	loaded->load_from_file(out("a.edge"));
 	check_colors(colors_of(*loaded), {{1, 0, 0, 0.5f}, {0, 1, 0, 2.5f}, {0, 0, 1, 4}});
 	auto const &a = only_mesh(*original).vertices(), &b = only_mesh(*loaded).vertices();
@@ -186,19 +186,19 @@ BOOST_AUTO_TEST_CASE(the_edge_file_keeps_the_colors_exactly_and_the_rest_of_the_
 BOOST_AUTO_TEST_CASE(a_file_of_one_vertex_type_does_not_load_as_the_other)
 {
 	load("test_vertex_colors.glb")->save_to_file(out("colored.edge"));
-	auto plain = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+	auto plain = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	plain->load_from_gltf(asset("test_vertex_colors_none.glb"));
 	plain->save_to_file(out("plain.edge"));
 
-	BOOST_CHECK_THROW(std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler)->load_from_file(out("colored.edge")), std::runtime_error);
-	BOOST_CHECK_THROW(std::make_shared<edge::StaticModelPTBNTC>(renderer, scheduler)->load_from_file(out("plain.edge")), std::runtime_error);
+	BOOST_CHECK_THROW(std::make_shared<edge::StaticModelPTBNT>(renderer)->load_from_file(out("colored.edge")), std::runtime_error);
+	BOOST_CHECK_THROW(std::make_shared<edge::StaticModelPTBNTC>(renderer)->load_from_file(out("plain.edge")), std::runtime_error);
 }
 
 BOOST_AUTO_TEST_CASE(an_instance_from_the_cache_has_the_colors_too)
 {
 	edge::ModelCache cache(renderer);
-	auto first = cache.load<edge::StaticModelPTBNTC>(asset("test_vertex_colors.glb"), scheduler);
-	auto second = cache.load<edge::StaticModelPTBNTC>(asset("test_vertex_colors.glb"), scheduler);
+	auto first = cache.load<edge::StaticModelPTBNTC>(asset("test_vertex_colors.glb"));
+	auto second = cache.load<edge::StaticModelPTBNTC>(asset("test_vertex_colors.glb"));
 	check_colors(colors_of(*first), {{1, 0, 0, 0.5f}, {0, 1, 0, 2.5f}, {0, 0, 1, 4}});
 	check_colors(colors_of(*second), {{1, 0, 0, 0.5f}, {0, 1, 0, 2.5f}, {0, 0, 1, 4}});
 }
@@ -224,19 +224,19 @@ BOOST_AUTO_TEST_CASE(a_glTF_with_colors_on_any_primitive_has_vertex_colors)
 BOOST_AUTO_TEST_CASE(a_glTF_with_colors_becomes_a_colored_static_model_file)
 {
 	edge::convert_gltf_to_edge(asset("test_vertex_colors.glb"), out("c.edge"), edge::GltfOptions());
-	auto model = std::make_shared<edge::StaticModelPTBNTC>(renderer, scheduler);
+	auto model = std::make_shared<edge::StaticModelPTBNTC>(renderer);
 	model->load_from_file(out("c.edge"));
 	check_colors(colors_of(*model), {{1, 0, 0, 0.5f}, {0, 1, 0, 2.5f}, {0, 0, 1, 4}});
-	BOOST_CHECK_THROW(std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler)->load_from_file(out("c.edge")), std::runtime_error);
+	BOOST_CHECK_THROW(std::make_shared<edge::StaticModelPTBNT>(renderer)->load_from_file(out("c.edge")), std::runtime_error);
 }
 
 BOOST_AUTO_TEST_CASE(a_glTF_without_colors_still_becomes_a_plain_static_model_file)
 {
 	edge::convert_gltf_to_edge(asset("test_vertex_colors_none.glb"), out("p.edge"), edge::GltfOptions());
-	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	model->load_from_file(out("p.edge"));
 	BOOST_CHECK_EQUAL(model->meshes().size(), 1u);
-	BOOST_CHECK_THROW(std::make_shared<edge::StaticModelPTBNTC>(renderer, scheduler)->load_from_file(out("p.edge")), std::runtime_error);
+	BOOST_CHECK_THROW(std::make_shared<edge::StaticModelPTBNTC>(renderer)->load_from_file(out("p.edge")), std::runtime_error);
 }
 
 /// A skinned file's colors are left out unless asked for: a character with a color layer it does not use (as exporters often write them;
@@ -246,14 +246,14 @@ BOOST_AUTO_TEST_CASE(a_skinned_glTF_with_colors_still_becomes_an_animated_model_
 	BOOST_CHECK(edge::gltf_contents(asset("test_skinned_colors.glb")).skin);
 	BOOST_CHECK(edge::gltf_contents(asset("test_skinned_colors.glb")).vertex_colors);
 	edge::convert_gltf_to_edge(asset("test_skinned_colors.glb"), out("s.edge"), edge::GltfOptions());
-	auto model = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer, scheduler);
+	auto model = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer);
 	model->load_from_file(out("s.edge"));
 	BOOST_CHECK_EQUAL(model->meshes().size(), 1u);
 }
 
 BOOST_AUTO_TEST_CASE(a_skinned_model_of_the_coloured_type_has_the_colors_of_the_glTF)
 {
-	auto model = std::make_shared<edge::AnimatedModelPTBNJWTC>(renderer, scheduler);
+	auto model = std::make_shared<edge::AnimatedModelPTBNJWTC>(renderer);
 	model->load_from_gltf(asset("test_skinned_colors.glb"));
 	BOOST_REQUIRE_EQUAL(model->meshes().size(), 1u);
 	auto const &mesh = dynamic_cast<edge::AnimatedMeshPTBNJWTC const &>(*model->meshes()[0]);
@@ -267,7 +267,7 @@ BOOST_AUTO_TEST_CASE(a_skinned_model_of_the_coloured_type_has_the_colors_of_the_
 		BOOST_CHECK_GT(v.weights.i[0] + v.weights.i[1], 0.0f);          // and the skin
 	}
 	// a skinned file without colors is refused by it, as by the static coloured type
-	BOOST_CHECK_THROW(std::make_shared<edge::AnimatedModelPTBNJWTC>(renderer, scheduler)->load_from_gltf(asset("test_skinned_groups.glb")),
+	BOOST_CHECK_THROW(std::make_shared<edge::AnimatedModelPTBNJWTC>(renderer)->load_from_gltf(asset("test_skinned_groups.glb")),
 		std::runtime_error);
 }
 
@@ -277,16 +277,16 @@ BOOST_AUTO_TEST_CASE(asked_to_the_converter_keeps_a_skinned_glTF_s_colors_in_the
 	keep.skinned_colors = true;
 	edge::convert_gltf_to_edge(asset("test_skinned_colors.glb"), out("c.edge"), edge::GltfOptions(), edge::LodOptions(), 0, edge::TextureOptions(),
 		keep);
-	auto model = std::make_shared<edge::AnimatedModelPTBNJWTC>(renderer, scheduler);
+	auto model = std::make_shared<edge::AnimatedModelPTBNJWTC>(renderer);
 	model->load_from_file(out("c.edge"));
 	auto const &mesh = dynamic_cast<edge::AnimatedMeshPTBNJWTC const &>(*model->meshes().at(0));
 	for (edge::VERTEX_PTBNJWTC const &v : mesh.vertices())
 		BOOST_CHECK_EQUAL(v.color.i[0], 1.0f);
-	BOOST_CHECK_THROW(std::make_shared<edge::AnimatedModelPTBNJWT>(renderer, scheduler)->load_from_file(out("c.edge")), std::runtime_error);
+	BOOST_CHECK_THROW(std::make_shared<edge::AnimatedModelPTBNJWT>(renderer)->load_from_file(out("c.edge")), std::runtime_error);
 	// a skinned file without colors stays the plain skinned type however asked
 	edge::convert_gltf_to_edge(asset("test_skinned_groups.glb"), out("g.edge"), edge::GltfOptions(), edge::LodOptions(), 0, edge::TextureOptions(),
 		keep);
-	std::make_shared<edge::AnimatedModelPTBNJWT>(renderer, scheduler)->load_from_file(out("g.edge"));
+	std::make_shared<edge::AnimatedModelPTBNJWT>(renderer)->load_from_file(out("g.edge"));
 }
 
 #endif

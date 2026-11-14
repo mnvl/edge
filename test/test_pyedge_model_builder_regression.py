@@ -32,11 +32,11 @@ pyedge = _import_required("pyedge")
 pyrove = _import_required("pyrove")
 
 
-def _build_quad_model(renderer, scheduler, *, with_material=False):
+def _build_quad_model(renderer, *, with_material=False):
     """Helper: build a single-quad ModelBuilder with PTBNT vertices."""
     import numpy as np
 
-    model = pyedge.ModelBuilder(renderer, scheduler)
+    model = pyedge.ModelBuilder(renderer)
     material = None
     if with_material:
         material = renderer.create_material()
@@ -69,13 +69,12 @@ def test_joint_matrix_is_identity_after_attach(tmp_path: Path):
     origin (invisible rendering, zero-extent collider bounds).
     """
     renderer = pyedge.Renderer(backend="null")
-    scheduler = renderer.create_scheduler()
 
-    model = _build_quad_model(renderer, scheduler)
+    model = _build_quad_model(renderer)
     edge_file = tmp_path / "joint_identity.edge"
     model.save_to_file(str(edge_file))
 
-    loaded = pyedge.StaticModelPTBNT(renderer, scheduler)
+    loaded = pyedge.StaticModelPTBNT(renderer)
     loaded.load_from_file(str(edge_file))
     loaded.check()
 
@@ -105,13 +104,12 @@ def test_joint_weak_ptr_resolves_after_roundtrip(tmp_path: Path):
     the joint->mesh weak_ptr to lock successfully).
     """
     renderer = pyedge.Renderer(backend="null")
-    scheduler = renderer.create_scheduler()
 
-    model = _build_quad_model(renderer, scheduler)
+    model = _build_quad_model(renderer)
     edge_file = tmp_path / "weakptr_resolve.edge"
     model.save_to_file(str(edge_file))
 
-    loaded = pyedge.StaticModelPTBNT(renderer, scheduler)
+    loaded = pyedge.StaticModelPTBNT(renderer)
     loaded.load_from_file(str(edge_file))
     loaded.check()
 
@@ -132,9 +130,8 @@ def test_multi_mesh_collider_bounds_non_degenerate(tmp_path: Path):
     import numpy as np
 
     renderer = pyedge.Renderer(backend="null")
-    scheduler = renderer.create_scheduler()
 
-    model = pyedge.ModelBuilder(renderer, scheduler)
+    model = pyedge.ModelBuilder(renderer)
     for i, offset in enumerate([(0, 0), (10, 0), (0, 10)]):
         mesh = model.add_mesh_builder(f"quad_{i}", f"quad_{i}")
         positions = np.array(
@@ -162,7 +159,7 @@ def test_multi_mesh_collider_bounds_non_degenerate(tmp_path: Path):
     edge_file = tmp_path / "multi_mesh.edge"
     model.save_to_file(str(edge_file))
 
-    loaded = pyedge.StaticModelPTBNT(renderer, scheduler)
+    loaded = pyedge.StaticModelPTBNT(renderer)
     loaded.load_from_file(str(edge_file))
     loaded.check()
     assert loaded.meshes_count == 3
@@ -192,14 +189,14 @@ def test_model_builder_renders_visible_pixels(tmp_path: Path):
     assert renderer.backend == "vulkan"
     scheduler = renderer.create_scheduler()
 
-    model = _build_quad_model(renderer, scheduler, with_material=True)
+    model = _build_quad_model(renderer, with_material=True)
     edge_file = tmp_path / "render_test.edge"
     model.save_to_file(str(edge_file))
 
     # Free builder objects before loading — they hold duplicate GPU resources.
     del model
 
-    loaded = pyedge.StaticModelPTBNT(renderer, scheduler)
+    loaded = pyedge.StaticModelPTBNT(renderer)
     loaded.load_from_file(str(edge_file))
     loaded.check()
     loaded.always_visible = True
@@ -223,7 +220,7 @@ def test_model_builder_renders_visible_pixels(tmp_path: Path):
     clear_state.clear_color_a = 1.0
 
     renderer.begin_frame()
-    loaded.draw(camera, world)
+    loaded.draw(scheduler, camera, world)
     renderer.begin_pass(rt, clear_state)
     scheduler.flush()
     renderer.end_pass()

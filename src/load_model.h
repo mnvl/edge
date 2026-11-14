@@ -16,7 +16,6 @@ namespace edge
 /// a glTF's contents decide it as the converter does (a skin: AnimatedModelPTBNJWT; vertex colors: StaticModelPTBNTC; neither:
 /// StaticModelPTBNT), loaded with @p options (a .edge file takes their keep_cpu_copy).  std::invalid_argument for a file that is neither
 /// .edge nor .glb or .gltf; std::runtime_error for one that cannot be read, of no meshes, of meshes of two types or of one nothing loads.
-ModelPtr load_model(RendererPtr const &renderer, SchedulerPtr const &scheduler, std::string const &filename,
-	GltfOptions const &options = GltfOptions());
+ModelPtr load_model(RendererPtr const &renderer, std::string const &filename, GltfOptions const &options = GltfOptions());
 
 }

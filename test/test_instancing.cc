@@ -327,24 +327,24 @@ int covered(Image<rove::rgba<float>> const &a)
 }
 
 template<class M>
-Image<rove::rgba<float>> draw_model(RendererPtr const &renderer, M &model, CameraPtr const &camera,
+Image<rove::rgba<float>> draw_model(RendererPtr const &renderer, Scheduler &scheduler, M &model, CameraPtr const &camera,
 	std::vector<rove::matrix<4, 4>> const &worlds, bool as_instances)
 {
 	if (as_instances)
 	{
-		model.draw_instances(camera, worlds);
+		model.draw_instances(scheduler, camera, worlds);
 	}
 	else
 	{
 		for (rove::matrix<4, 4> const &world : worlds)
-			model.draw(camera, world);
+			model.draw(scheduler, camera, world);
 	}
 	RenderTargetPtr const target = renderer->create_render_target(128, 128, PixelFormat::R32G32B32A32F);
 	RenderPassClearState clear;
 	clear.clear_color_r = clear.clear_color_g = clear.clear_color_b = clear.clear_color_a = 0;
 	renderer->begin_frame();
 	renderer->begin_pass(target, clear);
-	model.scheduler()->flush();
+	scheduler.flush();
 	renderer->end_pass();
 	renderer->finish_frame();
 	return read_image<rove::rgba<float>>(*target->color_texture());
@@ -366,13 +366,13 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_static_model_drawn_as_instances_is_the_model_dra
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
 	auto const scheduler = std::make_shared<Scheduler>(renderer);
-	auto const model_ptr = std::make_shared<StaticModelPTBNT>(renderer, scheduler);
+	auto const model_ptr = std::make_shared<StaticModelPTBNT>(renderer);
 	StaticModelPTBNT &model = *model_ptr;
 	model.load_from_gltf(TestFixture::graphic_sources_path() + "test/data/cone.glb");
 	std::vector<rove::matrix<4, 4>> const worlds{moved(-1.2f, 0) * scaled(0.4f), moved(1.2f, 0.5f) * scaled(0.6f),
 		moved(0, -1.2f) * scaled(0.3f)};
-	Image<rove::rgba<float>> const one_by_one = draw_model(renderer, model, looking_at_the_origin(), worlds, false);
-	Image<rove::rgba<float>> const instanced = draw_model(renderer, model, looking_at_the_origin(), worlds, true);
+	Image<rove::rgba<float>> const one_by_one = draw_model(renderer, *scheduler, model, looking_at_the_origin(), worlds, false);
+	Image<rove::rgba<float>> const instanced = draw_model(renderer, *scheduler, model, looking_at_the_origin(), worlds, true);
 	int const area = covered(one_by_one);
 	BOOST_REQUIRE_GT(area, 500);                          // the three cones are there
 	BOOST_CHECK_EQUAL(covered(instanced), area);
@@ -385,13 +385,13 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_skinned_model_drawn_as_instances_is_the_model_in
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
 	auto const scheduler = std::make_shared<Scheduler>(renderer);
-	auto const model_ptr = std::make_shared<AnimatedModelPTBNJWT>(renderer, scheduler);
+	auto const model_ptr = std::make_shared<AnimatedModelPTBNJWT>(renderer);
 	AnimatedModelPTBNJWT &model = *model_ptr;
 	model.load_from_gltf(TestFixture::graphic_sources_path() + "test/data/test_figure.glb");
 	model.pose(0.3f);
 	std::vector<rove::matrix<4, 4>> const worlds{moved(-1.0f, -1.5f) * scaled(1.2f), moved(1.0f, -1.0f)};
-	Image<rove::rgba<float>> const one_by_one = draw_model(renderer, model, looking_at_the_origin(), worlds, false);
-	Image<rove::rgba<float>> const instanced = draw_model(renderer, model, looking_at_the_origin(), worlds, true);
+	Image<rove::rgba<float>> const one_by_one = draw_model(renderer, *scheduler, model, looking_at_the_origin(), worlds, false);
+	Image<rove::rgba<float>> const instanced = draw_model(renderer, *scheduler, model, looking_at_the_origin(), worlds, true);
 	int const area = covered(one_by_one);
 	BOOST_REQUIRE_GT(area, 300);
 	BOOST_CHECK_LE(differing(one_by_one, instanced), area / 100);
@@ -406,11 +406,11 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(skinned_draws_of_one_frame_keep_their_own_joint_ma
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
 	auto const scheduler = std::make_shared<Scheduler>(renderer);
-	auto const prototype = std::make_shared<AnimatedModelPTBNJWT>(renderer, scheduler);
+	auto const prototype = std::make_shared<AnimatedModelPTBNJWT>(renderer);
 	prototype->load_from_gltf(TestFixture::graphic_sources_path() + "test/data/test_figure.glb");
 	auto posed = [&](float time, float carried)
 	{
-		auto model = std::make_shared<AnimatedModelPTBNJWT>(static_cast<AnimatedModelPTBNJWT const &>(*prototype), scheduler);
+		auto model = std::make_shared<AnimatedModelPTBNJWT>(std::shared_ptr<AnimatedModelPTBNJWT const>(prototype));
 		model->bind_animations();
 		model->pose(time);
 		int roots = 0;
@@ -428,14 +428,14 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(skinned_draws_of_one_frame_keep_their_own_joint_ma
 	CameraPtr const camera = looking_at_the_origin();
 	rove::matrix<4, 4> const left = moved(-1.0f, -1.5f);
 
-	Image<rove::rgba<float>> const a_alone = draw_model(renderer, *a, camera, {left}, false);
-	Image<rove::rgba<float>> const b_alone = draw_model(renderer, *b, camera, {left}, false);
+	Image<rove::rgba<float>> const a_alone = draw_model(renderer, *scheduler, *a, camera, {left}, false);
+	Image<rove::rgba<float>> const b_alone = draw_model(renderer, *scheduler, *b, camera, {left}, false);
 	BOOST_REQUIRE_GT(covered(a_alone), 300);
 	BOOST_REQUIRE_GT(covered(b_alone), 300);
 
-	a->draw(camera, left);
-	b->draw(camera, left);
-	Image<rove::rgba<float>> const together = draw_model(renderer, *a, camera, {}, false);
+	a->draw(*scheduler, camera, left);
+	b->draw(*scheduler, camera, left);
+	Image<rove::rgba<float>> const together = draw_model(renderer, *scheduler, *a, camera, {}, false);
 	int wrong = 0;
 	for (int y = 0; y < together.height(); ++y)
 		for (int x = 0; x < together.width(); ++x)

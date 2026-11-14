@@ -17,7 +17,7 @@ std::shared_ptr<edge::ModelBuilder> make_model()
 {
 	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
 	edge::SchedulerPtr scheduler(new edge::Scheduler(renderer));
-	return std::make_shared<edge::ModelBuilder>(renderer, scheduler);
+	return std::make_shared<edge::ModelBuilder>(renderer);
 }
 
 std::string make_asset_path(std::string const &asset_name)

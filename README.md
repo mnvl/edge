@@ -101,7 +101,7 @@ Without a GPU, Mesa's lavapipe (Vulkan) and llvmpipe (OpenGL ES) run the whole t
 
 auto renderer = std::make_shared<edge::VulkanRenderer>(640, 480);
 auto scheduler = std::make_shared<edge::Scheduler>(renderer);
-auto model = edge::load_model(renderer, scheduler, "robot.glb");     // a .glb, .gltf or .edge file
+auto model = edge::load_model(renderer, "robot.glb");                // a .glb, .gltf or .edge file
 auto target = renderer->create_render_target(640, 480, edge::PixelFormat::A8R8G8B8);
 
 auto camera = std::make_shared<edge::Camera>();
@@ -109,7 +109,7 @@ camera->set_perspective_projection(1.0f, 640.0f / 480.0f, 0.1f, 100.0f);
 camera->look_at({0, 1, 4}, {0, 1, 0}, {0, 1, 0});
 
 renderer->begin_frame();
-model->draw(camera, rove::matrix<4, 4>());          // queues the model's draw calls
+model->draw(*scheduler, camera, rove::matrix<4, 4>()); // queues the model's draw calls in scheduler
 renderer->begin_pass(target);                        // cleared to black
 scheduler->flush();                                  // sorted, culled, drawn
 renderer->end_pass();

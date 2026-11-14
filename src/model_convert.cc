@@ -17,7 +17,6 @@
 #include "mesh_tiles.h"
 #include "model_textures.h"
 #include "null_renderer.h"
-#include "scheduler.h"
 #include "serialized_model.h"
 #include "static_model.h"
 
@@ -55,7 +54,7 @@ template <class M>
 std::vector<std::size_t> convert_as(RendererPtr const &renderer, std::string const &gltf_file, std::string const &temporary, GltfOptions const &options,
 	LodOptions const &lods, float tile_metres, TextureOptions const &textures, ConvertOptions const &how, bool bake)
 {
-	auto model = std::make_shared<M>(renderer, std::make_shared<Scheduler>(renderer));
+	auto model = std::make_shared<M>(renderer);
 	model->load_from_gltf(gltf_file, options);
 	SerializedModel serialized = model->serialize();
 	if (tile_metres > 0)

@@ -23,20 +23,20 @@
 #include "model.h"
 #include "pipeline.h"
 #include "renderer.h"
+#include "scheduler.h"
 #include "serialized_model.h"
 #include "serialized_model_archive.h"
 #include "texture.h"
 
 namespace edge {
 
-Model::Model(RendererPtr const &renderer_ptr, SchedulerPtr const &scheduler_ptr):
+Model::Model(RendererPtr const &renderer_ptr):
 	renderer_(renderer_ptr),
-	scheduler_(scheduler_ptr),
 	always_visible_(false)
 {
-	if (!renderer_ || !scheduler_)
+	if (!renderer_)
 	{
-		throw std::invalid_argument(std::string("a model without a ") + (renderer_ ? "scheduler" : "renderer"));
+		throw std::invalid_argument("a model without a renderer");
 	}
 }
 
@@ -54,17 +54,12 @@ Model const &non_null(std::shared_ptr<Model const> const &prototype)
 
 }
 
-Model::Model(std::shared_ptr<Model const> const &prototype, SchedulerPtr const &scheduler_ptr):
-	Model(non_null(prototype), scheduler_ptr)
+Model::Model(std::shared_ptr<Model const> const &prototype):
+	renderer_(non_null(prototype).renderer_),
+	always_visible_(prototype->always_visible_),
+	prototype_(prototype)
 {
-	prototype_ = prototype;
-}
-
-Model::Model(Model const &model, SchedulerPtr const &scheduler_ptr):
-	renderer_(model.renderer_),
-	scheduler_(scheduler_ptr),
-	always_visible_(model.always_visible_)
-{
+	Model const &model = *prototype;
 	std::unordered_map<JointPtr, JointPtr> joints_tt;
 	std::unordered_map<MeshPtr, MeshPtr> meshes_tt;
 	std::unordered_map<MaterialPtr, MaterialPtr> materials_tt;
@@ -935,39 +930,53 @@ void Model::set_materials_extra_parameter(size_t index, rove::vec<4> const &valu
 	}
 }
 
-/// Draws the model by submitting one draw call per (mesh × material) pair to
-/// the scheduler.  Per-draw-call frustum culling happens later in
-/// Scheduler::flush() — no model-level frustum test is needed here.
-void Model::draw(CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod)
+void Model::check_scheduler(Scheduler const &scheduler) const
 {
+	// The model's buffers and textures live on its renderer; submitted to another one's scheduler they are someone else's memory.
+	if (scheduler.renderer() != renderer_)
+	{
+		throw std::invalid_argument("Model::draw: the scheduler belongs to another renderer than the model");
+	}
+}
+
+/// Draws the model by submitting one draw call per (mesh × material) pair to
+/// @p scheduler.  Per-draw-call frustum culling happens later in
+/// Scheduler::flush() — no model-level frustum test is needed here.
+void Model::draw(Scheduler &scheduler, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod)
+{
+	check_scheduler(scheduler);
 	for (auto &joint : joints())
 	{
 		if (MeshPtr mesh_ptr = joint->mesh.lock())
 		{
-			mesh_ptr->draw(joint.get(), camera, world_matrix, lod);
+			mesh_ptr->draw(scheduler, joint.get(), camera, world_matrix, lod);
 		}
 	}
 }
 
-void Model::draw(CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, LodChooser const &chooser)
+void Model::draw(Scheduler &scheduler, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, LodChooser const &chooser)
 {
+	check_scheduler(scheduler);
 	ensure_joints();
 	for (auto &joint : joints())
 	{
 		if (MeshPtr mesh_ptr = joint->mesh.lock())
 		{
-			mesh_ptr->draw(joint.get(), camera, world_matrix, chooser(*mesh_ptr, mesh_ptr->conservative_bounds(joints(), *joint, world_matrix)));
+			mesh_ptr->draw(scheduler, joint.get(), camera, world_matrix,
+				chooser(*mesh_ptr, mesh_ptr->conservative_bounds(joints(), *joint, world_matrix)));
 		}
 	}
 }
 
-void Model::draw_instances(CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices, unsigned lod)
+void Model::draw_instances(Scheduler &scheduler, CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
+	unsigned lod)
 {
+	check_scheduler(scheduler);
 	for (auto &joint : joints())
 	{
 		if (MeshPtr mesh_ptr = joint->mesh.lock())
 		{
-			mesh_ptr->draw_instances(joint.get(), camera, world_matrices, lod);
+			mesh_ptr->draw_instances(scheduler, joint.get(), camera, world_matrices, lod);
 		}
 	}
 }

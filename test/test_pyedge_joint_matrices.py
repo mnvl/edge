@@ -25,15 +25,15 @@ def _identity():
 def _draw_twice_in_a_frame(renderer):
     """The skinned model drawn twice in one frame: at least two skinned draws, two joint matrices."""
     scheduler = renderer.create_scheduler()
-    model = pyedge.AnimatedModelPTBNJWT(renderer, scheduler)
+    model = pyedge.AnimatedModelPTBNJWT(renderer)
     model.load_from_gltf(str(ASSET))
     camera = pyedge.Camera()
     camera.set_orthographic_projection(10.0, 10.0, 0.1, 100.0)
     camera.look_at(pyrove.vec3(0.0, 0.0, 20.0), pyrove.vec3(0.0, 0.0, 0.0), pyrove.vec3(0.0, 1.0, 0.0))
     target = renderer.create_render_target(64, 64)
     renderer.begin_frame()
-    model.draw(camera, _identity())
-    model.draw(camera, _identity())
+    model.draw(scheduler, camera, _identity())
+    model.draw(scheduler, camera, _identity())
     renderer.begin_pass(target, pyedge.RenderPassClearState())
     scheduler.flush()
     renderer.end_pass()

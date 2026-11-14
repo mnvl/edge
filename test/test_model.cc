@@ -3,6 +3,7 @@
 
 #include <boost/test/unit_test.hpp>
 #include <cmath>
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <stdexcept>
@@ -21,8 +22,7 @@ namespace
 std::shared_ptr<edge::ModelBuilder> make_model()
 {
 	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
-	edge::SchedulerPtr scheduler(new edge::Scheduler(renderer));
-	return std::make_shared<edge::ModelBuilder>(renderer, scheduler);
+	return std::make_shared<edge::ModelBuilder>(renderer);
 }
 
 std::string make_asset_path(std::string const &asset_name)
@@ -264,8 +264,7 @@ BOOST_AUTO_TEST_CASE(bounds_after_reload_following_clear)
 BOOST_AUTO_TEST_CASE(bounds_valid_for_a_skinned_model)
 {
 	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
-	edge::SchedulerPtr scheduler(new edge::Scheduler(renderer));
-	auto model = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer, scheduler);
+	auto model = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer);
 	model->load_from_gltf(make_asset_path("test_gltf_loder_joint.glb"));
 	model->pose(0.0f);
 	check_non_degenerate(model->bounds(identity_matrix()));
@@ -276,11 +275,10 @@ BOOST_AUTO_TEST_CASE(bounds_valid_for_a_skinned_model)
 BOOST_AUTO_TEST_CASE(instance_has_the_bounds_of_its_source)
 {
 	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
-	edge::SchedulerPtr scheduler(new edge::Scheduler(renderer));
-	auto source = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+	auto source = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	source->load_from_gltf(make_asset_path("test_gltf_loder_plane.glb"));
 
-	edge::StaticModelPTBNT copy(*source, scheduler);
+	edge::StaticModelPTBNT copy{std::shared_ptr<edge::StaticModelPTBNT const>(source)};
 	check_close(source->bounds(identity_matrix()), copy.bounds(identity_matrix()));
 }
 
@@ -294,12 +292,107 @@ BOOST_AUTO_TEST_CASE(bounds_cover_every_mesh_of_the_materials_asset)
 	BOOST_CHECK_GE(b.hi.x, 2.0f);
 }
 
-BOOST_AUTO_TEST_CASE(a_model_has_a_renderer_and_a_scheduler)
+BOOST_AUTO_TEST_CASE(a_model_needs_a_renderer)
+{
+	BOOST_CHECK_THROW(std::make_shared<edge::ModelBuilder>(edge::RendererPtr()), std::invalid_argument);
+	BOOST_CHECK_THROW(std::make_shared<edge::StaticModelPTBNT>(edge::RendererPtr()), std::invalid_argument);
+	BOOST_CHECK_THROW(std::make_shared<edge::AnimatedModelPTBNJWT>(edge::RendererPtr()), std::invalid_argument);
+}
+
+// The scheduler is the draw's, not the model's: one model draws into whichever scheduler of its renderer it is given, and each
+// gets what was drawn into it and nothing else.
+
+namespace
+{
+
+edge::CameraPtr camera_at_the_origin()
+{
+	auto camera = std::make_shared<edge::Camera>();
+	camera->set_perspective_projection(1.5f, 1.0f, 0.01f, 1000.0f);
+	camera->look_at(rove::vec<3>(0.0f, 0.0f, 5.0f), rove::vec<3>(0.0f, 0.0f, 0.0f), rove::vec<3>(0.0f, 1.0f, 0.0f));
+	return camera;
+}
+
+/// What a flush of @p scheduler is given, culled or not.
+std::uint64_t offered(edge::SchedulerPtr const &scheduler)
+{
+	std::uint64_t const before = scheduler->offered_calls_count();
+	edge::flush_in_a_pass(scheduler);
+	return scheduler->offered_calls_count() - before;
+}
+
+template <class M>
+void check_draws_go_to_the_scheduler_given(std::string const &asset_name)
 {
 	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
-	edge::SchedulerPtr scheduler(new edge::Scheduler(renderer));
-	BOOST_CHECK_THROW(std::make_shared<edge::ModelBuilder>(edge::RendererPtr(), scheduler), std::invalid_argument);
-	BOOST_CHECK_THROW(std::make_shared<edge::ModelBuilder>(renderer, edge::SchedulerPtr()), std::invalid_argument);
+	auto model = std::make_shared<M>(renderer);
+	model->load_from_gltf(make_asset_path(asset_name));
+	model->pose(0.0f);
+	auto a = std::make_shared<edge::Scheduler>(renderer);
+	auto b = std::make_shared<edge::Scheduler>(renderer);
+	auto const camera = camera_at_the_origin();
+
+	model->draw(*a, camera, identity_matrix());
+	std::uint64_t const one = offered(a);
+	BOOST_REQUIRE_GT(one, 0u);
+	BOOST_CHECK_EQUAL(offered(b), 0u);
+
+	model->draw(*a, camera, identity_matrix());
+	model->draw(*a, camera, identity_matrix());
+	model->draw(*b, camera, identity_matrix());
+	BOOST_CHECK_EQUAL(offered(a), 2 * one);
+	BOOST_CHECK_EQUAL(offered(b), one);
+
+	model->draw(*b, camera, identity_matrix(), [](edge::Mesh const &, rove::obb<3> const &) { return 0u; });
+	BOOST_CHECK_EQUAL(offered(b), one);
+	BOOST_CHECK_EQUAL(offered(a), 0u);
+
+	// one instanced call for each triangle group, whatever the number of instances
+	model->draw_instances(*a, camera, {identity_matrix(), identity_matrix(), identity_matrix()});
+	BOOST_CHECK_EQUAL(offered(a), one);
+	BOOST_CHECK_EQUAL(offered(b), 0u);
+}
+
+}
+
+BOOST_AUTO_TEST_CASE(a_static_model_draws_into_the_scheduler_it_is_given)
+{
+	check_draws_go_to_the_scheduler_given<edge::StaticModelPTBNT>("test_gltf_loder_materials.glb");
+}
+
+BOOST_AUTO_TEST_CASE(a_skinned_model_draws_into_the_scheduler_it_is_given)
+{
+	check_draws_go_to_the_scheduler_given<edge::AnimatedModelPTBNJWT>("test_figure.glb");
+}
+
+BOOST_AUTO_TEST_CASE(a_scheduler_of_another_renderer_is_refused_and_given_nothing)
+{
+	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
+	edge::RendererPtr other(new edge::NullRenderer(320, 200));
+	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer);
+	model->load_from_gltf(make_asset_path("test_gltf_loder_plane.glb"));
+	auto foreign = std::make_shared<edge::Scheduler>(other);
+	auto const camera = camera_at_the_origin();
+
+	BOOST_CHECK_THROW(model->draw(*foreign, camera, identity_matrix()), std::invalid_argument);
+	BOOST_CHECK_THROW(model->draw(*foreign, camera, identity_matrix(),
+		[](edge::Mesh const &, rove::obb<3> const &) { return 0u; }), std::invalid_argument);
+	BOOST_CHECK_THROW(model->draw_instances(*foreign, camera, {identity_matrix()}), std::invalid_argument);
+	BOOST_CHECK_EQUAL(offered(foreign), 0u);
+}
+
+BOOST_AUTO_TEST_CASE(a_scheduler_whose_renderer_is_gone_is_refused)
+{
+	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
+	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer);
+	model->load_from_gltf(make_asset_path("test_gltf_loder_plane.glb"));
+	edge::SchedulerPtr orphan;
+	{
+		edge::RendererPtr gone(new edge::NullRenderer(320, 200));
+		orphan = std::make_shared<edge::Scheduler>(gone);
+	}
+	BOOST_REQUIRE(!orphan->renderer());
+	BOOST_CHECK_THROW(model->draw(*orphan, camera_at_the_origin(), identity_matrix()), std::invalid_argument);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -328,11 +421,11 @@ struct FrustumCullFixture
 		scheduler = std::make_shared<edge::Scheduler>(renderer);
 	}
 
-	/// Loads the plane test asset into a StaticModelPTBNT that uses the shared
-	/// renderer/scheduler so draw calls end up in @c scheduler.
+	/// Loads the plane test asset into a StaticModelPTBNT of the shared renderer;
+	/// the tests draw it into @c scheduler.
 	std::shared_ptr<edge::StaticModelPTBNT> load_plane() const
 	{
-		auto model = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler);
+		auto model = std::make_shared<edge::StaticModelPTBNT>(renderer);
 		model->load_from_gltf(make_asset_path("test_gltf_loder_plane.glb"));
 		model->pose(0.0f);
 		return model;
@@ -401,7 +494,7 @@ BOOST_AUTO_TEST_SUITE(model_frustum_cull)
 BOOST_FIXTURE_TEST_CASE(draw_submits_draw_calls_when_model_in_frustum, FrustumCullFixture)
 {
 	auto model = load_plane();
-	model->draw(camera_facing_model(), identity_world());
+	model->draw(*scheduler, camera_facing_model(), identity_world());
 	edge::flush_in_a_pass(scheduler);
 
 	BOOST_CHECK_GT(total_calls(), 0u);
@@ -413,7 +506,7 @@ BOOST_FIXTURE_TEST_CASE(draw_submits_draw_calls_when_model_in_frustum, FrustumCu
 BOOST_FIXTURE_TEST_CASE(draw_culls_draw_calls_when_model_outside_frustum, FrustumCullFixture)
 {
 	auto model = load_plane();
-	model->draw(camera_facing_model(), far_world());
+	model->draw(*scheduler, camera_facing_model(), far_world());
 	edge::flush_in_a_pass(scheduler);
 
 	BOOST_CHECK_EQUAL(scheduler->visible_calls_count(), 0u);
@@ -425,7 +518,7 @@ BOOST_FIXTURE_TEST_CASE(draw_culls_draw_calls_when_model_outside_frustum, Frustu
 BOOST_FIXTURE_TEST_CASE(draw_culls_draw_calls_camera_facing_away, FrustumCullFixture)
 {
 	auto model = load_plane();
-	model->draw(camera_facing_away(), identity_world());
+	model->draw(*scheduler, camera_facing_away(), identity_world());
 	edge::flush_in_a_pass(scheduler);
 
 	BOOST_CHECK_EQUAL(scheduler->visible_calls_count(), 0u);
@@ -438,7 +531,7 @@ BOOST_FIXTURE_TEST_CASE(draw_bypasses_cull_when_always_visible, FrustumCullFixtu
 {
 	auto model = load_plane();
 	model->set_always_visible(true);
-	model->draw(camera_facing_model(), far_world());
+	model->draw(*scheduler, camera_facing_model(), far_world());
 	edge::flush_in_a_pass(scheduler);
 
 	BOOST_CHECK_GT(scheduler->visible_calls_count(), 0u);
@@ -450,7 +543,7 @@ BOOST_FIXTURE_TEST_CASE(always_visible_bypasses_cull_with_camera_facing_away, Fr
 {
 	auto model = load_plane();
 	model->set_always_visible(true);
-	model->draw(camera_facing_away(), identity_world());
+	model->draw(*scheduler, camera_facing_away(), identity_world());
 	edge::flush_in_a_pass(scheduler);
 
 	BOOST_CHECK_GT(scheduler->visible_calls_count(), 0u);
@@ -463,7 +556,7 @@ BOOST_FIXTURE_TEST_CASE(draw_re_enables_cull_after_set_always_visible_false, Fru
 	auto model = load_plane();
 	model->set_always_visible(true);
 	model->set_always_visible(false);
-	model->draw(camera_facing_model(), far_world());
+	model->draw(*scheduler, camera_facing_model(), far_world());
 	edge::flush_in_a_pass(scheduler);
 
 	BOOST_CHECK_EQUAL(scheduler->visible_calls_count(), 0u);
@@ -482,7 +575,7 @@ BOOST_FIXTURE_TEST_CASE(clear_resets_always_visible_so_cull_applies_after_reload
 	model->load_from_gltf(make_asset_path("test_gltf_loder_plane.glb"));
 	model->pose(0.0f);
 
-	model->draw(camera_facing_model(), far_world());
+	model->draw(*scheduler, camera_facing_model(), far_world());
 	edge::flush_in_a_pass(scheduler);
 
 	BOOST_CHECK_EQUAL(scheduler->visible_calls_count(), 0u);
@@ -494,8 +587,8 @@ BOOST_FIXTURE_TEST_CASE(clear_resets_always_visible_so_cull_applies_after_reload
 BOOST_FIXTURE_TEST_CASE(draw_called_twice_accumulates_calls, FrustumCullFixture)
 {
 	auto model = load_plane();
-	model->draw(camera_facing_model(), identity_world());
-	model->draw(camera_facing_model(), identity_world());
+	model->draw(*scheduler, camera_facing_model(), identity_world());
+	model->draw(*scheduler, camera_facing_model(), identity_world());
 	edge::flush_in_a_pass(scheduler);
 
 	// Two draws of the same model — each submitted its per-mesh draw calls.
@@ -510,12 +603,12 @@ BOOST_FIXTURE_TEST_CASE(world_matrix_determines_cull_per_draw_call, FrustumCullF
 	auto model = load_plane();
 
 	// First draw: model at origin — visible.
-	model->draw(camera_facing_model(), identity_world());
+	model->draw(*scheduler, camera_facing_model(), identity_world());
 	edge::flush_in_a_pass(scheduler);
 	BOOST_REQUIRE_GT(scheduler->visible_calls_count(), 0u);
 
 	// Second draw: same model translated far away — culled.
-	model->draw(camera_facing_model(), far_world());
+	model->draw(*scheduler, camera_facing_model(), far_world());
 	edge::flush_in_a_pass(scheduler);
 	BOOST_CHECK_EQUAL(scheduler->visible_calls_count(), 0u);
 	BOOST_CHECK_GT(scheduler->invisible_calls_count(), 0u);

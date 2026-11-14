@@ -15,7 +15,7 @@ std::shared_ptr<edge::ModelBuilder> make_model()
 {
 	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
 	edge::SchedulerPtr scheduler(new edge::Scheduler(renderer));
-	return std::make_shared<edge::ModelBuilder>(renderer, scheduler);
+	return std::make_shared<edge::ModelBuilder>(renderer);
 }
 
 }

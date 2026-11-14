@@ -70,7 +70,7 @@ def _silhouette_vs_bounds(renderer, scheduler, model, world, reference_size: flo
         camera.look_at(pyrove.vec3(*eye), pyrove.vec3(*centre), pyrove.vec3(*up))
 
         renderer.begin_frame()
-        model.draw(camera, world)
+        model.draw(scheduler, camera, world)
         renderer.begin_pass(target, clear)
         scheduler.flush()
         renderer.end_pass()
@@ -112,7 +112,7 @@ def _assert_bounds_are_silhouette(renderer, scheduler, model, world, reference_s
 
 def _reference_size(renderer, path: Path) -> float:
     """The mesh's size in its bind pose, only to frame the views."""
-    static = pyedge.StaticModelPTBNT(renderer, renderer.create_scheduler())
+    static = pyedge.StaticModelPTBNT(renderer)
     static.load_from_gltf(str(path))
     size = static.bounds(_identity()).diagonal()
     return max(size.x, size.y, size.z)
@@ -129,7 +129,7 @@ def test_animated_model_bounds_are_the_drawn_skinned_mesh(renderer, asset, anima
     path = asset
     assert path.exists(), path
     scheduler = renderer.create_scheduler()
-    model = pyedge.AnimatedModelPTBNJWT(renderer, scheduler)
+    model = pyedge.AnimatedModelPTBNJWT(renderer)
     model.load_from_gltf(str(path))
     model.always_visible = True  # culling is not under test; the draw is the oracle
     if animation is not None:
@@ -153,7 +153,7 @@ def test_static_model_bounds_are_the_drawn_mesh(renderer, asset):
     path = asset
     assert path.exists(), path
     scheduler = renderer.create_scheduler()
-    model = pyedge.StaticModelPTBNT(renderer, scheduler)
+    model = pyedge.StaticModelPTBNT(renderer)
     model.load_from_gltf(str(path))
     model.always_visible = True
     world = pyrove.mat4()

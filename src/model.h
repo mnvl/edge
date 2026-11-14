@@ -42,32 +42,25 @@ public:
 	animations_type const &animations() const { return animations_; }
 	materials_type const &materials() const { return materials_; }
 
-	Model(RendererPtr const &renderer_ptr, SchedulerPtr const &scheduler_ptr);
+	/// An empty model whose GPU buffers and textures live on @p renderer_ptr; it draws into any scheduler of that renderer (draw()).
+	/// Throws std::invalid_argument for a null @p renderer_ptr.
+	explicit Model(RendererPtr const &renderer_ptr);
 
-	/// An instance of @p prototype drawing through @p scheduler_ptr: shallow
-	/// copies of its meshes (sharing their GPU buffers), clones of its
-	/// materials (sharing their textures), deep copies of its joints, and
-	/// copies of its animations that share their keyframes (Sampler).  Whatever a caller changes on one -- pose, material
-	/// settings, mesh flags, morph weights -- stays on that instance.
-	/// Call bind_animations() on the new model once it is owned by a
-	/// shared_ptr (ModelCache does).  The instance keeps alive what it
-	/// shares with @p prototype, not the prototype itself.
-	Model(Model const &prototype, SchedulerPtr const &scheduler_ptr);
-	/// The same instance, holding @p prototype for as long as it lives
-	/// (prototype()): what ModelCache hands out, so that a cache can hold its
-	/// prototypes weakly.  Throws std::invalid_argument for a null @p prototype.
-	Model(std::shared_ptr<Model const> const &prototype, SchedulerPtr const &scheduler_ptr);
+	/// An instance of @p prototype: shallow copies of its meshes (sharing their GPU buffers), clones of its materials (sharing their
+	/// textures), deep copies of its joints, and copies of its animations that share their keyframes (Sampler).  Whatever a caller
+	/// changes on one -- pose, material settings, mesh flags, morph weights -- stays on that instance.  The instance holds
+	/// @p prototype for as long as it lives (prototype()).  Call bind_animations() on the new model once it is owned by a shared_ptr
+	/// (ModelCache does).  Throws std::invalid_argument for a null @p prototype.
+	explicit Model(std::shared_ptr<Model const> const &prototype);
 	Model(Model const &) = delete;
 	Model &operator=(Model const &) = delete;
 
-	/// The model this one is an instance of, when it was made from the prototype's shared_ptr (and then held for as long as
-	/// this instance lives -- what lets ModelCache hold its prototypes weakly and still read a file once while anything draws
-	/// it).  Null for a model loaded on its own, for an instance made from the prototype itself, and after clear().
+	/// The model this one is an instance of, held for as long as this instance lives.  Null for a model loaded on its own and
+	/// after clear().
 	std::shared_ptr<Model const> const &prototype() const { return prototype_; }
 	virtual ~Model();
 
 	RendererPtr const &renderer() const { return renderer_; }
-	SchedulerPtr const &scheduler() const { return scheduler_; }
 
 	/// The exact world-space AABB of the meshes where draw(camera,
 	/// @p world_matrix) puts them under the joints' current matrices -- the
@@ -192,19 +185,22 @@ public:
 	/// Sets extra parameter @p index to @p value on every material in the model.
 	void set_materials_extra_parameter(size_t index, rove::vec<4> const &value);
 
-    /// Submits the model's draw calls, its meshes at level of detail @p lod (0 the full one; a mesh with fewer levels draws its
-    /// last, and a model with none draws itself).
-    virtual void draw(CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod = 0);
+	/// Submits the model's draw calls to @p scheduler, its meshes at level of detail @p lod (0 the full one; a mesh with fewer levels
+	/// draws its last, and a model with none draws itself).  The model keeps nothing of @p scheduler: it draws into as many as it is
+	/// given.  Throws std::invalid_argument for a scheduler of another renderer than the model's (or of one that is gone), and then
+	/// submits nothing.
+	virtual void draw(Scheduler &scheduler, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod = 0);
 
 	/// The level of detail of a mesh given by whoever draws: asked for each mesh with the box that holds it placed by @p world_matrix, so that the
 	/// tiles of a ground are each drawn at the level their distance asks for.
 	using LodChooser = std::function<unsigned int (const Mesh &, const rove::obb<3> &)>;
-	virtual void draw(CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, LodChooser const &chooser);
+	virtual void draw(Scheduler &scheduler, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, LodChooser const &chooser);
 
 	/// Submits the model once for each of @p world_matrices, as draw() at each but in one instanced draw for each triangle group (the
 	/// static and skinned meshes; Mesh::draw_instances), every instance in the model's pose and at level @p lod, each culled on its
-	/// own.  No world matrices draws nothing.
-	virtual void draw_instances(CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices, unsigned lod = 0);
+	/// own.  No world matrices draws nothing.  Refuses @p scheduler as draw() does.
+	virtual void draw_instances(Scheduler &scheduler, CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
+		unsigned lod = 0);
 
 	/// The levels of detail the model has, level 0 included: the most any of its meshes has.
 	unsigned lod_count() const;
@@ -224,7 +220,6 @@ public:
 
 protected:
 	RendererPtr const renderer_;
-	SchedulerPtr const scheduler_;
 
 	joints_type joints_;
 	meshes_type meshes_;
@@ -243,6 +238,8 @@ protected:
 	void load(SerializedModel const &serialized, bool keep_cpu_copy, bool pose_boxes_given);
 
 private:
+	/// Throws std::invalid_argument unless @p scheduler is of the model's renderer.
+	void check_scheduler(Scheduler const &scheduler) const;
 	static std::uint64_t next_pose_serial();
 	std::uint64_t pose_serial_ = next_pose_serial();
 	std::optional<PoseKey> cached_pose_;

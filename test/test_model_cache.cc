@@ -14,7 +14,6 @@
 #include "animated_model.h"
 #include "model_cache.h"
 #include "null_renderer.h"
-#include "scheduler.h"
 #include "static_mesh.h"
 #include "static_model.h"
 #include "test_fixture.h"
@@ -70,8 +69,6 @@ bool same_matrices(std::vector<rove::matrix<4,4>> const &a, std::vector<rove::ma
 struct CacheFixture
 {
 	edge::RendererPtr renderer = make_renderer();
-	edge::SchedulerPtr scheduler_a = std::make_shared<edge::Scheduler>(renderer);
-	edge::SchedulerPtr scheduler_b = std::make_shared<edge::Scheduler>(renderer);
 	edge::ModelCache cache{renderer};
 };
 
@@ -81,13 +78,11 @@ BOOST_FIXTURE_TEST_SUITE(model_cache, CacheFixture)
 
 BOOST_AUTO_TEST_CASE(instances_share_geometry_and_textures_but_not_materials)
 {
-	auto a = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_directions.glb"), scheduler_a);
-	auto b = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_directions.glb"), scheduler_b);
+	auto a = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_directions.glb"));
+	auto b = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_directions.glb"));
 
 	BOOST_REQUIRE(a != b);
 	BOOST_CHECK_EQUAL(cache.prototypes_count(), 1u);
-	BOOST_CHECK(a->scheduler() == scheduler_a);
-	BOOST_CHECK(b->scheduler() == scheduler_b);
 	BOOST_CHECK(a->renderer() == renderer);
 
 	BOOST_REQUIRE(!a->meshes().empty());
@@ -125,8 +120,8 @@ BOOST_AUTO_TEST_CASE(instances_share_geometry_and_textures_but_not_materials)
 
 BOOST_AUTO_TEST_CASE(triangles_draw_with_the_instances_own_materials)
 {
-	auto a = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_materials.glb"), scheduler_a);
-	auto b = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_materials.glb"), scheduler_a);
+	auto a = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_materials.glb"));
+	auto b = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_materials.glb"));
 
 	std::size_t checked = 0;
 	for (auto const &mesh : a->meshes())
@@ -148,8 +143,8 @@ BOOST_AUTO_TEST_CASE(triangles_draw_with_the_instances_own_materials)
 
 BOOST_AUTO_TEST_CASE(material_state_set_on_one_instance_stays_there)
 {
-	auto a = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_materials.glb"), scheduler_a);
-	auto b = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_materials.glb"), scheduler_a);
+	auto a = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_materials.glb"));
+	auto b = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_materials.glb"));
 	rove::vec<4> const before = b->materials()[0]->extra_parameter(0);
 
 	a->set_materials_extra_parameter(0, rove::vec<4>(7.0f, 0.0f, 0.0f, 0.0f));
@@ -160,17 +155,17 @@ BOOST_AUTO_TEST_CASE(material_state_set_on_one_instance_stays_there)
 	BOOST_CHECK(b->materials()[0]->cull_mode() != edge::Material::CullMode::CW);
 
 	// And a third instance starts from the file, not from what a did.
-	auto c = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_materials.glb"), scheduler_a);
+	auto c = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_materials.glb"));
 	BOOST_CHECK_EQUAL(c->materials()[0]->extra_parameter(0).x, before.x);
 }
 
 BOOST_AUTO_TEST_CASE(an_instance_matches_a_direct_load)
 {
-	auto direct = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer, scheduler_a);
+	auto direct = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer);
 	direct->load_from_gltf(asset("test_figure.glb"));
-	auto instance = cache.load<edge::AnimatedModelPTBNJWT>(asset("test_figure.glb"), scheduler_a);
+	auto instance = cache.load<edge::AnimatedModelPTBNJWT>(asset("test_figure.glb"));
 	// A second instance, so the one compared is not the first copy made.
-	instance = cache.load<edge::AnimatedModelPTBNJWT>(asset("test_figure.glb"), scheduler_a);
+	instance = cache.load<edge::AnimatedModelPTBNJWT>(asset("test_figure.glb"));
 
 	BOOST_REQUIRE_EQUAL(instance->meshes().size(), direct->meshes().size());
 	BOOST_REQUIRE_EQUAL(instance->joints().size(), direct->joints().size());
@@ -199,8 +194,8 @@ BOOST_AUTO_TEST_CASE(an_instance_matches_a_direct_load)
 
 BOOST_AUTO_TEST_CASE(each_instance_poses_alone)
 {
-	auto a = cache.load<edge::AnimatedModelPTBNJWT>(asset("test_gltf_loder_animation.glb"), scheduler_a);
-	auto b = cache.load<edge::AnimatedModelPTBNJWT>(asset("test_gltf_loder_animation.glb"), scheduler_a);
+	auto a = cache.load<edge::AnimatedModelPTBNJWT>(asset("test_gltf_loder_animation.glb"));
+	auto b = cache.load<edge::AnimatedModelPTBNJWT>(asset("test_gltf_loder_animation.glb"));
 	BOOST_REQUIRE(!a->animations().empty());
 
 	a->pose(-1000.0f);
@@ -232,8 +227,8 @@ BOOST_AUTO_TEST_CASE(morph_weights_move_only_their_own_instance)
 	// Morph weights are written into the vertex buffer, so a mesh with
 	// morph targets cannot share it.
 	std::string const path = asset("test_gltf_loder_animation_weights_path.gltf");
-	auto a = cache.load<edge::StaticModelPTBNT>(path, scheduler_a);
-	auto b = cache.load<edge::StaticModelPTBNT>(path, scheduler_a);
+	auto a = cache.load<edge::StaticModelPTBNT>(path);
+	auto b = cache.load<edge::StaticModelPTBNT>(path);
 	BOOST_REQUIRE_GT(a->meshes()[0]->morph_targets_count(), 0u);
 	BOOST_CHECK(static_mesh<edge::VERTEX_PTBNT>(a->meshes()[0]).vertex_buffer() !=
 		static_mesh<edge::VERTEX_PTBNT>(b->meshes()[0]).vertex_buffer());
@@ -248,17 +243,17 @@ BOOST_AUTO_TEST_CASE(morph_weights_move_only_their_own_instance)
 	BOOST_CHECK(vertex_bytes<edge::VERTEX_PTBNT>(b->meshes()[0]) == b_before);
 
 	// And a fresh instance starts at the file's weights, whatever a did.
-	auto direct = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler_a);
+	auto direct = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	direct->load_from_gltf(path);
-	auto c = cache.load<edge::StaticModelPTBNT>(path, scheduler_a);
+	auto c = cache.load<edge::StaticModelPTBNT>(path);
 	BOOST_CHECK(vertex_bytes<edge::VERTEX_PTBNT>(c->meshes()[0]) ==
 		vertex_bytes<edge::VERTEX_PTBNT>(direct->meshes()[0]));
 }
 
 BOOST_AUTO_TEST_CASE(model_type_is_part_of_the_key)
 {
-	auto as_static = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_animation.glb"), scheduler_a);
-	auto as_animated = cache.load<edge::AnimatedModelPTBNJWT>(asset("test_gltf_loder_animation.glb"), scheduler_a);
+	auto as_static = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_animation.glb"));
+	auto as_animated = cache.load<edge::AnimatedModelPTBNJWT>(asset("test_gltf_loder_animation.glb"));
 	BOOST_CHECK_EQUAL(cache.prototypes_count(), 2u);
 	BOOST_CHECK(dynamic_cast<edge::StaticMeshPTBNT const *>(as_static->meshes()[0].get()));
 	BOOST_CHECK(dynamic_cast<edge::AnimatedMeshPTBNJWT const *>(as_animated->meshes()[0].get()));
@@ -268,13 +263,13 @@ BOOST_AUTO_TEST_CASE(edge_files_load_through_the_cache)
 {
 	std::string const path = "model_cache_test.edge";
 	{
-		auto source = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler_a);
+		auto source = std::make_shared<edge::StaticModelPTBNT>(renderer);
 		source->load_from_gltf(asset("test_gltf_loder_directions.glb"));
 		source->save_to_file(path);
 	}
-	auto direct = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler_a);
+	auto direct = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	direct->load_from_file(path);
-	auto instance = cache.load<edge::StaticModelPTBNT>(path, scheduler_a);
+	auto instance = cache.load<edge::StaticModelPTBNT>(path);
 	std::remove(path.c_str());
 
 	BOOST_REQUIRE_EQUAL(instance->meshes().size(), direct->meshes().size());
@@ -284,34 +279,25 @@ BOOST_AUTO_TEST_CASE(edge_files_load_through_the_cache)
 
 BOOST_AUTO_TEST_CASE(a_failed_load_caches_nothing)
 {
-	BOOST_CHECK_THROW(cache.load<edge::StaticModelPTBNT>(asset("no_such_model.glb"), scheduler_a), std::exception);
+	BOOST_CHECK_THROW(cache.load<edge::StaticModelPTBNT>(asset("no_such_model.glb")), std::exception);
 	BOOST_CHECK_EQUAL(cache.prototypes_count(), 0u);
-	BOOST_CHECK_THROW(cache.load<edge::StaticModelPTBNT>(asset("no_such_model.glb"), scheduler_a), std::exception);
+	BOOST_CHECK_THROW(cache.load<edge::StaticModelPTBNT>(asset("no_such_model.glb")), std::exception);
 
 	BOOST_CHECK_THROW(cache.load<edge::StaticModelPTBNT>(
-		asset("test_gltf_loder_animation_invalid_times.gltf"), scheduler_a), std::exception);
+		asset("test_gltf_loder_animation_invalid_times.gltf")), std::exception);
 	BOOST_CHECK_EQUAL(cache.prototypes_count(), 0u);
-}
-
-BOOST_AUTO_TEST_CASE(a_scheduler_of_another_renderer_is_refused)
-{
-	edge::RendererPtr other = make_renderer();
-	auto foreign = std::make_shared<edge::Scheduler>(other);
-	BOOST_CHECK_THROW(cache.load<edge::StaticModelPTBNT>(asset("cone.glb"), foreign), std::invalid_argument);
-	BOOST_CHECK_THROW(cache.load<edge::StaticModelPTBNT>(asset("cone.glb"), edge::SchedulerPtr()),
-		std::invalid_argument);
 }
 
 BOOST_AUTO_TEST_CASE(instances_outlive_a_cleared_cache)
 {
-	auto a = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"), scheduler_a);
+	auto a = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
 	auto const bytes = vertex_bytes<edge::VERTEX_PTBNT>(a->meshes()[0]);
 	cache.clear();
 	BOOST_CHECK_EQUAL(cache.prototypes_count(), 0u);
 	BOOST_CHECK(vertex_bytes<edge::VERTEX_PTBNT>(a->meshes()[0]) == bytes);
 
 	// Cleared means read again: the new instance has buffers of its own.
-	auto b = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"), scheduler_a);
+	auto b = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
 	BOOST_CHECK_EQUAL(cache.prototypes_count(), 1u);
 	BOOST_CHECK(static_mesh<edge::VERTEX_PTBNT>(a->meshes()[0]).vertex_buffer() !=
 		static_mesh<edge::VERTEX_PTBNT>(b->meshes()[0]).vertex_buffer());
@@ -320,21 +306,31 @@ BOOST_AUTO_TEST_CASE(instances_outlive_a_cleared_cache)
 // The cache holds its prototypes weakly and each instance holds its prototype: a model is read once for as long as anything draws
 // it, and its GPU memory goes with its last instance.
 
+namespace
+{
+
+std::weak_ptr<edge::VertexBuffer> buffer_of(std::shared_ptr<edge::StaticModelPTBNT> const &model)
+{
+	return static_mesh<edge::VERTEX_PTBNT>(model->meshes()[0]).vertex_buffer();
+}
+
+}
+
 BOOST_AUTO_TEST_CASE(a_model_stays_cached_while_an_instance_of_it_lives)
 {
-	auto a = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"), scheduler_a);
-	auto b = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"), scheduler_b);
-	auto const buffer = static_mesh<edge::VERTEX_PTBNT>(a->meshes()[0]).vertex_buffer();
+	auto a = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
+	auto b = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
+	auto const buffer = buffer_of(a).lock();
 	a.reset();
-	auto c = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"), scheduler_a);
-	BOOST_CHECK(static_mesh<edge::VERTEX_PTBNT>(c->meshes()[0]).vertex_buffer() == buffer);
+	auto c = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
+	BOOST_CHECK(buffer_of(c).lock() == buffer);
 	BOOST_CHECK_EQUAL(cache.prototypes_count(), 1u);
 }
 
 BOOST_AUTO_TEST_CASE(a_model_no_instance_uses_is_released)
 {
-	auto a = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"), scheduler_a);
-	std::weak_ptr<edge::VertexBuffer> buffer = static_mesh<edge::VERTEX_PTBNT>(a->meshes()[0]).vertex_buffer();
+	auto a = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
+	std::weak_ptr<edge::VertexBuffer> const buffer = buffer_of(a);
 	BOOST_REQUIRE(!buffer.expired());
 	a.reset();
 	BOOST_CHECK(buffer.expired());
@@ -343,45 +339,69 @@ BOOST_AUTO_TEST_CASE(a_model_no_instance_uses_is_released)
 
 BOOST_AUTO_TEST_CASE(a_released_model_is_read_again)
 {
-	auto a = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"), scheduler_a);
+	auto a = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
 	auto const bytes = vertex_bytes<edge::VERTEX_PTBNT>(a->meshes()[0]);
 	a.reset();
-	auto b = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"), scheduler_a);
+	auto b = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
 	BOOST_CHECK(vertex_bytes<edge::VERTEX_PTBNT>(b->meshes()[0]) == bytes);
 	BOOST_CHECK_EQUAL(cache.prototypes_count(), 1u);
 }
 
 BOOST_AUTO_TEST_CASE(sweep_drops_the_entries_of_released_models)
 {
-	auto a = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"), scheduler_a);
-	auto b = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_directions.glb"), scheduler_a);
+	auto a = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
+	auto b = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_directions.glb"));
+	auto const b_buffer = buffer_of(b);
 	a.reset();
 	BOOST_CHECK_EQUAL(cache.sweep(), 1u);
 	BOOST_CHECK_EQUAL(cache.sweep(), 0u);
 	BOOST_CHECK_EQUAL(cache.prototypes_count(), 1u);
+	// the live entry kept: loaded again, the same buffers
+	auto c = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_directions.glb"));
+	BOOST_CHECK(buffer_of(c).lock() == b_buffer.lock());
+}
+
+BOOST_AUTO_TEST_CASE(a_prototype_held_outside_the_cache_stays_cached)
+{
+	auto a = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
+	std::shared_ptr<edge::Model const> const held = a->prototype();
+	auto const buffer = buffer_of(a);
+	a.reset();
+	BOOST_CHECK_EQUAL(cache.sweep(), 0u);
+	BOOST_CHECK_EQUAL(cache.prototypes_count(), 1u);
+	auto b = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
+	BOOST_CHECK(b->prototype() == held);
+	BOOST_CHECK(buffer_of(b).lock() == buffer.lock());
+}
+
+BOOST_AUTO_TEST_CASE(a_cleared_instance_releases_its_prototype)
+{
+	auto a = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
+	a->clear();
+	BOOST_CHECK_EQUAL(cache.prototypes_count(), 0u);
+	BOOST_CHECK_EQUAL(cache.sweep(), 1u);
 }
 
 BOOST_AUTO_TEST_CASE(a_model_loaded_on_its_own_holds_nothing)
 {
-	auto direct = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler_a);
+	auto direct = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	direct->load_from_gltf(asset("cone.glb"));
 	BOOST_CHECK(!direct->prototype());
-	auto instance = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"), scheduler_a);
+	auto instance = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
 	BOOST_REQUIRE(instance->prototype());
 	instance->clear();
 	BOOST_CHECK(!instance->prototype());
 }
 
-// Whether an instance keeps its prototype alive is the caller's choice, made by what it passes: the prototype's shared_ptr
-// (held) or the prototype itself (not held).
+// An instance is made of its prototype's shared_ptr, and holds it for as long as it lives.
 
 BOOST_AUTO_TEST_CASE(an_instance_of_a_shared_prototype_holds_it)
 {
-	auto prototype = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler_a);
+	auto prototype = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	prototype->load_from_gltf(asset("cone.glb"));
 	std::weak_ptr<edge::StaticModelPTBNT> watch = prototype;
 	auto instance = std::make_shared<edge::StaticModelPTBNT>(
-		std::shared_ptr<edge::StaticModelPTBNT const>(prototype), scheduler_b);
+		std::shared_ptr<edge::StaticModelPTBNT const>(prototype));
 	BOOST_CHECK(instance->prototype() == prototype);
 	prototype.reset();
 	BOOST_CHECK(!watch.expired());
@@ -389,22 +409,9 @@ BOOST_AUTO_TEST_CASE(an_instance_of_a_shared_prototype_holds_it)
 	BOOST_CHECK(watch.expired());
 }
 
-BOOST_AUTO_TEST_CASE(an_instance_of_a_prototype_by_reference_holds_nothing)
-{
-	auto prototype = std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler_a);
-	prototype->load_from_gltf(asset("cone.glb"));
-	std::weak_ptr<edge::StaticModelPTBNT> watch = prototype;
-	auto instance = std::make_shared<edge::StaticModelPTBNT>(*prototype, scheduler_b);
-	BOOST_CHECK(!instance->prototype());
-	prototype.reset();
-	BOOST_CHECK(watch.expired());
-	// What it shares it keeps: the instance still draws the file's buffers.
-	BOOST_CHECK(static_mesh<edge::VERTEX_PTBNT>(instance->meshes()[0]).vertex_buffer());
-}
-
 BOOST_AUTO_TEST_CASE(a_null_prototype_is_refused)
 {
-	BOOST_CHECK_THROW(edge::StaticModelPTBNT(std::shared_ptr<edge::StaticModelPTBNT const>(), scheduler_a),
+	BOOST_CHECK_THROW(edge::StaticModelPTBNT(std::shared_ptr<edge::StaticModelPTBNT const>()),
 		std::invalid_argument);
 }
 

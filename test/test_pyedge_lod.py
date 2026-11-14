@@ -18,8 +18,7 @@ STATIC = TEST_DIR / "cylinder_30_degrees.glb"  # 128 triangles: under the defaul
 
 
 def _renderer():
-    renderer = pyedge.Renderer(backend="null")
-    return renderer, renderer.create_scheduler()
+    return pyedge.Renderer(backend="null")
 
 
 @needs_convert
@@ -35,8 +34,8 @@ def test_convert_reports_the_triangles_of_every_level(tmp_path):
 def test_a_model_knows_its_levels_and_their_error(tmp_path):
     edge_file = tmp_path / "m.edge"
     pyedge.convert_gltf_to_edge(str(SKINNED), str(edge_file), lods=[0.5, 0.2, 0.06])
-    renderer, scheduler = _renderer()
-    model = pyedge.AnimatedModelPTBNJWT(renderer, scheduler)
+    renderer = _renderer()
+    model = pyedge.AnimatedModelPTBNJWT(renderer)
     model.load_from_file(str(edge_file))
 
     assert model.lod_count == 4
@@ -51,16 +50,16 @@ def test_a_model_knows_its_levels_and_their_error(tmp_path):
 def test_a_model_made_without_levels_has_one(tmp_path):
     edge_file = tmp_path / "m.edge"
     pyedge.convert_gltf_to_edge(str(STATIC), str(edge_file))
-    renderer, scheduler = _renderer()
-    model = pyedge.StaticModelPTBNT(renderer, scheduler)
+    renderer = _renderer()
+    model = pyedge.StaticModelPTBNT(renderer)
     model.load_from_file(str(edge_file))
     assert model.lod_count == 1
     assert model.lod_error(0) == 0.0
 
 
 def test_a_gltf_loaded_directly_has_one_level():
-    renderer, scheduler = _renderer()
-    model = pyedge.AnimatedModelPTBNJWT(renderer, scheduler)
+    renderer = _renderer()
+    model = pyedge.AnimatedModelPTBNJWT(renderer)
     model.load_from_gltf(str(SKINNED))
     assert model.lod_count == 1
 
@@ -113,8 +112,8 @@ def test_what_is_not_a_ladder_or_not_a_span_is_a_value_error(errors, span, toler
 def test_a_models_levels_scaled_as_placed_are_chosen_where_each_error_fits(tmp_path):
     edge_file = tmp_path / "m.edge"
     pyedge.convert_gltf_to_edge(str(SKINNED), str(edge_file), lods=[0.5, 0.2, 0.06])
-    renderer, scheduler = _renderer()
-    model = pyedge.AnimatedModelPTBNJWT(renderer, scheduler)
+    renderer = _renderer()
+    model = pyedge.AnimatedModelPTBNJWT(renderer)
     model.load_from_file(str(edge_file))
     errors = [model.lod_error(level) for level in range(model.lod_count)]
     for scale in (1.0, 3.0):

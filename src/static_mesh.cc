@@ -140,23 +140,23 @@ void BasicStaticMesh<T>::check()
 }
 
 template <vertex_layout T>
-void BasicStaticMesh<T>::draw(Joint *joint_ptr, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod)
+void BasicStaticMesh<T>::draw(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod)
 {
-	submit(joint_ptr, camera, world_matrix, lod, nullptr);
+	submit(scheduler, joint_ptr, camera, world_matrix, lod, nullptr);
 }
 
 template <vertex_layout T>
-void BasicStaticMesh<T>::draw_instances(Joint *joint_ptr, CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
+void BasicStaticMesh<T>::draw_instances(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
 	unsigned lod)
 {
 	if (world_matrices.empty())
 		return;
 	// the draw calls at the model's own space, each instance placing them (and their bounds) by its world
-	submit(joint_ptr, camera, rove::matrix<4,4>(), lod, &world_matrices);
+	submit(scheduler, joint_ptr, camera, rove::matrix<4,4>(), lod, &world_matrices);
 }
 
 template <vertex_layout T>
-void BasicStaticMesh<T>::submit(Joint *joint_ptr, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod,
+void BasicStaticMesh<T>::submit(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod,
 	std::vector<rove::matrix<4,4>> const *instances)
 {
 	build_model_joints();
@@ -185,7 +185,7 @@ void BasicStaticMesh<T>::submit(Joint *joint_ptr, CameraPtr const &camera, rove:
 		draw_call->set_always_visible(always_visible_);
 		draw_call->commit();
 
-		Mesh::model()->scheduler()->add(draw_call);
+		scheduler.add(draw_call);
 	}
 }
 

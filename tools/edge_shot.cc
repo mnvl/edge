@@ -385,7 +385,7 @@ public:
 		edge::ModelPtr model;
 		try
 		{
-			model = edge::load_model(renderer_, scheduler_, file);
+			model = edge::load_model(renderer_, file);
 			model->check();
 		}
 		catch (std::exception const &e)
@@ -413,7 +413,7 @@ public:
 			rove::vec<3>(float(orbit.target[0]), float(orbit.target[1]), float(orbit.target[2])), rove::vec<3>(0.0f, 1.0f, 0.0f));
 		rove::matrix<4, 4> identity;
 		renderer_->begin_frame();
-		model.draw(camera_, identity);
+		model.draw(*scheduler_, camera_, identity);
 		renderer_->begin_pass(target_, clear_);
 		scheduler_->flush();
 		renderer_->end_pass();

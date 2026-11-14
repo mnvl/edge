@@ -15,8 +15,8 @@ namespace edge
 {
 
 template <skinned_vertex_layout V>
-BasicAnimatedModel<V>::BasicAnimatedModel(RendererPtr const &renderer_ptr, SchedulerPtr const &scheduler_ptr):
-	Model(renderer_ptr, scheduler_ptr)
+BasicAnimatedModel<V>::BasicAnimatedModel(RendererPtr const &renderer_ptr):
+	Model(renderer_ptr)
 {
 }
 

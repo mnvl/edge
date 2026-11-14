@@ -43,7 +43,7 @@ def _local(node: dict) -> np.ndarray:
 @pytest.fixture
 def model():
     renderer = pyedge.Renderer(backend="null")
-    model = pyedge.AnimatedModelPTBNJWT(renderer, renderer.create_scheduler())
+    model = pyedge.AnimatedModelPTBNJWT(renderer)
     model.load_from_gltf(str(ASSET))
     return model
 

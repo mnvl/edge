@@ -19,7 +19,7 @@ std::shared_ptr<edge::ModelBuilder> make_model()
 {
 	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
 	edge::SchedulerPtr scheduler(new edge::Scheduler(renderer));
-	return std::make_shared<edge::ModelBuilder>(renderer, scheduler);
+	return std::make_shared<edge::ModelBuilder>(renderer);
 }
 
 std::string make_asset_path(std::string const &asset_name)
@@ -143,7 +143,8 @@ BOOST_AUTO_TEST_CASE(a_model_builder_does_not_draw)
 	make_triangle_mesh(*model);
 	rove::matrix<4,4> identity;
 	identity.identity();
-	BOOST_CHECK_THROW(model->draw(std::make_shared<edge::Camera>(), identity), std::runtime_error);
+	edge::Scheduler scheduler(model->renderer());
+	BOOST_CHECK_THROW(model->draw(scheduler, std::make_shared<edge::Camera>(), identity), std::runtime_error);
 }
 
 BOOST_AUTO_TEST_CASE(add_triangles_out_of_range_throws)

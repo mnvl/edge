@@ -73,7 +73,7 @@ GltfOptions uncompressed()
 
 std::shared_ptr<StaticModelPTBNT> loaded(RendererPtr const &renderer, std::string const &file, GltfOptions const &options = uncompressed())
 {
-	auto model = std::make_shared<StaticModelPTBNT>(renderer, std::make_shared<Scheduler>(renderer));
+	auto model = std::make_shared<StaticModelPTBNT>(renderer);
 	model->load_from_gltf(asset(file), options);
 	return model;
 }
@@ -285,7 +285,7 @@ BOOST_AUTO_TEST_CASE(a_format_10_file_loads_without_occlusion)
 	BOOST_CHECK_EQUAL(serialized.version, 10u);
 	BOOST_REQUIRE_EQUAL(serialized.materials.size(), 2u);
 	auto renderer = std::make_shared<NullRenderer>(4, 4);
-	auto const model = std::make_shared<StaticModelPTBNT>(renderer, std::make_shared<Scheduler>(renderer));
+	auto const model = std::make_shared<StaticModelPTBNT>(renderer);
 	model->load_from_file(asset("test_format10_pbr.edge"));
 	MaterialPtr const pbr = material_named(*model, "pbr");
 	BOOST_CHECK(!pbr->occlusion());
@@ -335,7 +335,7 @@ BOOST_AUTO_TEST_CASE(a_file_whose_occlusion_strength_is_not_0_to_1_is_damaged)
 	serialized.materials.at(0).occlusion_strength = 2.0f;
 	Model::write_file(serialized, out("strength.edge"));
 	auto renderer = std::make_shared<NullRenderer>(4, 4);
-	auto const model = std::make_shared<StaticModelPTBNT>(renderer, std::make_shared<Scheduler>(renderer));
+	auto const model = std::make_shared<StaticModelPTBNT>(renderer);
 	try
 	{
 		model->load_from_file(out("strength.edge"));
@@ -360,7 +360,7 @@ BOOST_AUTO_TEST_CASE(a_file_whose_material_has_occlusion_and_no_texture_to_hold_
 	orm.metallic_roughness = -1;
 	Model::write_file(serialized, out("no_texture.edge"));
 	auto renderer = std::make_shared<NullRenderer>(4, 4);
-	auto const model = std::make_shared<StaticModelPTBNT>(renderer, std::make_shared<Scheduler>(renderer));
+	auto const model = std::make_shared<StaticModelPTBNT>(renderer);
 	try
 	{
 		model->load_from_file(out("no_texture.edge"));
@@ -383,7 +383,7 @@ BOOST_AUTO_TEST_CASE(a_converted_file_keeps_occlusion_and_its_strength)
 		std::string const file = out(compress ? "bc7.edge" : "plain.edge");
 		convert_gltf_to_edge(asset("test_occlusion.gltf"), file, options);
 		auto renderer = std::make_shared<NullRenderer>(4, 4);
-		auto const model = std::make_shared<StaticModelPTBNT>(renderer, std::make_shared<Scheduler>(renderer));
+		auto const model = std::make_shared<StaticModelPTBNT>(renderer);
 		model->load_from_file(file);
 		BOOST_CHECK(material_named(*model, "orm")->occlusion());
 		BOOST_CHECK_EQUAL(material_named(*model, "orm")->occlusion_strength(), 0.5f);

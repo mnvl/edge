@@ -39,7 +39,7 @@
 
 ```
 renderer.begin_frame()
-    model.draw(camera, world_matrix)      # queues draw calls on the model's scheduler
+    model.draw(scheduler, camera, world_matrix)  # queues the model's draw calls in scheduler
     renderer.begin_pass(target, clear)    # the target, cleared
     scheduler.flush()                     # sorted by priority, culled, executed
     renderer.end_pass()

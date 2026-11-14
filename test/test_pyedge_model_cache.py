@@ -20,11 +20,10 @@ def renderer():
 
 def test_each_load_is_a_new_model_of_the_requested_class(renderer):
     cache = pyedge.ModelCache(renderer)
-    scheduler = renderer.create_scheduler()
 
-    a = cache.load(pyedge.StaticModelPTBNT, _asset_path("test_gltf_loder_materials.glb"), scheduler)
-    b = cache.load(pyedge.StaticModelPTBNT, _asset_path("test_gltf_loder_materials.glb"), scheduler)
-    animated = cache.load(pyedge.AnimatedModelPTBNJWT, _asset_path("test_gltf_loder_animation.glb"), scheduler)
+    a = cache.load(pyedge.StaticModelPTBNT, _asset_path("test_gltf_loder_materials.glb"))
+    b = cache.load(pyedge.StaticModelPTBNT, _asset_path("test_gltf_loder_materials.glb"))
+    animated = cache.load(pyedge.AnimatedModelPTBNJWT, _asset_path("test_gltf_loder_animation.glb"))
 
     assert type(a) is pyedge.StaticModelPTBNT
     assert type(animated) is pyedge.AnimatedModelPTBNJWT
@@ -36,10 +35,9 @@ def test_each_load_is_a_new_model_of_the_requested_class(renderer):
 
 def test_material_settings_stay_on_their_instance(renderer):
     cache = pyedge.ModelCache(renderer)
-    scheduler = renderer.create_scheduler()
     path = _asset_path("test_gltf_loder_materials.glb")
-    a = cache.load(pyedge.StaticModelPTBNT, path, scheduler)
-    b = cache.load(pyedge.StaticModelPTBNT, path, scheduler)
+    a = cache.load(pyedge.StaticModelPTBNT, path)
+    b = cache.load(pyedge.StaticModelPTBNT, path)
 
     a.set_materials_extra_parameter(0, pyrove.vec4(4.0, 0.0, 0.0, 0.0))
     a.set_materials_shader_program(renderer.create_shader_program("vertex.spv", "fragment.spv"))
@@ -52,10 +50,9 @@ def test_material_settings_stay_on_their_instance(renderer):
 
 def test_animations_pose_their_own_instance(renderer):
     cache = pyedge.ModelCache(renderer)
-    scheduler = renderer.create_scheduler()
     path = _asset_path("test_gltf_loder_animation.glb")
-    a = cache.load(pyedge.AnimatedModelPTBNJWT, path, scheduler)
-    b = cache.load(pyedge.AnimatedModelPTBNJWT, path, scheduler)
+    a = cache.load(pyedge.AnimatedModelPTBNJWT, path)
+    b = cache.load(pyedge.AnimatedModelPTBNJWT, path)
     identity = pyrove.mat4()
     identity.identity()
 
@@ -73,28 +70,23 @@ def test_animations_pose_their_own_instance(renderer):
 
 def test_refusals(renderer):
     cache = pyedge.ModelCache(renderer)
-    scheduler = renderer.create_scheduler()
 
     with pytest.raises(TypeError):
-        cache.load(pyedge.ModelBuilder, _asset_path("cone.glb"), scheduler)
-    with pytest.raises(ValueError, match="another renderer"):
-        cache.load(pyedge.StaticModelPTBNT, _asset_path("cone.glb"),
-                   pyedge.Renderer(backend="null").create_scheduler())
+        cache.load(pyedge.ModelBuilder, _asset_path("cone.glb"))
     with pytest.raises(RuntimeError):
-        cache.load(pyedge.StaticModelPTBNT, _asset_path("no_such_model.glb"), scheduler)
+        cache.load(pyedge.StaticModelPTBNT, _asset_path("no_such_model.glb"))
     assert cache.prototypes_count == 0
 
 
 def test_clear_rereads_and_keeps_instances(renderer):
     cache = pyedge.ModelCache(renderer)
-    scheduler = renderer.create_scheduler()
-    a = cache.load(pyedge.StaticModelPTBNT, _asset_path("cone.glb"), scheduler)
+    a = cache.load(pyedge.StaticModelPTBNT, _asset_path("cone.glb"))
     cache.clear()
     assert cache.prototypes_count == 0
     identity = pyrove.mat4()
     identity.identity()
     assert a.bounds(identity).hi.x > a.bounds(identity).lo.x
-    b = cache.load(pyedge.StaticModelPTBNT, _asset_path("cone.glb"), scheduler)
+    b = cache.load(pyedge.StaticModelPTBNT, _asset_path("cone.glb"))
     assert cache.prototypes_count == 1
     assert b.bounds(identity).hi.x > b.bounds(identity).lo.x
 
@@ -105,9 +97,8 @@ def test_a_model_is_cached_while_python_holds_an_instance_of_it(renderer):
     import gc
 
     cache = pyedge.ModelCache(renderer)
-    scheduler = renderer.create_scheduler()
-    a = cache.load(pyedge.StaticModelPTBNT, _asset_path("cone.glb"), scheduler)
-    b = cache.load(pyedge.StaticModelPTBNT, _asset_path("cone.glb"), scheduler)
+    a = cache.load(pyedge.StaticModelPTBNT, _asset_path("cone.glb"))
+    b = cache.load(pyedge.StaticModelPTBNT, _asset_path("cone.glb"))
     del a
     gc.collect()
     assert cache.prototypes_count == 1
@@ -116,5 +107,5 @@ def test_a_model_is_cached_while_python_holds_an_instance_of_it(renderer):
     assert cache.prototypes_count == 0
     assert cache.sweep() == 1
     assert cache.sweep() == 0
-    c = cache.load(pyedge.StaticModelPTBNT, _asset_path("cone.glb"), scheduler)
+    c = cache.load(pyedge.StaticModelPTBNT, _asset_path("cone.glb"))
     assert cache.prototypes_count == 1 and c is not None

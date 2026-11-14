@@ -15,6 +15,14 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- A model no longer has a scheduler: it is given one at each draw, and draws into as many as it is given. `Model::draw()` and
+  `draw_instances()` (and `Mesh::draw()`, `draw_instances()`) take the `Scheduler &` first, and throw `std::invalid_argument` for one
+  of another renderer than the model's. The models' constructors take the renderer alone (`Model(RendererPtr)`, an instance
+  `Model(std::shared_ptr<Model const>)`); `load_model(renderer, filename, options)` and `ModelCache::load<M>(filename)` take no
+  scheduler, and `Model::scheduler()` is gone. pyedge the same: `StaticModelPTBNT(renderer)`, `model.draw(scheduler, camera, world)`,
+  `model.draw_instances(scheduler, camera, worlds)`, `pyedge.load_model(renderer, filename)`, `ModelCache.load(cls, filename)`.
+- An instance of a model is made of its prototype's `shared_ptr` and holds it: `Model(Model const &, SchedulerPtr)`, which made one
+  that does not, is gone.
 - `ModelCache` holds its prototypes weakly and each instance holds its prototype (`Model::prototype()`): a file is read once
   for as long as any instance of it lives, and its GPU buffers and textures go with its last instance -- a cache kept for a
   process holds what it draws now, not every file it ever drew. `ModelCache::sweep()` (pyedge: `ModelCache.sweep()`) forgets

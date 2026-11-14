@@ -259,7 +259,7 @@ BOOST_AUTO_TEST_CASE(a_gltf_load_is_in_the_log)
 	edge::SchedulerPtr scheduler(new edge::Scheduler(renderer));
 	{
 		RecordingSink sink(edge::LogLevel::info);
-		std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler)->load_from_gltf(asset);
+		std::make_shared<edge::StaticModelPTBNT>(renderer)->load_from_gltf(asset);
 		BOOST_TEST(sink.has("glTF primitive(s) from " + asset));
 		BOOST_TEST(!sink.has("vertices: count = ")); // debug, off at info
 		bool from_the_reader = false;
@@ -268,7 +268,7 @@ BOOST_AUTO_TEST_CASE(a_gltf_load_is_in_the_log)
 	}
 	{
 		RecordingSink sink(edge::LogLevel::debug);
-		std::make_shared<edge::StaticModelPTBNT>(renderer, scheduler)->load_from_gltf(asset);
+		std::make_shared<edge::StaticModelPTBNT>(renderer)->load_from_gltf(asset);
 		BOOST_TEST(sink.has("vertices: count = "));
 		BOOST_TEST(sink.has("bounds = ("));
 	}

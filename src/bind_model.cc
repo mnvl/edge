@@ -32,30 +32,23 @@ using namespace nb::literals;
 namespace {
 
 template <typename ModelType>
-std::shared_ptr<ModelType> create_render_model(edge::RendererPtr const &renderer,
-    edge::SchedulerPtr const &scheduler, std::string const &model_name)
+std::shared_ptr<ModelType> create_render_model(edge::RendererPtr const &renderer, std::string const &model_name)
 {
     if (!renderer)
     {
         throw std::runtime_error(model_name + " requires a valid renderer");
     }
-
-    edge::SchedulerPtr model_scheduler = scheduler;
-    if (!model_scheduler)
-    {
-        model_scheduler = std::make_shared<edge::Scheduler>(renderer);
-    }
-    return std::make_shared<ModelType>(renderer, model_scheduler);
+    return std::make_shared<ModelType>(renderer);
 }
 
 // cache.load<M>(filename) with other Python threads running meanwhile; the Python object is made after, with the GIL
 template <typename M>
-nb::object load_letting_python_run(edge::ModelCache &cache, std::string const &filename, edge::SchedulerPtr const &scheduler)
+nb::object load_letting_python_run(edge::ModelCache &cache, std::string const &filename)
 {
     std::shared_ptr<M> model;
     {
         nb::gil_scoped_release release;
-        model = cache.load<M>(filename, scheduler);
+        model = cache.load<M>(filename);
     }
     return nb::cast(model);
 }
@@ -64,10 +57,10 @@ template <typename ModelType>
 void bind_render_model(nb::module_ &m, char const *model_name)
 {
     nb::class_<ModelType>(m, model_name)
-        .def(nb::new_([model_name](edge::RendererPtr const &renderer, edge::SchedulerPtr const &scheduler) {
-                return create_render_model<ModelType>(renderer, scheduler, model_name);
+        .def(nb::new_([model_name](edge::RendererPtr const &renderer) {
+                return create_render_model<ModelType>(renderer, model_name);
             }),
-            "renderer"_a, "scheduler"_a = edge::SchedulerPtr())
+            "renderer"_a)
         .def("load_from_gltf", [](ModelType &self, std::string const &filename) { self.load_from_gltf(filename); },
             "filename"_a, nb::call_guard<nb::gil_scoped_release>())
         .def("save_to_file", &ModelType::save_to_file, "filename"_a)
@@ -79,11 +72,13 @@ void bind_render_model(nb::module_ &m, char const *model_name)
         .def_prop_rw("always_visible", &ModelType::always_visible, &ModelType::set_always_visible,
             "Whether the model and its meshes are drawn whatever the camera sees")
         .def("set_always_visible", &ModelType::set_always_visible, "always_visible"_a)
-        .def("draw", [](ModelType &model, edge::CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod) { model.draw(camera, world_matrix, lod); },
-            "camera"_a, "world_matrix"_a, "lod"_a = 0u)
-        .def("draw_instances", [](ModelType &model, edge::CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
-                unsigned lod) { model.draw_instances(camera, world_matrices, lod); },
-            "camera"_a, "world_matrices"_a, "lod"_a = 0u,
+        .def("draw", [](ModelType &model, edge::Scheduler &scheduler, edge::CameraPtr const &camera, rove::matrix<4,4> const &world_matrix,
+                unsigned lod) { model.draw(scheduler, camera, world_matrix, lod); },
+            "scheduler"_a, "camera"_a, "world_matrix"_a, "lod"_a = 0u,
+            "Queues the model's draw calls in scheduler (one of the model's renderer: ValueError otherwise).")
+        .def("draw_instances", [](ModelType &model, edge::Scheduler &scheduler, edge::CameraPtr const &camera,
+                std::vector<rove::matrix<4,4>> const &world_matrices, unsigned lod) { model.draw_instances(scheduler, camera, world_matrices, lod); },
+            "scheduler"_a, "camera"_a, "world_matrices"_a, "lod"_a = 0u,
             "The model once for each world matrix, in one instanced draw for each triangle group, each instance culled on its own.")
         .def("build_octree", &ModelType::build_octree, "world_matrix"_a, nb::call_guard<nb::gil_scoped_release>())
         .def("bounds", static_cast<rove::aabb<3> (ModelType::*)(rove::matrix<4,4> const &) const>(&ModelType::bounds), "world_matrix"_a)
@@ -179,10 +174,10 @@ void bind_model(nb::module_ &m)
 
 
     nb::class_<edge::ModelBuilder>(m, "ModelBuilder")
-        .def(nb::new_([](edge::RendererPtr const &renderer, edge::SchedulerPtr const &scheduler) {
-                return create_render_model<edge::ModelBuilder>(renderer, scheduler, "ModelBuilder");
+        .def(nb::new_([](edge::RendererPtr const &renderer) {
+                return create_render_model<edge::ModelBuilder>(renderer, "ModelBuilder");
             }),
-            "renderer"_a, "scheduler"_a = edge::SchedulerPtr())
+            "renderer"_a)
         .def("load_from_gltf", [](edge::ModelBuilder &self, std::string const &filename) { self.load_from_gltf(filename); },
             nb::call_guard<nb::gil_scoped_release>(),
             "filename"_a)
@@ -207,8 +202,9 @@ void bind_model(nb::module_ &m)
         .def_prop_rw("always_visible", &edge::ModelBuilder::always_visible, &edge::ModelBuilder::set_always_visible,
             "Whether the model and its meshes are drawn whatever the camera sees")
         .def("set_always_visible", &edge::ModelBuilder::set_always_visible, "always_visible"_a)
-        .def("draw", [](edge::ModelBuilder &model, edge::CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod) { model.draw(camera, world_matrix, lod); },
-            "camera"_a, "world_matrix"_a, "lod"_a = 0u)
+        .def("draw", [](edge::ModelBuilder &model, edge::Scheduler &scheduler, edge::CameraPtr const &camera,
+                rove::matrix<4,4> const &world_matrix, unsigned lod) { model.draw(scheduler, camera, world_matrix, lod); },
+            "scheduler"_a, "camera"_a, "world_matrix"_a, "lod"_a = 0u)
         .def("build_octree", &edge::ModelBuilder::build_octree, "world_matrix"_a, nb::call_guard<nb::gil_scoped_release>())
         .def("bounds", static_cast<rove::aabb<3> (edge::ModelBuilder::*)(rove::matrix<4,4> const &) const>(&edge::ModelBuilder::bounds), "world_matrix"_a)
         .def("get_bounds", pyedge::deprecated<edge::ModelBuilder>("ModelBuilder.get_bounds(w) is ModelBuilder.bounds(w)",
@@ -267,12 +263,10 @@ void bind_model(nb::module_ &m)
     bind_render_model<edge::StaticModelPTBNTC>(m, "StaticModelPTBNTC");
     bind_render_model<edge::AnimatedModelPTBNJWTC>(m, "AnimatedModelPTBNJWTC");
 
-    m.def("load_model", [](edge::RendererPtr const &renderer, edge::SchedulerPtr const &scheduler, std::string const &filename,
-            bool keep_cpu_copy) -> nb::object {
+    m.def("load_model", [](edge::RendererPtr const &renderer, std::string const &filename, bool keep_cpu_copy) -> nb::object {
             edge::GltfOptions options;
             options.keep_cpu_copy = keep_cpu_copy;
-            edge::ModelPtr const model = edge::load_model(renderer, scheduler ? scheduler : std::make_shared<edge::Scheduler>(renderer),
-                filename, options);
+            edge::ModelPtr const model = edge::load_model(renderer, filename, options);
             // (each its class: nanobind hands a model out by the type it is bound as)
             if (auto typed = std::dynamic_pointer_cast<edge::StaticModelPTBNT>(model))
                 return nb::cast(typed);
@@ -287,7 +281,7 @@ void bind_model(nb::module_ &m)
             if (auto typed = std::dynamic_pointer_cast<edge::AnimatedModelPNJWT>(model))
                 return nb::cast(typed);
             throw std::logic_error("load_model: a model of a class pyedge does not bind");
-        }, "renderer"_a, "scheduler"_a = edge::SchedulerPtr(), "filename"_a, "keep_cpu_copy"_a = true,
+        }, "renderer"_a, "filename"_a, "keep_cpu_copy"_a = true,
         "A model of the class its file is: a .edge file's meshes name it, a glTF's contents decide it as edge_convert does\n"
         "(StaticModelPTBNT, StaticModelPTBNTC, AnimatedModelPTBNJWT, AnimatedModelPTBNJWTC, ...).  See edge/src/load_model.h.");
 
@@ -314,24 +308,23 @@ void bind_model(nb::module_ &m)
         .def(nb::init<edge::RendererPtr const &>(), "renderer"_a)
         .def("sweep", &edge::ModelCache::sweep,
             "Forget the models no instance holds any more (their memory went with their last instance); returns how many.")
-        .def("load", [](edge::ModelCache &self, nb::handle cls, std::string const &filename,
-                edge::SchedulerPtr const &scheduler) -> nb::object {
+        .def("load", [](edge::ModelCache &self, nb::handle cls, std::string const &filename) -> nb::object {
                 if (cls.is(nb::type<edge::StaticModelPNT>()))
-                    return load_letting_python_run<edge::StaticModelPNT>(self, filename, scheduler);
+                    return load_letting_python_run<edge::StaticModelPNT>(self, filename);
                 if (cls.is(nb::type<edge::StaticModelPTBNT>()))
-                    return load_letting_python_run<edge::StaticModelPTBNT>(self, filename, scheduler);
+                    return load_letting_python_run<edge::StaticModelPTBNT>(self, filename);
                 if (cls.is(nb::type<edge::AnimatedModelPNJWT>()))
-                    return load_letting_python_run<edge::AnimatedModelPNJWT>(self, filename, scheduler);
+                    return load_letting_python_run<edge::AnimatedModelPNJWT>(self, filename);
                 if (cls.is(nb::type<edge::AnimatedModelPTBNJWT>()))
-                    return load_letting_python_run<edge::AnimatedModelPTBNJWT>(self, filename, scheduler);
+                    return load_letting_python_run<edge::AnimatedModelPTBNJWT>(self, filename);
                 if (cls.is(nb::type<edge::StaticModelPTBNTC>()))
-                    return load_letting_python_run<edge::StaticModelPTBNTC>(self, filename, scheduler);
+                    return load_letting_python_run<edge::StaticModelPTBNTC>(self, filename);
                 if (cls.is(nb::type<edge::AnimatedModelPTBNJWTC>()))
-                    return load_letting_python_run<edge::AnimatedModelPTBNJWTC>(self, filename, scheduler);
+                    return load_letting_python_run<edge::AnimatedModelPTBNJWTC>(self, filename);
                 throw nb::type_error("ModelCache.load: cls must be one of StaticModelPNT, StaticModelPTBNT, StaticModelPTBNTC, "
                     "AnimatedModelPNJWT, AnimatedModelPTBNJWT, AnimatedModelPTBNJWTC");
-            }, "cls"_a, "filename"_a, "scheduler"_a,
-            "A new model of class cls holding filename, drawing through scheduler.")
+            }, "cls"_a, "filename"_a,
+            "A new model of class cls holding filename; it draws into any scheduler of the cache's renderer.")
         .def("clear", &edge::ModelCache::clear)
         .def_prop_ro("renderer", &edge::ModelCache::renderer)
         .def_prop_ro("prototypes_count", &edge::ModelCache::prototypes_count);

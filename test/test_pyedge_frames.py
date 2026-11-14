@@ -390,13 +390,12 @@ def test_submit_frame_does_not_wait_for_the_gpu():
 
 
 def test_loading_a_model_lets_python_run(renderer):
-    scheduler = renderer.create_scheduler()
 
     models = []                  # kept: a model's destruction, with the GIL, may wait for the GPU, which is not what is timed here
 
     def load():
         for _ in range(4):
-            models.append(pyedge.AnimatedModelPTBNJWT(renderer, scheduler))
+            models.append(pyedge.AnimatedModelPTBNJWT(renderer))
             models[-1].load_from_gltf(str(DATA / "test_figure.glb"))
 
     took, stall = _stall_during(load)
@@ -406,26 +405,25 @@ def test_loading_a_model_lets_python_run(renderer):
 
 
 def test_a_caches_first_load_lets_python_run(renderer):
-    scheduler = renderer.create_scheduler()
 
     kept = []                    # (as above: destruction is not what is timed)
 
     def load():
         for _ in range(4):                       # a cache of its own each time: each load reads the file
             cache = pyedge.ModelCache(renderer)
-            kept.append((cache, cache.load(pyedge.AnimatedModelPTBNJWT, str(DATA / "test_figure.glb"), scheduler)))
+            kept.append((cache, cache.load(pyedge.AnimatedModelPTBNJWT, str(DATA / "test_figure.glb"))))
 
     took, stall = _stall_during(load)
     del kept
     assert took > 0.2, f"loading took {took:.3f} s: too short to tell"
     assert stall < 0.05, f"ModelCache.load: the main thread could not run for {stall:.3f} s"
-    model = pyedge.ModelCache(renderer).load(pyedge.AnimatedModelPTBNJWT, str(DATA / "test_figure.glb"), scheduler)
+    model = pyedge.ModelCache(renderer).load(pyedge.AnimatedModelPTBNJWT, str(DATA / "test_figure.glb"))
     assert isinstance(model, pyedge.AnimatedModelPTBNJWT)
 
 
 def test_building_an_octree_lets_python_run(renderer):
     n = 700
-    model = pyedge.ModelBuilder(renderer, renderer.create_scheduler())
+    model = pyedge.ModelBuilder(renderer)
     mesh = model.add_mesh_builder("ground", "ground")
     ys, xs = np.mgrid[0:n + 1, 0:n + 1].astype(np.float32)
     positions = np.stack([xs.ravel(), ys.ravel(), np.zeros(xs.size, np.float32)], axis=1)

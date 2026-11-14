@@ -64,7 +64,7 @@ struct Fixture
 	template <class M>
 	std::shared_ptr<M> loaded(std::string const &file)
 	{
-		auto model = std::make_shared<M>(renderer, scheduler);
+		auto model = std::make_shared<M>(renderer);
 		model->load_from_file(file);
 		return model;
 	}
@@ -76,7 +76,7 @@ struct Fixture
 		identity.identity();
 		scheduler->clear();
 		uint64_t const before = scheduler->offered_triangles_count();
-		model.draw(camera, identity, lod);
+		model.draw(*scheduler, camera, identity, lod);
 		edge::flush_in_a_pass(scheduler);
 		return scheduler->offered_triangles_count() - before;
 	}
@@ -160,7 +160,7 @@ BOOST_AUTO_TEST_CASE(a_chooser_gives_every_mesh_its_own_level_and_sees_the_mesh_
 	size_t asked = 0;
 	scheduler->clear();
 	uint64_t const before = scheduler->offered_triangles_count();
-	lod->draw(camera, identity, [&](edge::Mesh const &mesh, rove::obb<3> const &bounds) {
+	lod->draw(*scheduler, camera, identity, [&](edge::Mesh const &mesh, rove::obb<3> const &bounds) {
 		++asked;
 		BOOST_CHECK_EQUAL(mesh.lod_count(), 3u);
 		BOOST_CHECK_GT(bounds.radius(), 0.0f);
@@ -174,7 +174,7 @@ BOOST_AUTO_TEST_CASE(a_chooser_gives_every_mesh_its_own_level_and_sees_the_mesh_
 	scheduler->clear();
 	uint64_t const b2 = scheduler->offered_triangles_count();
 	edge::Mesh const *first = lod->meshes()[0].get();
-	lod->draw(camera, identity, [&](edge::Mesh const &mesh, rove::obb<3> const &) { return &mesh == first ? 2u : 0u; });
+	lod->draw(*scheduler, camera, identity, [&](edge::Mesh const &mesh, rove::obb<3> const &) { return &mesh == first ? 2u : 0u; });
 	edge::flush_in_a_pass(scheduler);
 	uint64_t const mixed = scheduler->offered_triangles_count() - b2;
 	BOOST_CHECK_LT(mixed, offered(*lod, 0));
@@ -203,7 +203,7 @@ BOOST_AUTO_TEST_CASE(the_levels_survive_saving_and_loading_again_and_an_instance
 		BOOST_CHECK_EQUAL(offered(*again, k), offered(*lod, k));
 	}
 	edge::ModelCache cache(renderer);
-	auto instance = cache.load<Animated>(shared_models().lod, scheduler);
+	auto instance = cache.load<Animated>(shared_models().lod);
 	BOOST_CHECK_EQUAL(instance->lod_count(), 3u);
 	for (unsigned k = 0; k < 3; ++k)
 		BOOST_CHECK_EQUAL(offered(*instance, k), offered(*lod, k));
@@ -212,8 +212,8 @@ BOOST_AUTO_TEST_CASE(the_levels_survive_saving_and_loading_again_and_an_instance
 BOOST_AUTO_TEST_CASE(a_levels_materials_are_the_models_own_not_the_prototypes)
 {
 	edge::ModelCache cache(renderer);
-	auto a = cache.load<Animated>(shared_models().lod, scheduler);
-	auto b = cache.load<Animated>(shared_models().lod, scheduler);
+	auto a = cache.load<Animated>(shared_models().lod);
+	auto b = cache.load<Animated>(shared_models().lod);
 	for (auto const &mesh : a->meshes())
 		for (auto const &lod : mesh->lods())
 			for (auto const &group : lod.triangles)
@@ -232,7 +232,7 @@ BOOST_AUTO_TEST_CASE(the_collision_octree_is_made_of_level_zero_only)
 {
 	// a static model of a welded grid of 8192 triangles, with and without levels
 	edge::RendererPtr r = renderer;
-	auto plane = std::make_shared<edge::StaticModelPTBNT>(r, scheduler);
+	auto plane = std::make_shared<edge::StaticModelPTBNT>(r);
 	plane->load_from_gltf(asset("test_gltf_loder_plane.glb"));
 	edge::SerializedModel model = plane->serialize();
 	edge::SerializedMesh &mesh = model.meshes.at(0);
@@ -303,7 +303,7 @@ BOOST_AUTO_TEST_CASE(a_level_that_runs_past_the_files_indices_is_refused_on_load
 		cereal::BinaryOutputArchive archive(o);
 		archive(model);
 	}
-	auto bad = std::make_shared<Animated>(renderer, scheduler);
+	auto bad = std::make_shared<Animated>(renderer);
 	BOOST_CHECK_THROW(bad->load_from_file(out("bad.edge")), std::runtime_error);
 }
 
@@ -323,7 +323,7 @@ BOOST_AUTO_TEST_CASE(a_level_with_another_number_of_groups_than_the_meshs_is_ref
 		cereal::BinaryOutputArchive archive(o);
 		archive(model);
 	}
-	auto bad = std::make_shared<Animated>(renderer, scheduler);
+	auto bad = std::make_shared<Animated>(renderer);
 	BOOST_CHECK_THROW(bad->load_from_file(out("bad.edge")), std::runtime_error);
 }
 
