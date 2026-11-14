@@ -422,6 +422,35 @@ BOOST_FIXTURE_TEST_CASE(calls_committed_on_several_threads_each_keep_their_camer
 	}
 }
 
+BOOST_AUTO_TEST_CASE(a_thread_s_remembered_answers_are_its_renderer_s_and_its_frame_s)
+{
+	// One thread, one camera, two renderers committing in turn, and the camera moved within a frame: each renderer's frame before
+	// is its own, and the view-projection a camera had in a frame is its last one there, however the answers are remembered.
+	NullScene one, two;
+	CameraPtr const camera = camera_at(0, 0);
+	Matrix const world = moved(0.25f, 0);
+	DrawCallPtr const a = one.call(camera, world), b = two.call(camera, world);
+	Matrix const vp0 = view_projection(camera);
+	one.renderer->begin_frame();
+	two.renderer->begin_frame();
+	a->commit();
+	b->commit();
+	camera->look_at(rove::vec<3>(0.5f, 0, 1), rove::vec<3>(0.5f, 0, 0), rove::vec<3>(0, 1, 0));
+	Matrix const vp0_late = view_projection(camera);
+	a->commit();                      // renderer one sees the camera move within its frame 0; renderer two does not
+	one.renderer->finish_frame();
+	two.renderer->finish_frame();
+	camera->look_at(rove::vec<3>(1, 0, 1), rove::vec<3>(1, 0, 0), rove::vec<3>(0, 1, 0));
+	one.renderer->begin_frame();
+	two.renderer->begin_frame();
+	b->commit();
+	a->commit();
+	CHECK_SAME(a->shader_previous_world_view_projection(), vp0_late * world);
+	CHECK_SAME(b->shader_previous_world_view_projection(), vp0 * world);
+	one.renderer->finish_frame();
+	two.renderer->finish_frame();
+}
+
 BOOST_FIXTURE_TEST_CASE(a_cut_camera_has_no_previous_view_projection_but_what_it_sees_keeps_its_motion, NullScene)
 {
 	CameraPtr const camera = camera_at(0, 0);

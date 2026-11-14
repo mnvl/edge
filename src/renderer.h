@@ -261,6 +261,9 @@ private:
 	/// with @p current: none where there is no frame before or the camera was cut since.  Records @p current as the camera's in this
 	/// frame.
 	std::optional<rove::matrix<4,4>> previous_view_projection(CameraPtr const &camera, rove::matrix<4,4> const &current);
+	/// previous_view_projection() through the shared record, under its lock (the calling thread's answers aside).
+	std::optional<rove::matrix<4,4>> record_view_projection(CameraPtr const &camera, rove::matrix<4,4> const &current,
+		std::uint64_t frame);
 
 	/// Each camera's frames and view-projections, as previous_view_projection() keeps them: by the camera's address, while it lives.
 	struct CameraMotion
@@ -279,6 +282,8 @@ private:
 	/// parallel), each through cameras of its own, and every commit reads and records its camera here.
 	mutable std::mutex camera_motion_mutex_;
 	std::uint64_t frames_ended_ = 0;
+	/// This renderer among all made in the process: what a thread's remembered answers about a camera are keyed by.
+	std::uint64_t const serial_;
 
 	enum class State { IDLE, FRAME, PASS };
 	State state_ = State::IDLE;

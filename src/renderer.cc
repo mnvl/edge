@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2004-2026 Manvel Avetisian
 
+#include <atomic>
+#include <cstring>
 #include <algorithm>
 #include <stdexcept>
 #include <string>
@@ -22,7 +24,6 @@
 namespace edge
 {
 
-Renderer::Renderer() = default;
 
 Renderer::~Renderer() = default;
 
@@ -303,18 +304,79 @@ Renderer::CameraMotion const *Renderer::camera_motion(CameraPtr const &camera) c
 	return at != camera_motion_.end() && at->second.camera.lock() == camera ? &at->second : nullptr;
 }
 
+namespace
+{
+
+std::atomic<std::uint64_t> next_renderer_serial{1};
+
+/// What this thread last asked the renderer about one camera in one frame.  Within a frame the answers do not change -- a camera's
+/// frame before, and the view-projection it had in it -- once the frame's first commit through the camera has recorded it, so a
+/// thread committing many calls through one camera (an arena building a view) asks the shared record, and takes its lock, once.
+struct CameraAnswers
+{
+	std::uint64_t renderer = 0;
+	Camera const *address = nullptr;
+	std::weak_ptr<Camera const> camera;
+	std::uint64_t frame = 0;
+	bool frame_known = false;
+	std::optional<std::uint64_t> previous_frame;
+	bool view_projection_known = false;
+	std::uint64_t cuts = 0;
+	rove::matrix<4,4> current;
+	std::optional<rove::matrix<4,4>> before;
+
+	/// Whether these are the answers about @p camera in @p frame of renderer @p serial; made so (empty) when they are not.
+	bool about(std::uint64_t serial, CameraPtr const &of, std::uint64_t in_frame)
+	{
+		if (renderer == serial && address == of.get() && frame == in_frame && camera.lock() == of)
+			return true;
+		*this = CameraAnswers{serial, of.get(), of, in_frame};
+		return false;
+	}
+};
+
+thread_local CameraAnswers answers;
+
+}
+
+Renderer::Renderer():
+	serial_(next_renderer_serial.fetch_add(1))
+{
+}
+
 std::optional<std::uint64_t> Renderer::previous_frame(CameraPtr const &camera) const
 {
-	std::lock_guard const lock(camera_motion_mutex_);
-	CameraMotion const *const motion = camera_motion(camera);
-	if (!motion)
-		return std::nullopt;
-	return motion->frame == frames_ended_ ? motion->before_frame : std::optional<std::uint64_t>(motion->frame);
+	if (answers.about(serial_, camera, frames_ended_) && answers.frame_known)
+		return answers.previous_frame;
+	std::optional<std::uint64_t> result;
+	{
+		std::lock_guard const lock(camera_motion_mutex_);
+		CameraMotion const *const motion = camera_motion(camera);
+		if (motion)
+			result = motion->frame == frames_ended_ ? motion->before_frame : std::optional<std::uint64_t>(motion->frame);
+	}
+	answers.frame_known = true;
+	answers.previous_frame = result;
+	return result;
 }
 
 std::optional<rove::matrix<4,4>> Renderer::previous_view_projection(CameraPtr const &camera, rove::matrix<4,4> const &current)
 {
 	std::uint64_t const frame = frames_ended_;
+	if (answers.about(serial_, camera, frame) && answers.view_projection_known && answers.cuts == camera->cuts()
+		&& std::memcmp(&answers.current, &current, sizeof(current)) == 0)
+		return answers.before;
+	std::optional<rove::matrix<4,4>> const before = record_view_projection(camera, current, frame);
+	answers.view_projection_known = true;
+	answers.cuts = camera->cuts();
+	answers.current = current;
+	answers.before = before;
+	return before;
+}
+
+std::optional<rove::matrix<4,4>> Renderer::record_view_projection(CameraPtr const &camera, rove::matrix<4,4> const &current,
+	std::uint64_t frame)
+{
 	std::lock_guard const lock(camera_motion_mutex_);
 	bool const known = camera_motion(camera) != nullptr;
 	CameraMotion &motion = camera_motion_[camera.get()];
