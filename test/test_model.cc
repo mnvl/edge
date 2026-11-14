@@ -116,6 +116,34 @@ BOOST_AUTO_TEST_CASE(set_always_visible_propagates_to_meshes)
 	BOOST_CHECK_NO_THROW(model->set_always_visible(false));
 }
 
+BOOST_AUTO_TEST_CASE(a_model_draws_into_the_scheduler_it_is_given)
+{
+	edge::RendererPtr const renderer(new edge::NullRenderer(320, 200));
+	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer, std::make_shared<edge::Scheduler>(renderer));
+	model->load_from_gltf(make_asset_path("test_gltf_loder_plane.glb"));
+	auto camera = std::make_shared<edge::Camera>();
+	camera->set_perspective_projection(1.0f, 1.0f, 0.1f, 100.0f);
+	camera->look_at(rove::vec<3>(0, 0, 5), rove::vec<3>(0, 0, 0), rove::vec<3>(0, 1, 0));
+	rove::matrix<4,4> world;
+	world.identity();
+
+	edge::SchedulerPtr const first = model->scheduler();
+	auto const other = std::make_shared<edge::Scheduler>(renderer);
+	model->set_scheduler(other);
+	BOOST_CHECK(model->scheduler() == other);
+	model->draw(camera, world, 0u);
+	other->flush(false);
+	std::size_t const drawn = other->visible_calls_count() + other->invisible_calls_count();
+	BOOST_CHECK_GT(drawn, 0u);
+	first->flush(false);
+	BOOST_CHECK_EQUAL(first->visible_calls_count() + first->invisible_calls_count(), 0u);
+
+	BOOST_CHECK_THROW(model->set_scheduler(nullptr), std::invalid_argument);
+	edge::RendererPtr const elsewhere(new edge::NullRenderer(32, 32));
+	BOOST_CHECK_THROW(model->set_scheduler(std::make_shared<edge::Scheduler>(elsewhere)), std::invalid_argument);
+	BOOST_CHECK(model->scheduler() == other);
+}
+
 BOOST_AUTO_TEST_CASE(pose_propagates)
 {
 	auto model = load_model("test_gltf_loder_joint.glb");

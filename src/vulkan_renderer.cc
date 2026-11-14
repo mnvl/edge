@@ -394,6 +394,11 @@ size_t VulkanRenderer::material_descriptor_set_count() const
 	return descriptors_->count();
 }
 
+size_t VulkanRenderer::material_descriptor_pool_count() const
+{
+	return descriptors_->pool_count();
+}
+
 VkRenderPass VulkanRenderer::offscreen_render_pass(VkFormat color_format, bool keep_depth)
 {
 	return render_pass_cache_->get(color_format, keep_depth);

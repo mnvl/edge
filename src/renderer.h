@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <vector>
 #include <memory>
+#include <mutex>
 #include <rove/matrix.h>
 #include "buffer_usage.h"
 #include "forward.h"
@@ -260,6 +261,9 @@ private:
 	/// with @p current: none where there is no frame before or the camera was cut since.  Records @p current as the camera's in this
 	/// frame.
 	std::optional<rove::matrix<4,4>> previous_view_projection(CameraPtr const &camera, rove::matrix<4,4> const &current);
+	/// previous_view_projection() through the shared record, under its lock (the calling thread's answers aside).
+	std::optional<rove::matrix<4,4>> record_view_projection(CameraPtr const &camera, rove::matrix<4,4> const &current,
+		std::uint64_t frame);
 
 	/// Each camera's frames and view-projections, as previous_view_projection() keeps them: by the camera's address, while it lives.
 	struct CameraMotion
@@ -274,7 +278,12 @@ private:
 	/// The record of @p camera, null for none (or one of a camera gone whose address another has now).
 	CameraMotion const *camera_motion(CameraPtr const &camera) const;
 	std::unordered_map<Camera const *, CameraMotion> camera_motion_;
+	/// Guards camera_motion_: draw calls are committed on several threads at once (an arena building its worlds' views in
+	/// parallel), each through cameras of its own, and every commit reads and records its camera here.
+	mutable std::mutex camera_motion_mutex_;
 	std::uint64_t frames_ended_ = 0;
+	/// This renderer among all made in the process: what a thread's remembered answers about a camera are keyed by.
+	std::uint64_t const serial_;
 
 	enum class State { IDLE, FRAME, PASS };
 	State state_ = State::IDLE;

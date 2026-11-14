@@ -12,6 +12,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -374,6 +375,80 @@ BOOST_FIXTURE_TEST_CASE(the_previous_view_projection_is_the_cameras_own_however_
 	fresh->commit();
 	CHECK_SAME(fresh->shader_previous_world_view_projection(), b1 * moved(-0.5f, 0));
 	CHECK_SAME(fresh->shader_previous_world(), moved(-0.5f, 0));
+}
+
+BOOST_FIXTURE_TEST_CASE(calls_committed_on_several_threads_each_keep_their_cameras_frame_before, NullScene)
+{
+	// Draw calls made and committed on several threads at once, each thread through cameras of its own (an arena building its
+	// slots' views in parallel): every camera's frame before is its own, as on one thread.
+	constexpr int THREADS = 8, CAMERAS = 16, FRAMES = 4, CALLS = 64;
+	std::vector<CameraPtr> cameras;
+	for (int c = 0; c < THREADS * CAMERAS; ++c)
+		cameras.push_back(camera_at(0.01f * c, -0.01f * c));
+	std::vector<Matrix> before(cameras.size());
+	for (int f = 0; f < FRAMES; ++f)
+	{
+		for (std::size_t c = 0; c < cameras.size(); ++c)
+		{
+			float const x = 0.01f * static_cast<float>(c) + 0.1f * f;
+			cameras[c]->look_at(rove::vec<3>(x, 0, 1), rove::vec<3>(x, 0, 0), rove::vec<3>(0, 1, 0));
+		}
+		renderer->begin_frame();
+		std::vector<std::vector<DrawCallPtr>> made(THREADS);
+		std::vector<std::thread> threads;
+		for (int t = 0; t < THREADS; ++t)
+			threads.emplace_back([&, t] {
+				for (int c = 0; c < CAMERAS; ++c)
+					for (int k = 0; k < CALLS; ++k)
+					{
+						DrawCallPtr dc = call(cameras[t * CAMERAS + c], moved(0.001f * k, 0));
+						dc->commit();
+						made[t].push_back(std::move(dc));
+					}
+			});
+		for (std::thread &thread : threads)
+			thread.join();
+		renderer->finish_frame();
+		for (int t = 0; t < THREADS; ++t)
+			for (int c = 0; c < CAMERAS; ++c)
+			{
+				std::size_t const camera = static_cast<std::size_t>(t * CAMERAS + c);
+				DrawCallPtr const &dc = made[t][static_cast<std::size_t>(c * CALLS)];
+				Matrix const expected = f == 0 ? view_projection(cameras[camera]) : before[camera];
+				CHECK_SAME(dc->shader_previous_world_view_projection(), expected * moved(0, 0));
+			}
+		for (std::size_t c = 0; c < cameras.size(); ++c)
+			before[c] = view_projection(cameras[c]);
+	}
+}
+
+BOOST_AUTO_TEST_CASE(a_thread_s_remembered_answers_are_its_renderer_s_and_its_frame_s)
+{
+	// One thread, one camera, two renderers committing in turn, and the camera moved within a frame: each renderer's frame before
+	// is its own, and the view-projection a camera had in a frame is its last one there, however the answers are remembered.
+	NullScene one, two;
+	CameraPtr const camera = camera_at(0, 0);
+	Matrix const world = moved(0.25f, 0);
+	DrawCallPtr const a = one.call(camera, world), b = two.call(camera, world);
+	Matrix const vp0 = view_projection(camera);
+	one.renderer->begin_frame();
+	two.renderer->begin_frame();
+	a->commit();
+	b->commit();
+	camera->look_at(rove::vec<3>(0.5f, 0, 1), rove::vec<3>(0.5f, 0, 0), rove::vec<3>(0, 1, 0));
+	Matrix const vp0_late = view_projection(camera);
+	a->commit();                      // renderer one sees the camera move within its frame 0; renderer two does not
+	one.renderer->finish_frame();
+	two.renderer->finish_frame();
+	camera->look_at(rove::vec<3>(1, 0, 1), rove::vec<3>(1, 0, 0), rove::vec<3>(0, 1, 0));
+	one.renderer->begin_frame();
+	two.renderer->begin_frame();
+	b->commit();
+	a->commit();
+	CHECK_SAME(a->shader_previous_world_view_projection(), vp0_late * world);
+	CHECK_SAME(b->shader_previous_world_view_projection(), vp0 * world);
+	one.renderer->finish_frame();
+	two.renderer->finish_frame();
 }
 
 BOOST_FIXTURE_TEST_CASE(a_cut_camera_has_no_previous_view_projection_but_what_it_sees_keeps_its_motion, NullScene)

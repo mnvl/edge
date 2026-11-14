@@ -25,6 +25,7 @@
 #include "renderer.h"
 #include "serialized_model.h"
 #include "serialized_model_archive.h"
+#include "scheduler.h"
 #include "texture.h"
 
 namespace edge {
@@ -38,6 +39,15 @@ Model::Model(RendererPtr const &renderer_ptr, SchedulerPtr const &scheduler_ptr)
 	{
 		throw std::invalid_argument(std::string("a model without a ") + (renderer_ ? "scheduler" : "renderer"));
 	}
+}
+
+void Model::set_scheduler(SchedulerPtr const &scheduler)
+{
+	if (!scheduler)
+		throw std::invalid_argument("Model::set_scheduler: a null scheduler");
+	if (scheduler->renderer() != renderer_)
+		throw std::invalid_argument("Model::set_scheduler: a scheduler of another renderer");
+	scheduler_ = scheduler;
 }
 
 namespace

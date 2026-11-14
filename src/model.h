@@ -68,6 +68,10 @@ public:
 
 	RendererPtr const &renderer() const { return renderer_; }
 	SchedulerPtr const &scheduler() const { return scheduler_; }
+	/// The scheduler the model's next draws go to: a caller that builds several views' or several worlds' draw calls at once
+	/// gives each its own scheduler, and flushes them in the order it wants.  Not to be called while another thread draws this
+	/// model.  std::invalid_argument for a null scheduler or one of another renderer.
+	void set_scheduler(SchedulerPtr const &scheduler);
 
 	/// The exact world-space AABB of the meshes where draw(camera,
 	/// @p world_matrix) puts them under the joints' current matrices -- the
@@ -231,7 +235,7 @@ public:
 
 protected:
 	RendererPtr const renderer_;
-	SchedulerPtr const scheduler_;
+	SchedulerPtr scheduler_;
 
 	joints_type joints_;
 	meshes_type meshes_;

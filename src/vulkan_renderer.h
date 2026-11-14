@@ -190,6 +190,8 @@ public:
 	/// (reclaimed by the next begin_frame).  Exposed so tests can prove dead
 	/// materials are reclaimed.
 	size_t material_descriptor_set_count() const;
+	/// Descriptor pools made: one until more materials lived at once than a pool holds.
+	size_t material_descriptor_pool_count() const;
 
 protected:
 	/// Waits until the frame that last used the share of the host's memory this one takes is drawn (with one frame in flight:
