@@ -101,7 +101,7 @@ VulkanDescriptorCache::VulkanDescriptorCache(VkDevice device, VkPhysicalDevice p
 		check_vk_result(vkCreatePipelineLayout(device_, &pipeline_layout_info, nullptr, &pipeline_layout_),
 			"vkCreatePipelineLayout");
 
-		pools_.push_back(create_pool());
+		pools_.push_back(Pool{create_pool(), 0});
 
 		VkSamplerCreateInfo sampler_info;
 		std::memset(&sampler_info, 0, sizeof(sampler_info));
@@ -180,9 +180,9 @@ void VulkanDescriptorCache::destroy()
 		vkDestroySampler(device_, texture_sampler_, nullptr);
 		texture_sampler_ = VK_NULL_HANDLE;
 	}
-	for (VkDescriptorPool pool : pools_)
+	for (Pool const &pool : pools_)
 	{
-		vkDestroyDescriptorPool(device_, pool, nullptr);
+		vkDestroyDescriptorPool(device_, pool.pool, nullptr);
 	}
 	pools_.clear();
 	if (pipeline_layout_ != VK_NULL_HANDLE)
@@ -399,6 +399,10 @@ void VulkanDescriptorCache::free_drawn(uint64_t completed)
 	{
 		check_vk_result(vkFreeDescriptorSets(device_, pool, static_cast<uint32_t>(sets.size()), sets.data()),
 			"vkFreeDescriptorSets");
+		auto const owner = std::find_if(pools_.begin(), pools_.end(), [&](Pool const &p) { return p.pool == pool; });
+		if (owner == pools_.end() || owner->sets < sets.size())
+			throw std::logic_error("descriptor sets freed back to a pool that did not hand them out");
+		owner->sets -= static_cast<uint32_t>(sets.size());
 	}
 	retired_.swap(held);
 }
@@ -435,24 +439,30 @@ std::pair<VkDescriptorSet, VkDescriptorPool> VulkanDescriptorCache::allocate()
 	alloc_info.descriptorSetCount = 1;
 	alloc_info.pSetLayouts = &layout_;
 	VkDescriptorSet set = VK_NULL_HANDLE;
-	// The newest pool first: the older ones are full, but for the sets freed back into them since.
+	// The newest pool with room first: the older ones are full, but for the sets freed back into them since.  A pool is full at
+	// max_sets_ sets by its own count -- a driver need not refuse past maxSets -- and by the driver's word, which may come
+	// sooner (a fragmented pool).
 	for (auto it = pools_.rbegin(); it != pools_.rend(); ++it)
 	{
-		alloc_info.descriptorPool = *it;
+		if (it->sets >= max_sets_)
+			continue;
+		alloc_info.descriptorPool = it->pool;
 		VkResult const result = vkAllocateDescriptorSets(device_, &alloc_info, &set);
 		if (result == VK_SUCCESS)
 		{
-			return {set, *it};
+			++it->sets;
+			return {set, it->pool};
 		}
 		if (result != VK_ERROR_OUT_OF_POOL_MEMORY && result != VK_ERROR_FRAGMENTED_POOL)
 		{
 			check_vk_result(result, "vkAllocateDescriptorSets");
 		}
 	}
-	pools_.push_back(create_pool());
-	alloc_info.descriptorPool = pools_.back();
+	pools_.push_back(Pool{create_pool(), 0});
+	alloc_info.descriptorPool = pools_.back().pool;
 	check_vk_result(vkAllocateDescriptorSets(device_, &alloc_info, &set), "vkAllocateDescriptorSets");
-	return {set, pools_.back()};
+	++pools_.back().sets;
+	return {set, pools_.back().pool};
 }
 
 }

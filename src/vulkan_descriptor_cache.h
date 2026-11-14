@@ -118,7 +118,14 @@ private:
 	VkDescriptorSetLayout layout_ = VK_NULL_HANDLE;
 	VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
 	uint32_t max_sets_;
-	std::vector<VkDescriptorPool> pools_;
+	/// A pool and the sets allocated from it and not yet freed: a pool with max_sets_ of them is full, whether or not the driver
+	/// would refuse another (past maxSets, an allocation *may* fail -- NVIDIA's does, lavapipe's does not).
+	struct Pool
+	{
+		VkDescriptorPool pool = VK_NULL_HANDLE;
+		uint32_t sets = 0;
+	};
+	std::vector<Pool> pools_;
 	VkSampler texture_sampler_ = VK_NULL_HANDLE;
 	VkSampler clamp_sampler_ = VK_NULL_HANDLE;      // the global textures
 	VkSampler compare_sampler_ = VK_NULL_HANDLE;    // a shadow texture's
