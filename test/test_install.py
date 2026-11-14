@@ -237,7 +237,7 @@ double use(edge::GLESContextPtr const &context)
 	edge::RendererPtr base = renderer;
 	renderer->show_frame(renderer->create_texture(64, 32, edge::PixelFormat::A8R8G8B8), 640, 320);
 	renderer->swap_window();
-	return double(renderer->context() != nullptr) + double(renderer->frame_serial()) + double(renderer->previous_block_writes())
+	return double(renderer->context() != nullptr) + double(renderer->frame_serial())
 		+ renderer->screen_width();
 }
 """

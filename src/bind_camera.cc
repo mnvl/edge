@@ -44,10 +44,6 @@ void bind_camera(nb::module_ &m)
         .def("set_cube_face", &Camera::set_cube_face, "eye"_a, "face"_a, "z_near"_a, "z_far"_a,
             "The camera that draws face 0 to 5 (+x, -x, +y, -y, +z, -z) of a cube target from eye: a square right angle, turned so that "
             "a shader samples the cube in world direction d by edge_cube_direction(d) (edge_cube.glsl). IndexError for another face.")
-        .def("cut", &Camera::cut,
-            "A cut: the draws committed through the camera from now to the end of the frame have no motion of the camera's "
-            "(their previous view-projection is the one it has); what they see keeps its own")
-        .def_prop_ro("cuts", &Camera::cuts, "How many times cut() was called")
         // the names before 2026-11
         .def("get_view_matrix", pyedge::deprecated("Camera.get_view_matrix() is Camera.view_matrix", view_matrix))
         .def("get_inverted_view_matrix", pyedge::deprecated("Camera.get_inverted_view_matrix() is Camera.inverted_view_matrix",

@@ -340,9 +340,6 @@ void bind_renderer(nb::module_ &m)
                 (void)self;
                 return 1;
             }, "How many frames submit_frame() keeps in flight: 1 but where the renderer was made with more")
-        .def_prop_ro("frame_index", &edge::Renderer::frame_index,
-            "The frame a draw call committed now is drawn in, from 0: the open one, or between frames the next; the frames ended "
-            "before it (what a draw call's previous frame is)")
         .def_prop_ro("frame_serial", &edge::Renderer::frame_serial,
             "Frames begun since the renderer was made: the number of the frame open, or of the last one (0 before the first)")
         .def("wait_frames", [](edge::Renderer &self) {

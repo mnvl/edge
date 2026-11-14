@@ -19,7 +19,6 @@
 #include <rove/triangle.h>
 #include "material.h"
 #include "generic_vertex.h"
-#include "motion.h"
 #include "triangle_iterator.h"
 
 namespace edge {
@@ -146,15 +145,6 @@ public:
 	/// same picture.
 	virtual void draw_instances(Joint *joint_ptr, CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
 		unsigned lod = 0);
-	// The static and skinned meshes tell each draw call they make where the thing it draws was the frame before (motion vectors,
-	// DrawCall::set_previous_world_matrix()): the mesh's draw from a joint is one thing, placed by the world matrix (a static mesh's
-	// times the joint's), the instances and the skin's joint matrices; drawn again in a frame at the same placement (a shadow pass, then
-	// the view) it is the same thing, drawn at two placements in a frame (a prototype drawn at two places) it is two, and where either
-	// was is not known.  A copy of the mesh (a model's instance) is a thing of its own.  A mesh of a game's own that draws instances by
-	// draw() at each has none.
-
-	/// Forgets where the mesh's draws were: from the next draw on, each was where it is (Model::reset_previous()).
-	void reset_previous() { previous_.by_owner.clear(); }
 
 	virtual std::string serialization_type() const;
 	/// Puts what a .edge file keeps of the mesh's own into @p serialized: its vertices, indices, morph targets and weights, the
@@ -177,23 +167,6 @@ protected:
 	inverted_bind_matrices_type inverted_bind_matrices_;
 	joint_index_transform_type joint_index_transform_;
 	std::map<std::string, CustomAttribute> custom_attributes_;
-
-	/// Where the mesh's draw from @p owner was the frame before (that of @p camera, Renderer::previous_frame()), the draw being at
-	/// @p placement now (PlacementHistory::use()); none: where it is.  Valid until the next draw from @p owner.
-	Placement const *previous_placement(Joint const *owner, CameraPtr const &camera, Placement placement);
-	/// Tells @p call where its thing was the frame before, @p previous (previous_placement()); nothing for none.
-	static void give_previous(UberDrawCall &call, Placement const *previous);
-
-private:
-	/// Each owner joint's history.  A copy of the mesh starts with none: it draws another thing.
-	struct Previous
-	{
-		Previous() = default;
-		Previous(Previous const &) {}
-		Previous &operator=(Previous const &) { by_owner.clear(); return *this; }
-		std::unordered_map<Joint const *, PlacementHistory> by_owner;
-	};
-	Previous previous_;
 };
 
 }

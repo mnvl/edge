@@ -125,8 +125,6 @@ void Renderer::begin_frame()
 		throw std::logic_error("begin_frame() inside a frame");
 	do_begin_frame();
 	state_ = State::FRAME;
-	// the cameras gone have nothing to tell
-	std::erase_if(camera_motion_, [](auto const &entry) { return entry.second.camera.expired(); });
 }
 
 void Renderer::finish_frame()
@@ -137,7 +135,6 @@ void Renderer::finish_frame()
 		throw std::logic_error("finish_frame() inside a pass: end_pass() first");
 	do_finish_frame();
 	state_ = State::IDLE;
-	++frames_ended_;
 	frame_resources_.clear();
 }
 
@@ -149,7 +146,6 @@ void Renderer::submit_frame()
 		throw std::logic_error("submit_frame() inside a pass: end_pass() first");
 	do_submit_frame();
 	state_ = State::IDLE;
-	++frames_ended_;
 	frame_resources_.clear();
 }
 
@@ -294,46 +290,6 @@ void Renderer::draw(DrawCall const &call)
 	if (call.index_buffer())
 		frame_resources_.push_back(call.index_buffer());
 	frame_resources_.push_back(call.material());
-}
-
-Renderer::CameraMotion const *Renderer::camera_motion(CameraPtr const &camera) const
-{
-	auto const at = camera_motion_.find(camera.get());
-	return at != camera_motion_.end() && at->second.camera.lock() == camera ? &at->second : nullptr;
-}
-
-std::optional<std::uint64_t> Renderer::previous_frame(CameraPtr const &camera) const
-{
-	CameraMotion const *const motion = camera_motion(camera);
-	if (!motion)
-		return std::nullopt;
-	return motion->frame == frames_ended_ ? motion->before_frame : std::optional<std::uint64_t>(motion->frame);
-}
-
-std::optional<rove::matrix<4,4>> Renderer::previous_view_projection(CameraPtr const &camera, rove::matrix<4,4> const &current)
-{
-	std::uint64_t const frame = frames_ended_;
-	bool const known = camera_motion(camera) != nullptr;
-	CameraMotion &motion = camera_motion_[camera.get()];
-	if (!known)
-	{
-		motion = CameraMotion{camera, camera->cuts(), frame, current, std::nullopt, std::nullopt};
-		return std::nullopt;
-	}
-	if (motion.frame != frame)
-	{
-		// the camera's last frame is now the frame before
-		motion.before_frame = motion.frame;
-		motion.before = motion.last;
-		motion.frame = frame;
-	}
-	if (motion.cuts != camera->cuts())
-	{
-		motion.before.reset();
-		motion.cuts = camera->cuts();
-	}
-	motion.last = current;
-	return motion.before;
 }
 
 namespace

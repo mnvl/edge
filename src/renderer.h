@@ -90,15 +90,6 @@ public:
 	/// its clock changed, or another context took it): its durations never come.
 	bool is_gpu_time_disjoint(uint64_t frame) const;
 
-	/// The frame a draw call committed now is drawn in, counted from 0: the open frame, or between frames the next one; the frames
-	/// ended (finish_frame(), submit_frame()) before it.  What a draw call's previous frame is (DrawCall::commit()).
-	std::uint64_t frame_index() const { return frames_ended_; }
-	/// The frame before this one for what is seen through @p camera (a draw call's previous frame, DrawCall::commit()): the last frame
-	/// before frame_index() in which a draw call was committed through the camera; none for a camera not committed before this
-	/// frame.  A cut (Camera::cut()) keeps it.  An application that draws a scene in one frame and the screen it is shown on in the next
-	/// has the scene's frame before two frames back.
-	std::optional<std::uint64_t> previous_frame(CameraPtr const &camera) const;
-
 	bool in_frame() const { return state_ != State::IDLE; }
 	bool in_pass() const { return state_ == State::PASS; }
 	/// The active pass's type and target (none outside a pass).
@@ -256,25 +247,6 @@ private:
 	friend class DrawCall;
 	/// Draws @p call in the active pass (std::logic_error outside one): DrawCall::execute() gives it here once committed.
 	void draw(DrawCall const &call);
-	/// The view-projection @p camera had at its last commit (any draw call's) in its frame before (previous_frame()), for a commit now
-	/// with @p current: none where there is no frame before or the camera was cut since.  Records @p current as the camera's in this
-	/// frame.
-	std::optional<rove::matrix<4,4>> previous_view_projection(CameraPtr const &camera, rove::matrix<4,4> const &current);
-
-	/// Each camera's frames and view-projections, as previous_view_projection() keeps them: by the camera's address, while it lives.
-	struct CameraMotion
-	{
-		std::weak_ptr<Camera const> camera;
-		std::uint64_t cuts = 0;                       // Camera::cuts() when recorded
-		std::uint64_t frame = 0;                      // of the last commit
-		rove::matrix<4,4> last;                       // the view-projection at it
-		std::optional<std::uint64_t> before_frame;    // the frame of a commit before frame (none: none)
-		std::optional<rove::matrix<4,4>> before;     // the view-projection in it (none: none, or cut since)
-	};
-	/// The record of @p camera, null for none (or one of a camera gone whose address another has now).
-	CameraMotion const *camera_motion(CameraPtr const &camera) const;
-	std::unordered_map<Camera const *, CameraMotion> camera_motion_;
-	std::uint64_t frames_ended_ = 0;
 
 	enum class State { IDLE, FRAME, PASS };
 	State state_ = State::IDLE;

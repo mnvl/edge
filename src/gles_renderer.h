@@ -64,7 +64,6 @@ struct GLESProgram
 	// the members of the push constants, uniforms of their own (pc.camera_eye...)
 	GLint extra_parameters = -1, camera_eye = -1, push_base_color_factor = -1, material_pbr = -1, emissive_factor = -1, flags = -1;
 	bool reads_material_parameters = false;    // a block at binding 20 (Material::parameters) the compiler kept
-	bool reads_previous_instances = false, reads_previous_joint_matrices = false;     // ... at 21 and 22 (edge_motion.glsl)
 };
 
 /// edge's Renderer on OpenGL ES 3.0 (the phones whose Vulkan drivers cost a frame ~50 ms; see docs/opengles.md).  Offscreen as
@@ -118,18 +117,13 @@ public:
 	/// Joint matrices of the skeleton a draw is skinned by, at most this many (std::length_error for more).
 	static constexpr size_t MAX_JOINT_MATRICES = 256;
 
-	/// What every draw sees at its bindings (see Renderer): the draw constants (binding 8), this frame's matrices and the frame
-	/// before's, are written for the draw by bind_draw_constants(); the frame constants (9) are set by set_frame_constants().
-	void bind_draw_constants(rove::matrix<4,4> const &world_view_projection, rove::matrix<4,4> const &world_matrix,
-		rove::matrix<4,4> const &previous_world_view_projection, rove::matrix<4,4> const &previous_world_matrix);
+	/// What every draw sees at its bindings (see Renderer): the draw constants (binding 8), its matrices, are written for the draw by
+	/// bind_draw_constants(); the frame constants (9) are set by set_frame_constants().
+	void bind_draw_constants(rove::matrix<4,4> const &world_view_projection, rove::matrix<4,4> const &world_matrix);
 	void bind_frame_constants();
 	/// The texture of Vulkan binding @p binding for a draw of @p material (its own at 0-5, 10 and 11; a global one at 12-19; the
 	/// 1 x 1 white one where there is none) bound in @p unit with the sampler of that binding.
 	void bind_texture(Material const &material, int binding, int unit);
-
-	/// The blocks of the previous frame's instances and joint matrices (bindings 21 and 22, edge_motion.glsl) written since the renderer
-	/// was made: one for each batch of an instanced draw and each skinned draw whose program reads them.
-	uint64_t previous_block_writes() const { return previous_block_writes_; }
 
 	/// The program of these shaders, compiled and linked the first time it is asked for: std::runtime_error naming the file and the log
 	/// if a shader does not compile or the program does not link, or a file cannot be read.
@@ -148,9 +142,6 @@ private:
 	GLuint draw_constants_buffer_ = 0, frame_constants_buffer_ = 0, joint_matrices_buffer_ = 0;
 	GLuint instances_buffer_ = 0;           // an instanced draw's batch of matrices, at binding 7
 	GLuint material_parameters_buffer_ = 0; // the drawn material's own block, at binding 20
-	GLuint previous_instances_buffer_ = 0;  // the batch's instances the frame before, at binding 21
-	GLuint previous_joint_matrices_buffer_ = 0;   // the joint matrices the frame before, at binding 22
-	uint64_t previous_block_writes_ = 0;
 	GLuint material_sampler_ = 0, global_sampler_ = 0, show_sampler_ = 0;          // (show_sampler_: a shown texture's, linear, no mipmaps)
 	GLuint compare_sampler_ = 0;          // a shadow texture's: compared, then filtered
 	TexturePtr white_texture_;

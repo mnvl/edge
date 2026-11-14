@@ -87,7 +87,7 @@ void GLESRenderer::do_draw(DrawCall const &call)
 
 	glUseProgram(program->id);
 	rove::matrix<4,4> const &world_view_projection = call.shader_world_view_projection(), &world = call.shader_world();
-	bind_draw_constants(world_view_projection, world, call.shader_previous_world_view_projection(), call.shader_previous_world());
+	bind_draw_constants(world_view_projection, world);
 	if (program->reads_material_parameters)
 	{
 		// the whole block, zeros past what the material sets (and all of it for one without)
@@ -106,18 +106,11 @@ void GLESRenderer::do_draw(DrawCall const &call)
 		glBindBuffer(GL_UNIFORM_BUFFER, joint_matrices_buffer_);
 		glBufferSubData(GL_UNIFORM_BUFFER, 0, static_cast<GLsizeiptr>(joint_matrices->size() * sizeof(rove::matrix<4,4>)),
 			joint_matrices->data());
-		if (program->reads_previous_joint_matrices)
-		{
-			glBindBuffer(GL_UNIFORM_BUFFER, previous_joint_matrices_buffer_);
-			glBufferSubData(GL_UNIFORM_BUFFER, 0, static_cast<GLsizeiptr>(joint_matrices->size() * sizeof(rove::matrix<4,4>)),
-				call.previous_joint_matrices()->data());
-			++previous_block_writes_;
-		}
 	}
 
 	// the push constants, each member a uniform
 	shader::PushConstants const push = shader::push_constants(material, traits, call.is_uber(), joint_matrices != nullptr,
-		call.camera()->eye_point(), call.is_instanced(), !call.has_previous());
+		call.camera()->eye_point(), call.is_instanced());
 	if (program->extra_parameters >= 0)
 		glUniform4fv(program->extra_parameters, Material::EXTRA_PARAMETERS_COUNT, &push.extra_parameters[0][0]);
 	if (program->camera_eye >= 0)
@@ -174,7 +167,7 @@ void GLESRenderer::do_draw(DrawCall const &call)
 			throw std::logic_error("a GLES indexed draw call needs a GLESIndexBuffer");
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer->get());
 	}
-	// one draw, or the instances in batches of MAX_INSTANCES, each batch's matrices in the block at binding 7, the frame before's at 21
+	// one draw, or the instances in batches of MAX_INSTANCES, each batch's matrices in the block at binding 7
 	size_t const instances = call.instance_count();
 	for (size_t first = 0; first < instances; first += MAX_INSTANCES)
 	{
@@ -184,13 +177,6 @@ void GLESRenderer::do_draw(DrawCall const &call)
 			glBindBuffer(GL_UNIFORM_BUFFER, instances_buffer_);
 			glBufferSubData(GL_UNIFORM_BUFFER, 0, static_cast<GLsizeiptr>(batch * sizeof(rove::matrix<4,4>)),
 				call.visible_instances().data() + first);
-			if (program->reads_previous_instances)
-			{
-				glBindBuffer(GL_UNIFORM_BUFFER, previous_instances_buffer_);
-				glBufferSubData(GL_UNIFORM_BUFFER, 0, static_cast<GLsizeiptr>(batch * sizeof(rove::matrix<4,4>)),
-					call.previous_visible_instances().data() + first);
-				++previous_block_writes_;
-			}
 		}
 		if (index_buffer)
 		{

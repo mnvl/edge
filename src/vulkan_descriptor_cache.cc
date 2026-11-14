@@ -41,7 +41,7 @@ VulkanDescriptorCache::VulkanDescriptorCache(VkDevice device, VkPhysicalDevice p
 
 		// 0-5 material textures (a material's own vertex shader may sample them too: test_vertex_texture.cc), 6 joint matrices,
 		// 7 instances, 8 draw constants, 9 frame constants, 10-11 material PBR textures, 12-19 the global textures, 20 the material's
-		// parameters, 21 and 22 the previous frame's instances and joint matrices
+		// parameters
 		std::vector<VkDescriptorSetLayoutBinding> bindings;
 		auto bind = [&](uint32_t binding, VkDescriptorType type, VkShaderStageFlags stages)
 		{
@@ -63,8 +63,6 @@ VulkanDescriptorCache::VulkanDescriptorCache(VkDevice device, VkPhysicalDevice p
 		for (uint32_t i = 10; i < 12 + GLOBAL_TEXTURES_COUNT; ++i)
 			bind(i, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, both);
 		bind(20, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, both);
-		bind(21, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT);
-		bind(22, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT);
 		if (physical_device_properties.limits.maxDescriptorSetUniformBuffersDynamic < UNIFORM_BUFFERS)
 		{
 			throw std::runtime_error("the Vulkan device binds " + std::to_string(physical_device_properties.limits.maxDescriptorSetUniformBuffersDynamic)
@@ -328,8 +326,6 @@ VkDescriptorSet VulkanDescriptorCache::get(MaterialPtr const &material, TextureP
 		{9, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, constants_.frame_constants->buffer(), constants_.frame_constants->block_size()},
 		{20, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, constants_.material_parameters->buffer(),
 			constants_.material_parameters->block_size()},
-		{21, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, constants_.instances->buffer(), constants_.instances->block_size()},
-		{22, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, constants_.joint_matrices->buffer(), constants_.joint_matrices->block_size()},
 	};
 	for (uint32_t k = 0; k < UNIFORM_BUFFERS; ++k)
 	{

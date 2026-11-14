@@ -15,7 +15,7 @@
   - A getter has no `get_`, is `const`, and returns a value or a `const &`; an index or key is its argument (`diffuse_texture(i)`,
     `joint_by_name(n)`).
   - The getter of what has a setter is named as the setter without `set_` (`zwrite_enabled()` beside `set_zwrite_enabled(b)`, not
-    `is_zwrite_enabled()`); a question that sets nothing is `is_x()` or `has_x()` (`is_visible()`, `has_previous()`).
+    `is_zwrite_enabled()`); a question that sets nothing is `is_x()` or `has_x()` (`is_visible()`, `has_gpu_timer()`).
   - A setter is `set_x(v)`, where the class keeps the value or what follows from it (`set_view_matrix` keeps the inverse and the eye,
     `set_occlusion_strength` checks its range); several values set together are one setter (`set_perspective_projection(fov, aspect,
     near, far)`). Its index, where it has one, goes where reads best (`set_extra_parameter(i, v)`, `set_diffuse_texture(t, i = 0)`).

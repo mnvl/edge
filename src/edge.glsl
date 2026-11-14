@@ -37,8 +37,6 @@
 #define EDGE_BINDING_EMISSIVE 11
 #define EDGE_BINDING_GLOBAL_TEXTURE(i) (12 + (i)) // i < EDGE_GLOBAL_TEXTURES, Renderer::set_global_texture
 #define EDGE_BINDING_MATERIAL_PARAMETERS 20       // the material's own block, Material::set_parameters (zeros past what it sets)
-#define EDGE_BINDING_PREVIOUS_INSTANCES 21        // vertex stage only: an instanced draw's instances the frame before (edge_motion.glsl)
-#define EDGE_BINDING_PREVIOUS_JOINT_MATRICES 22   // vertex stage only: a skinned draw's joint matrices the frame before (edge_motion.glsl)
 
 // Vertex attribute locations (shader::attribute_location): a vertex shader's
 // inputs, which a vertex type has or not.
@@ -80,10 +78,6 @@ const uint EDGE_FLAG_OCCLUSION_MAP = 128u;        // the metallic-roughness text
 #define EDGE_OCCLUSION_STRENGTH(flags) (float((flags) >> 16u) / 65535.0)
 // ... the draw's instances (edge_instance.glsl reads it) ...
 const uint EDGE_FLAG_INSTANCED = 16u;
-// ... whether the draw's previous frame (dc.previous_*, edge_motion.glsl) is not known, so that its previous matrices are this frame's
-// for want of them: seen the first time, at two places in the frame before, otherwise placed then, through a camera seen the first time
-// or cut (DrawCall::has_previous()); a TAA pass throws its history away for it ...
-const uint EDGE_FLAG_PREVIOUS_UNKNOWN = 256u;
 
 // ... and what only the uber draw call sets
 const uint EDGE_FLAG_TEXTURE_BLENDING_VERTEX = 1u;
@@ -96,10 +90,6 @@ layout(set = 0, binding = EDGE_BINDING_DRAW_CONSTANTS) uniform DrawConstants
 {
 	mat4 world_view_projection;   // projection * view * world
 	mat4 world_matrix;
-	// the same the frame before (DrawCall::get_shader_previous_world_view_projection(), motion vectors: edge_motion.glsl): the
-	// camera's then times the draw's world then; this frame's for a draw seen the first time through a camera seen the first time
-	mat4 previous_world_view_projection;
-	mat4 previous_world_matrix;
 } dc;
 
 // Both stages.

@@ -107,9 +107,6 @@ void bind_draw_call(nb::module_ &m)
     using edge::DrawCall;
     using Matrices = std::vector<rove::matrix<4,4>>;
     auto instances_of_array = [](DrawCall &self, MatrixArray const &instances) { self.set_instances(matrices_of(instances)); };
-    auto previous_instances_of_array = [](DrawCall &self, MatrixArray const &instances) {
-        self.set_previous_instances(matrices_of(instances));
-    };
     // what a call draws and how: a property where it can be read back, set_x(v) where it can be set
     nb::class_<DrawCall>(m, "DrawCall")
         .def_prop_rw("priority", &DrawCall::priority, &DrawCall::set_priority)
@@ -135,21 +132,6 @@ void bind_draw_call(nb::module_ &m)
             "Draws the call once for each instance, instance i at instances[i] * world, each culled on its own at commit(): a list "
             "of mat4 or an (N, 4, 4) float32 array of them as mat4.to_numpy() has them; none at all is ValueError. A vertex shader of "
             "one's own applies edge_instance_matrix() (edge_instance.glsl); the built-in ones do.")
-        .def("set_previous_world_matrix", &DrawCall::set_previous_world_matrix, "matrix"_a,
-            "The world matrix the call had the frame before, for its commits in this frame, in place of what it remembers")
-        .def("set_previous_instances", &DrawCall::set_previous_instances, "instances"_a)
-        .def("set_previous_instances", previous_instances_of_array, "instances"_a,
-            "The instances the call had the frame before (a list of mat4 or an (N, 4, 4) float32 array), for its commits in this frame; "
-            "instance i was at instances[i], one past them is new; none at all is ValueError")
-        .def("reset_previous", &DrawCall::reset_previous,
-            "From the next commit on, the call was where it is (it draws another thing now); its camera's motion stays")
-        .def_prop_ro("previous_world_view_projection", &DrawCall::shader_previous_world_view_projection,
-            "The camera's view-projection the frame before times the world matrix then, as commit() worked them out")
-        .def_prop_ro("previous_world", &DrawCall::shader_previous_world,
-            "The world matrix the frame before, as commit() worked it out")
-        .def_prop_ro("has_previous", &DrawCall::has_previous,
-            "Whether the previous matrices are known (EDGE_FLAG_PREVIOUS_UNKNOWN in the shader where not): false where they are this "
-            "frame's for want of them")
         .def("commit", &DrawCall::commit)
         .def("is_visible", &DrawCall::is_visible)
         .def("execute", &DrawCall::execute)

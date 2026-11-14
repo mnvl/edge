@@ -206,13 +206,6 @@ public:
 	/// own.  No world matrices draws nothing.
 	virtual void draw_instances(CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices, unsigned lod = 0);
 
-	/// Forgets where the model was drawn the frames before (motion vectors: each mesh's draw calls are told where they were, Mesh): from
-	/// its next draw on, it was where it is.  For a model that jumped, or that draws something else now.  A model drawn once a frame
-	/// (or in several passes of a frame, at one place) has the motion of its place, instances and pose; one drawn at several places a
-	/// frame has none (each draw is a new thing): draw several things as copies of the model (Model(prototype, scheduler)), or as
-	/// instances.
-	void reset_previous();
-
 	/// The levels of detail the model has, level 0 included: the most any of its meshes has.
 	unsigned lod_count() const;
 	/// How far level @p lod strays from level 0, in the model's units: the largest error of its meshes' levels (0 for level 0).

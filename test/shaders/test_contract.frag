@@ -11,8 +11,6 @@
 
 layout(location = 0) in vec2 frag_texcoord0;
 layout(location = 1) flat in vec4 frag_world_origin;
-layout(location = 2) flat in vec4 frag_previous_world_origin;
-layout(location = 3) flat in vec4 frag_previous_clip_origin;
 layout(location = 0) out vec4 out_color;
 
 layout(set = 0, binding = EDGE_BINDING_DIFFUSE_TEXTURE_0) uniform sampler2D diffuse_0;
@@ -83,10 +81,6 @@ void main()
 	case 29: out_color = frag_world_origin; break;
 	case 31: out_color = vec4(EDGE_MAX_INSTANCES, EDGE_MATERIAL_PARAMETERS_SIZE, EDGE_FLAG_INSTANCED, 0.0); break;
 	case 32: out_color = vec4(EDGE_BINDING_INSTANCES, EDGE_BINDING_MATERIAL_PARAMETERS, 0.0, 0.0); break;
-	case 33: out_color = frag_previous_world_origin; break;
-	case 34: out_color = frag_previous_clip_origin; break;
-	case 35: out_color = vec4(EDGE_BINDING_PREVIOUS_INSTANCES, EDGE_BINDING_PREVIOUS_JOINT_MATRICES, 0.0, 0.0); break;
-	case 37: out_color = vec4(on(EDGE_FLAG_PREVIOUS_UNKNOWN), EDGE_FLAG_PREVIOUS_UNKNOWN, 0.0, 0.0); break;
 	case 36: out_color = vec4(on(EDGE_FLAG_OCCLUSION_MAP), EDGE_FLAG_OCCLUSION_MAP, EDGE_OCCLUSION_STRENGTH(pc.flags), float(pc.flags & 0xFFFFu)); break;
 	default: out_color = vec4(-2.0); break;
 	}

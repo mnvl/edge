@@ -185,11 +185,7 @@ enum Probe
 	PROBE_FRAME_CONSTANTS_SECOND = 30,
 	PROBE_INSTANCES_AND_PARAMETERS = 31,
 	PROBE_NEW_BINDINGS = 32,
-	PROBE_PREVIOUS_WORLD_ORIGIN = 33,
-	PROBE_PREVIOUS_CLIP_ORIGIN = 34,
-	PROBE_PREVIOUS_BINDINGS = 35,
 	PROBE_OCCLUSION = 36,
-	PROBE_PREVIOUS_UNKNOWN = 37,
 };
 
 MaterialPtr contract_material(RendererPtr const &renderer)
@@ -633,21 +629,20 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(flags_are_the_bits_the_renderer_sets, F, edge::Bac
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
 	Quad quad(renderer);
 
-	// a material's textures set exactly its own bit, which the header's flag tests (each drawn by a call made afresh, whose previous frame
-	// is not known: EDGE_FLAG_PREVIOUS_UNKNOWN too)
+	// a material's textures set exactly its own bit, which the header's flag tests, and no other: pc.flags is the material's alone
 	struct
 	{
 		char const *name;
 		void (*give)(MaterialPtr const &, TexturePtr const &);
 		Rgba want;
 	} const cases[] = {
-		{"none", [](MaterialPtr const &, TexturePtr const &) {}, {0, 0, 0, float(shader::FLAG_PREVIOUS_UNKNOWN)}},
+		{"none", [](MaterialPtr const &, TexturePtr const &) {}, {0, 0, 0, 0}},
 		{"normal map", [](MaterialPtr const &m, TexturePtr const &t) { m->set_normal_map_texture(t); },
-			{1, 0, 0, float(shader::FLAG_NORMAL_MAP | shader::FLAG_PREVIOUS_UNKNOWN)}},
+			{1, 0, 0, float(shader::FLAG_NORMAL_MAP)}},
 		{"metallic-roughness", [](MaterialPtr const &m, TexturePtr const &t) { m->set_metallic_roughness_texture(t); },
-			{0, 1, 0, float(shader::FLAG_METALLIC_ROUGHNESS_MAP | shader::FLAG_PREVIOUS_UNKNOWN)}},
+			{0, 1, 0, float(shader::FLAG_METALLIC_ROUGHNESS_MAP)}},
 		{"emissive", [](MaterialPtr const &m, TexturePtr const &t) { m->set_emissive_texture(t); },
-			{0, 0, 1, float(shader::FLAG_EMISSIVE_MAP | shader::FLAG_PREVIOUS_UNKNOWN)}},
+			{0, 0, 1, float(shader::FLAG_EMISSIVE_MAP)}},
 	};
 	for (auto const &c : cases)
 	{
@@ -669,17 +664,17 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(flags_are_the_bits_the_renderer_sets, F, edge::Bac
 
 	// occlusion: its flag, and its strength in the bits above the flags, which leave the flags as they are
 	got = probe(quad, renderer, material, PROBE_OCCLUSION);
-	BOOST_CHECK_MESSAGE(near(got, {0, float(shader::FLAG_OCCLUSION_MAP), 0, float(shader::FLAG_PREVIOUS_UNKNOWN)}), "no occlusion " << got);
+	BOOST_CHECK_MESSAGE(near(got, {0, float(shader::FLAG_OCCLUSION_MAP), 0, 0}), "no occlusion " << got);
 	material->set_metallic_roughness_texture(solid(renderer, 0xFF808080u));
 	material->set_occlusion(true);
 	material->set_occlusion_strength(0.25f);
 	got = probe(quad, renderer, material, PROBE_OCCLUSION);
 	BOOST_CHECK_MESSAGE(near(got, {1, float(shader::FLAG_OCCLUSION_MAP), 0.25f,
-		float(shader::FLAG_METALLIC_ROUGHNESS_MAP | shader::FLAG_OCCLUSION_MAP | shader::FLAG_PREVIOUS_UNKNOWN)}), "occlusion at a quarter " << got);
+		float(shader::FLAG_METALLIC_ROUGHNESS_MAP | shader::FLAG_OCCLUSION_MAP)}), "occlusion at a quarter " << got);
 	material->set_occlusion_strength(1.0f);
 	got = probe(quad, renderer, material, PROBE_OCCLUSION);
 	BOOST_CHECK_MESSAGE(near(got, {1, float(shader::FLAG_OCCLUSION_MAP), 1,
-		float(shader::FLAG_METALLIC_ROUGHNESS_MAP | shader::FLAG_OCCLUSION_MAP | shader::FLAG_PREVIOUS_UNKNOWN)}),
+		float(shader::FLAG_METALLIC_ROUGHNESS_MAP | shader::FLAG_OCCLUSION_MAP)}),
 		"occlusion at full strength " << got);
 }
 
@@ -731,69 +726,6 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(counts_draw_constants_and_frame_constants, F, edge
 	Rgba const centre = px[(s / 2) * s + s / 2], right = px[(s / 2) * s + 7 * s / 8];
 	BOOST_CHECK_MESSAGE(near(centre.r, -1.0f), "the centre stays clear: " << centre);
 	BOOST_CHECK_MESSAGE(near(right.r, 1.5f), "the right quarter is drawn: " << right);
-}
-
-BOOST_AUTO_TEST_CASE_TEMPLATE(the_previous_frames_draw_constants_and_bindings_are_the_ones_the_api_names, F, edge::Backends)
-{
-	F fixture;
-	auto const &renderer = fixture.renderer;
-	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
-	Quad quad(renderer);
-	MaterialPtr material = contract_material(renderer);
-	DrawCallPtr call = renderer->create_draw_call();
-	call->set_vertex_buffer(quad.vb);
-	call->set_index_buffer(quad.ib);
-	call->set_material(material);
-	call->set_camera(quad.camera);
-	call->set_triangles_count(2);
-	call->set_always_visible(true);
-	// one call, a frame after another: dc.previous_* are what it was drawn with the frame before
-	auto const centre = [&](Probe p, rove::matrix<4, 4> const &world) {
-		material->set_extra_parameter(0, rove::vec<4>(float(p), 0, 0, 0));
-		call->set_world_matrix(world);
-		call->commit();
-		RenderPassClearState clear;
-		renderer->begin_frame();
-		renderer->begin_pass(quad.target, clear);
-		call->execute();
-		renderer->end_pass();
-		renderer->finish_frame();
-		Image<rove::rgba<float>> const image = read_image<rove::rgba<float>>(*quad.target->color_texture());
-		rove::rgba<float> const c = image.at(image.width() / 2, image.height() / 2);
-		return Rgba{c.r, c.g, c.b, c.a};
-	};
-	rove::matrix<4, 4> a, b, c;
-	a.translation(0.125f, -0.25f, 0.375f);
-	b.translation(-0.0625f, 0.125f, 0.25f);
-	c.translation(0.25f, 0.0625f, -0.125f);
-	Rgba got = centre(PROBE_PREVIOUS_WORLD_ORIGIN, a);
-	BOOST_CHECK_MESSAGE(near(got, {0.125f, -0.25f, 0.375f, 1}), "the first frame: the previous world is this one's: " << got);
-	got = centre(PROBE_PREVIOUS_WORLD_ORIGIN, b);
-	BOOST_CHECK_MESSAGE(near(got, {0.125f, -0.25f, 0.375f, 1}), "dc.previous_world_matrix: the frame before's " << got);
-	got = centre(PROBE_PREVIOUS_CLIP_ORIGIN, c);
-	rove::matrix<4, 4> const clip = quad.camera->projection_matrix() * quad.camera->view_matrix() * b;
-	Rgba const want{clip.ij[3][0], clip.ij[3][1], clip.ij[3][2], clip.ij[3][3]};
-	BOOST_CHECK_MESSAGE(near(got, want), "dc.previous_world_view_projection: the frame before's " << got << ", want " << want);
-	got = centre(PROBE_PREVIOUS_BINDINGS, c);
-	BOOST_CHECK_MESSAGE(near(got, {float(shader::BINDING_PREVIOUS_INSTANCES), float(shader::BINDING_PREVIOUS_JOINT_MATRICES), 0, 0}),
-		"the previous instances' and joint matrices' bindings " << got);
-
-	// the flag of a previous frame not known: set for a call seen the first time and through a cut camera, not for one seen before
-	got = centre(PROBE_PREVIOUS_UNKNOWN, c);
-	BOOST_CHECK_MESSAGE(near(got, {0, float(shader::FLAG_PREVIOUS_UNKNOWN), 0, 0}), "a call seen before " << got);
-	quad.camera->cut();
-	got = centre(PROBE_PREVIOUS_UNKNOWN, c);
-	BOOST_CHECK_MESSAGE(near(got, {1, float(shader::FLAG_PREVIOUS_UNKNOWN), 0, 0}), "through a cut camera " << got);
-	DrawCallPtr const fresh = renderer->create_draw_call();
-	fresh->set_vertex_buffer(quad.vb);
-	fresh->set_index_buffer(quad.ib);
-	fresh->set_material(material);
-	fresh->set_camera(quad.camera);
-	fresh->set_triangles_count(2);
-	fresh->set_always_visible(true);
-	call = fresh;
-	got = centre(PROBE_PREVIOUS_UNKNOWN, c);
-	BOOST_CHECK_MESSAGE(near(got, {1, float(shader::FLAG_PREVIOUS_UNKNOWN), 0, 0}), "a call seen the first time " << got);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
