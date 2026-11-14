@@ -9,7 +9,12 @@ It can read glTF and has an in-house fast-loading `.edge` format for models with
 It is meant to be read and changed: there is no scene editor, no scripting layer (except Python bindings) and no asset store.
 
 It was refactored from a game engine from 2004 to render many scenes in parallel for robotics simulation (cameras, depth
-and lidar images for training and testing), where a general-purpose engine was too slow. Much of the binding code, refactorings, new backends and documentation were written with Claude and curated by the author. The library was also used successfully to build computer games which are running on MacOS, Windows, Linux, iOS, Android, and even web browsers. One of them is [LIGA Football 11v11](https://liga.manvel.dev/), a free eleven-a-side football (soccer) game that plays in the browser on edge's WebGL 2 backend.
+and lidar images for training and testing), where a general-purpose engine was too slow. Much of the binding code, refactorings,
+new backends and documentation were written with Claude and curated by the author.
+
+The library was also used successfully to build computer games which are running on MacOS, Windows, Linux, iOS, Android, and
+even web browsers. One of them is [Liga Football 11v11](https://liga.manvel.dev/), a free eleven-a-side football (soccer) game
+that plays in the browser on edge's WebGL 2 backend.
 
 ## Features
 
