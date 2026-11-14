@@ -126,6 +126,7 @@ void Renderer::begin_frame()
 	do_begin_frame();
 	state_ = State::FRAME;
 	// the cameras gone have nothing to tell
+	std::lock_guard const lock(camera_motion_mutex_);
 	std::erase_if(camera_motion_, [](auto const &entry) { return entry.second.camera.expired(); });
 }
 
@@ -304,6 +305,7 @@ Renderer::CameraMotion const *Renderer::camera_motion(CameraPtr const &camera) c
 
 std::optional<std::uint64_t> Renderer::previous_frame(CameraPtr const &camera) const
 {
+	std::lock_guard const lock(camera_motion_mutex_);
 	CameraMotion const *const motion = camera_motion(camera);
 	if (!motion)
 		return std::nullopt;
@@ -313,6 +315,7 @@ std::optional<std::uint64_t> Renderer::previous_frame(CameraPtr const &camera) c
 std::optional<rove::matrix<4,4>> Renderer::previous_view_projection(CameraPtr const &camera, rove::matrix<4,4> const &current)
 {
 	std::uint64_t const frame = frames_ended_;
+	std::lock_guard const lock(camera_motion_mutex_);
 	bool const known = camera_motion(camera) != nullptr;
 	CameraMotion &motion = camera_motion_[camera.get()];
 	if (!known)

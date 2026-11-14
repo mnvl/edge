@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <vector>
 #include <memory>
+#include <mutex>
 #include <rove/matrix.h>
 #include "buffer_usage.h"
 #include "forward.h"
@@ -274,6 +275,9 @@ private:
 	/// The record of @p camera, null for none (or one of a camera gone whose address another has now).
 	CameraMotion const *camera_motion(CameraPtr const &camera) const;
 	std::unordered_map<Camera const *, CameraMotion> camera_motion_;
+	/// Guards camera_motion_: draw calls are committed on several threads at once (an arena building its worlds' views in
+	/// parallel), each through cameras of its own, and every commit reads and records its camera here.
+	mutable std::mutex camera_motion_mutex_;
 	std::uint64_t frames_ended_ = 0;
 
 	enum class State { IDLE, FRAME, PASS };
