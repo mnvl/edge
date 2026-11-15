@@ -176,7 +176,6 @@ MetalRenderer::MetalRenderer(int width, int height, std::string const &shader_di
 	Impl &impl = *impl_;
 	impl.context = context;
 	impl.shader_dir = shader_dir;
-	impl.slots = dispatch_semaphore_create(2);
 	id<MTLDevice> device = context->impl().device;
 	impl.frame_constants = [device newBufferWithLength:FRAME_CONSTANTS_SIZE options:MTLResourceStorageModeShared];
 	impl.zeros = [device newBufferWithLength:16384 options:MTLResourceStorageModeShared];

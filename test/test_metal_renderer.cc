@@ -369,6 +369,14 @@ BOOST_FIXTURE_TEST_CASE(showing_a_frame_needs_the_hosts_window, MetalFixture)
 	BOOST_CHECK_THROW(MetalContext(static_cast<void *>(nullptr)), std::invalid_argument);
 }
 
+/// The constructor throws before it has made anything of its own: what is half made goes without waiting on what was never made.
+BOOST_AUTO_TEST_CASE(a_renderer_of_no_size_is_refused_and_leaves_nothing_behind)
+{
+	auto const context = std::make_shared<MetalContext>();
+	for (auto const [width, height] : {std::pair{0, 0}, {-1, 5}, {5, 0}})
+		BOOST_CHECK_THROW(MetalRenderer(width, height, EDGE_METAL_SHADER_DIR, context), std::invalid_argument);
+}
+
 BOOST_FIXTURE_TEST_CASE(the_gpu_timer_reads_in_microseconds_of_the_clock_the_frame_ran_by, MetalFixture)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << error);

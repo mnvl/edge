@@ -71,7 +71,7 @@ struct MetalRenderer::Impl
 {
 	std::shared_ptr<MetalContext> context;
 	std::string shader_dir;
-	dispatch_semaphore_t slots;
+	dispatch_semaphore_t slots = dispatch_semaphore_create(2);          // (here, not in the constructor body: ~Impl() waits on it however the constructor ended)
 	uint64_t frame_serial = 0;
 	id<MTLCommandBuffer> commands = nil;
 	id<MTLRenderCommandEncoder> encoder = nil;
