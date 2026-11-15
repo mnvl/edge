@@ -18,6 +18,7 @@ them). Linux is the platform edge is built and tested on; macOS (Metal) builds; 
 |-----|-----------------|-------------------------------|
 | [pip](#python-pip) | PyPI (`pyrove`) | built into the wheel |
 | [Git submodules](#c-rove-and-edge-as-git-submodules) | the sibling submodule | fetched at configure, pinned |
+| [Submodules, editable Python](#python-rove-and-edge-as-submodules-editable) | the sibling submodule | fetched at configure, pinned |
 | [Conan](#c-conan-2) | rove's recipe | ConanCenter |
 | [vcpkg](#c-vcpkg) | rove's port | vcpkg |
 | [From source](#c-installed-from-source) | `../rove`, an installed rove, or fetched | fetched at configure, pinned |
@@ -77,6 +78,48 @@ edge_bundle_runtime(game_runtime DESTINATION ${CMAKE_BINARY_DIR})   # edge's sha
 Added as a subdirectory, edge builds the library and pyedge, without tests, install rules, `edge_sdl`, `edge_imgui` or `edge_shot`
 (turn them on with `EDGE_TESTS`, `EDGE_INSTALL`, `EDGE_SDL`, `EDGE_IMGUI`, `EDGE_SHOT`). `-DEDGE_PYTHON=OFF` leaves pyedge out, and
 `-DEDGE_ASSET_TOOLS=OFF` the model conversion. [building.md](building.md) lists the options.
+
+## Python: rove and edge as submodules, editable
+
+A project with rove and edge as submodules and Python of its own can import pyedge and pyrove from the checkouts, with the modules its own
+CMake build makes, instead of wheels. rove and edge are checked out side by side at the project's root (`rove/`, `edge/`) and the build is
+`build/`: pyedge and pyrove look for their modules in `build/lib` beside the checkouts.
+
+```cmake
+add_subdirectory(edge)          # adds ../rove itself, with its Python module: _pyedge, pyrove_bind and view_shaders/ in build/lib
+```
+
+Adding rove yourself first, as the section above does, turn its module on and put it in `build/lib` too, before `add_subdirectory(rove)`:
+`set(ROVE_PYTHON ON CACHE BOOL "" FORCE)` and `set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR}/lib)`.
+
+A `pyproject.toml` at the project's root installs your packages and pyedge's and pyrove's Python files from `edge/pyedge` and
+`rove/pyrove`, and compiles nothing:
+
+```toml
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "my-project"
+version = "0.1.0"
+dependencies = ["numpy>=1.19.3"]
+
+[tool.setuptools.packages.find]
+where = [".", "rove", "edge"]
+namespaces = false              # packages are directories with an __init__.py
+include = ["my_package*", "pyrove*", "pyedge*"]
+```
+
+```bash
+pip install -e .
+cmake -S . -B build -G Ninja -DPython_EXECUTABLE=$(which python) && cmake --build build
+python -c "import pyedge; print(pyedge.create_renderer(64, 64))"    # from any directory, no PYTHONPATH
+```
+
+A rebuild is then all a change to edge's or rove's C++ needs. Don't also `pip install -e edge` or `-e rove`: that compiles a module into
+the package it installs, which is loaded instead of the one in `build/lib`. `EDGE_PYTHON_BINDINGS_DIR` and `ROVE_PYTHON_BINDINGS_DIR` name
+another directory than `build/lib`.
 
 ## C++: Conan 2
 
