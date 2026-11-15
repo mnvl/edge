@@ -39,10 +39,10 @@ struct Rgba
 
 /// A rectangle of an orthographic view (eye at z = 1 looking down -z, near 0, far 2: a larger z is nearer), from x0 to x1 and y0 to y1 in
 /// clip units, at z.
-DrawCallPtr rectangle(VulkanRendererPtr const &renderer, MaterialPtr const &material, CameraPtr const &camera, float x0, float x1, float y0,
+std::shared_ptr<DrawCall> rectangle(std::shared_ptr<VulkanRenderer> const &renderer, std::shared_ptr<Material> const &material, std::shared_ptr<Camera> const &camera, float x0, float x1, float y0,
 	float y1, float z)
 {
-	VertexBufferPtr vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	VERTEX_PT *v = vb_mapping.as<VERTEX_PT>().data();
 	BOOST_REQUIRE(v);
@@ -53,13 +53,13 @@ DrawCallPtr rectangle(VulkanRendererPtr const &renderer, MaterialPtr const &mate
 	for (int k = 0; k < 4; ++k)
 		v[k].texcoords = rove::vec<2>(0.5f, 0.5f);
 	vb_mapping.unmap();
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
 	auto ib_mapping = ib->write(Contents::DISCARD);
 	INDEX_U16 *idx = ib_mapping.as<INDEX_U16>().data();
 	BOOST_REQUIRE(idx);
 	idx[0] = 0; idx[1] = 1; idx[2] = 2; idx[3] = 0; idx[4] = 2; idx[5] = 3;
 	ib_mapping.unmap();
-	DrawCallPtr draw_call = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> draw_call = renderer->create_draw_call();
 	draw_call->set_vertex_buffer(vb);
 	draw_call->set_index_buffer(ib);
 	draw_call->set_material(material);
@@ -70,18 +70,18 @@ DrawCallPtr rectangle(VulkanRendererPtr const &renderer, MaterialPtr const &mate
 	return draw_call;
 }
 
-CameraPtr view()
+std::shared_ptr<Camera> view()
 {
-	CameraPtr camera(new Camera());
+	std::shared_ptr<Camera> camera(new Camera());
 	camera->set_orthographic_projection(2.0f, 2.0f, 0.0f, 2.0f);
 	camera->look_at(rove::vec<3>(0, 0, 1), rove::vec<3>(0, 0, 0), rove::vec<3>(0, 1, 0));
 	return camera;
 }
 
 /// A flat material that writes `stencil` into the stencil, or leaves it be.
-MaterialPtr writer(VulkanRendererPtr const &renderer, std::optional<uint8_t> stencil)
+std::shared_ptr<Material> writer(std::shared_ptr<VulkanRenderer> const &renderer, std::optional<uint8_t> stencil)
 {
-	MaterialPtr m = renderer->create_material();
+	std::shared_ptr<Material> m = renderer->create_material();
 	m->set_cull_mode(Material::CullMode::NONE);
 	m->set_shader_program(renderer->create_shader_program(edge::test_shader("test_frame.vert"), edge::test_shader("test_sample.frag")));
 	m->set_stencil_write(stencil);
@@ -92,13 +92,13 @@ MaterialPtr writer(VulkanRendererPtr const &renderer, std::optional<uint8_t> ste
 /// stencil texture into `copy` (a pass that covers it all); returns what the copy holds, a value a pixel, row by row from the top.
 struct StencilReader
 {
-	VulkanRendererPtr renderer;
-	CameraPtr camera = view();
-	RenderTargetPtr scene, copy;
-	MaterialPtr reader;
-	DrawCallPtr cover;
+	std::shared_ptr<VulkanRenderer> renderer;
+	std::shared_ptr<Camera> camera = view();
+	std::shared_ptr<RenderTarget> scene, copy;
+	std::shared_ptr<Material> reader;
+	std::shared_ptr<DrawCall> cover;
 
-	explicit StencilReader(VulkanRendererPtr const &r):
+	explicit StencilReader(std::shared_ptr<VulkanRenderer> const &r):
 		renderer(r),
 		scene(r->create_render_target(SIZE, SIZE, PixelFormat::R32G32B32A32F, true)),
 		copy(r->create_render_target(SIZE, SIZE, PixelFormat::R32G32B32A32F))
@@ -112,13 +112,13 @@ struct StencilReader
 		cover = rectangle(r, reader, camera, -1, 1, -1, 1, 0);
 	}
 
-	std::vector<int> frame(std::vector<DrawCallPtr> const &drawn, uint32_t clear_stencil)
+	std::vector<int> frame(std::vector<std::shared_ptr<DrawCall>> const &drawn, uint32_t clear_stencil)
 	{
 		RenderPassClearState clear;
 		clear.clear_stencil = clear_stencil;
 		renderer->begin_frame();
 		renderer->begin_pass(scene, clear);
-		for (DrawCallPtr const &call : drawn)
+		for (std::shared_ptr<DrawCall> const &call : drawn)
 			call->execute();
 		renderer->end_pass();
 		RenderPassClearState plain;
@@ -128,7 +128,7 @@ struct StencilReader
 		renderer->end_pass();
 		renderer->finish_frame();
 
-		TexturePtr color = copy->color_texture();
+		std::shared_ptr<Texture> color = copy->color_texture();
 		color->download();
 		auto color_mapping = color->read();
 		Rgba const *pixels = color_mapping.as<Rgba const>().data();
@@ -159,10 +159,10 @@ BOOST_FIXTURE_TEST_SUITE(vulkan_stencil_texture, VulkanFixture)
 BOOST_AUTO_TEST_CASE(only_a_target_with_a_readable_depth_has_a_stencil_texture_of_its_size)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
-	RenderTargetPtr const plain = renderer->create_render_target(40, 24, PixelFormat::R16G16B16A16F);
+	std::shared_ptr<RenderTarget> const plain = renderer->create_render_target(40, 24, PixelFormat::R16G16B16A16F);
 	BOOST_CHECK(!plain->stencil_texture());
-	RenderTargetPtr const readable = renderer->create_render_target(40, 24, PixelFormat::R16G16B16A16F, true);
-	TexturePtr const stencil = readable->stencil_texture();
+	std::shared_ptr<RenderTarget> const readable = renderer->create_render_target(40, 24, PixelFormat::R16G16B16A16F, true);
+	std::shared_ptr<Texture> const stencil = readable->stencil_texture();
 	BOOST_REQUIRE(stencil);
 	BOOST_CHECK_EQUAL(stencil->width(), 40);
 	BOOST_CHECK_EQUAL(stencil->height(), 24);
@@ -181,7 +181,7 @@ BOOST_AUTO_TEST_CASE(a_writer_leaves_its_value_where_it_passes_the_depth_test_an
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 	StencilReader reader(renderer);
-	CameraPtr const &c = reader.camera;
+	std::shared_ptr<Camera> const &c = reader.camera;
 	std::vector<int> const stencil = reader.frame({
 		rectangle(renderer, writer(renderer, 5), c, -1.0f, 0.0f, -0.5f, 0.5f, 0.0f),
 		rectangle(renderer, writer(renderer, 9), c, 0.0f, 1.0f, -0.5f, 0.5f, 0.0f),
@@ -204,7 +204,7 @@ BOOST_AUTO_TEST_CASE(each_frame_reads_its_own_stencil)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 	StencilReader reader(renderer);
-	MaterialPtr const m = writer(renderer, 6);
+	std::shared_ptr<Material> const m = writer(renderer, 6);
 	std::vector<int> const left = reader.frame({rectangle(renderer, m, reader.camera, -1.0f, 0.0f, -1.0f, 1.0f, 0.0f)}, 0);
 	std::vector<int> const right = reader.frame({rectangle(renderer, m, reader.camera, 0.0f, 1.0f, -1.0f, 1.0f, 0.0f)}, 0);
 	int const y = SIZE / 2;
@@ -219,8 +219,8 @@ BOOST_AUTO_TEST_CASE(a_changed_value_is_written_from_the_next_draw_on)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 	StencilReader reader(renderer);
-	MaterialPtr const m = writer(renderer, 1);
-	DrawCallPtr const all = rectangle(renderer, m, reader.camera, -1.0f, 1.0f, -1.0f, 1.0f, 0.0f);
+	std::shared_ptr<Material> const m = writer(renderer, 1);
+	std::shared_ptr<DrawCall> const all = rectangle(renderer, m, reader.camera, -1.0f, 1.0f, -1.0f, 1.0f, 0.0f);
 	int const middle = (SIZE / 2) * SIZE + SIZE / 2;
 	BOOST_CHECK_EQUAL(reader.frame({all}, 0)[middle], 1);
 	m->set_stencil_write(200);
@@ -236,9 +236,9 @@ BOOST_AUTO_TEST_SUITE(null_stencil_texture)
 /// The null renderer's targets agree with the Vulkan ones on which have a stencil texture.
 BOOST_AUTO_TEST_CASE(a_null_target_with_a_readable_depth_has_a_stencil_texture)
 {
-	RendererPtr renderer(new NullRenderer(320, 200));
+	std::shared_ptr<Renderer> renderer(new NullRenderer(320, 200));
 	BOOST_CHECK(!renderer->create_render_target(16, 8, PixelFormat::R16G16B16A16F)->stencil_texture());
-	TexturePtr const stencil = renderer->create_render_target(16, 8, PixelFormat::R16G16B16A16F, true)->stencil_texture();
+	std::shared_ptr<Texture> const stencil = renderer->create_render_target(16, 8, PixelFormat::R16G16B16A16F, true)->stencil_texture();
 	BOOST_REQUIRE(stencil);
 	BOOST_CHECK_EQUAL(stencil->width(), 16);
 	BOOST_CHECK_EQUAL(stencil->height(), 8);

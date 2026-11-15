@@ -71,7 +71,7 @@ GltfOptions uncompressed()
 	return options;
 }
 
-std::shared_ptr<StaticModelPTBNT> loaded(RendererPtr const &renderer, std::string const &file, GltfOptions const &options = uncompressed())
+std::shared_ptr<StaticModelPTBNT> loaded(std::shared_ptr<Renderer> const &renderer, std::string const &file, GltfOptions const &options = uncompressed())
 {
 	auto model = std::make_shared<StaticModelPTBNT>(renderer);
 	model->load_from_gltf(asset(file), options);
@@ -81,7 +81,7 @@ std::shared_ptr<StaticModelPTBNT> loaded(RendererPtr const &renderer, std::strin
 using Bgra = rove::bgra<unsigned char>;
 
 /// The texels of a texture as (r, g, b, a), rows top first
-std::vector<std::vector<rove::vec<4, int>>> texels(TexturePtr const &texture)
+std::vector<std::vector<rove::vec<4, int>>> texels(std::shared_ptr<Texture> const &texture)
 {
 	ImageView<Bgra const> const view = std::as_const(*texture).pixels<Bgra>();
 	std::vector<std::vector<rove::vec<4, int>>> rows(view.height());
@@ -111,9 +111,9 @@ double sampled(int const (&image)[2][2][3], int x, int y, int c)
 	return v;
 }
 
-MaterialPtr material_named(Model const &model, std::string const &name)
+std::shared_ptr<Material> material_named(Model const &model, std::string const &name)
 {
-	for (MaterialPtr const &m : model.materials())
+	for (std::shared_ptr<Material> const &m : model.materials())
 		if (m->name() == name)
 			return m;
 	throw std::runtime_error("no material " + name);
@@ -137,7 +137,7 @@ void check_refused(std::string const &file, std::string const &what)
 	GltfOptions without = uncompressed();
 	without.occlusion = false;
 	auto const model = loaded(renderer, file, without);
-	for (MaterialPtr const &m : model->materials())
+	for (std::shared_ptr<Material> const &m : model->materials())
 		BOOST_CHECK_MESSAGE(!m->occlusion(), file << " without occlusion: " << m->name() << " has it");
 }
 
@@ -148,7 +148,7 @@ BOOST_AUTO_TEST_SUITE(occlusion)
 BOOST_AUTO_TEST_CASE(a_material_has_no_occlusion_until_told_and_a_strength_from_0_to_1)
 {
 	auto renderer = std::make_shared<NullRenderer>(4, 4);
-	MaterialPtr const material = renderer->create_material();
+	std::shared_ptr<Material> const material = renderer->create_material();
 	BOOST_CHECK(!material->occlusion());
 	BOOST_CHECK_EQUAL(material->occlusion_strength(), 1.0f);     // glTF's
 	material->set_occlusion(true);
@@ -156,7 +156,7 @@ BOOST_AUTO_TEST_CASE(a_material_has_no_occlusion_until_told_and_a_strength_from_
 	for (float bad : {-0.001f, 1.001f, std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity()})
 		BOOST_CHECK_THROW(material->set_occlusion_strength(bad), std::invalid_argument);
 	BOOST_CHECK_EQUAL(material->occlusion_strength(), 0.375f);
-	MaterialPtr const clone = material->clone();
+	std::shared_ptr<Material> const clone = material->clone();
 	BOOST_CHECK(clone->occlusion());
 	BOOST_CHECK_EQUAL(clone->occlusion_strength(), 0.375f);
 }
@@ -165,10 +165,10 @@ BOOST_AUTO_TEST_CASE(an_orm_image_is_the_metallic_roughness_texture_as_it_is)
 {
 	auto renderer = std::make_shared<NullRenderer>(4, 4);
 	auto const model = loaded(renderer, "test_occlusion.gltf");
-	MaterialPtr const orm = material_named(*model, "orm");
+	std::shared_ptr<Material> const orm = material_named(*model, "orm");
 	BOOST_CHECK(orm->occlusion());
 	BOOST_CHECK_EQUAL(orm->occlusion_strength(), 0.5f);
-	TexturePtr const texture = orm->metallic_roughness_texture();
+	std::shared_ptr<Texture> const texture = orm->metallic_roughness_texture();
 	BOOST_REQUIRE(texture);
 	auto const got = texels(texture);
 	BOOST_REQUIRE_EQUAL(got.size(), 2u);
@@ -182,10 +182,10 @@ BOOST_AUTO_TEST_CASE(occlusion_of_another_image_is_packed_into_red_the_smaller_i
 {
 	auto renderer = std::make_shared<NullRenderer>(4, 4);
 	auto const model = loaded(renderer, "test_occlusion.gltf");
-	MaterialPtr const separate = material_named(*model, "separate");
+	std::shared_ptr<Material> const separate = material_named(*model, "separate");
 	BOOST_CHECK(separate->occlusion());
 	BOOST_CHECK_EQUAL(separate->occlusion_strength(), 1.0f);
-	TexturePtr const texture = separate->metallic_roughness_texture();
+	std::shared_ptr<Texture> const texture = separate->metallic_roughness_texture();
 	BOOST_REQUIRE(texture);
 	BOOST_REQUIRE_EQUAL(texture->width(), 4);
 	BOOST_REQUIRE_EQUAL(texture->height(), 4);
@@ -206,7 +206,7 @@ BOOST_AUTO_TEST_CASE(occlusion_of_another_image_is_packed_into_red_the_smaller_i
 	BOOST_CHECK(material_named(*model, "separate_again")->metallic_roughness_texture() == texture);
 	BOOST_CHECK(material_named(*model, "mr_of_orm")->metallic_roughness_texture() ==
 		material_named(*model, "orm")->metallic_roughness_texture());
-	MaterialPtr const plain = material_named(*model, "plain");
+	std::shared_ptr<Material> const plain = material_named(*model, "plain");
 	BOOST_CHECK(!plain->occlusion());
 	auto const unpacked = texels(plain->metallic_roughness_texture());
 	BOOST_REQUIRE_EQUAL(unpacked.size(), 2u);
@@ -217,9 +217,9 @@ BOOST_AUTO_TEST_CASE(a_smaller_occlusion_image_is_sampled_as_the_gpu_would_to_th
 {
 	auto renderer = std::make_shared<NullRenderer>(4, 4);
 	auto const model = loaded(renderer, "test_occlusion.gltf");
-	MaterialPtr const small = material_named(*model, "small_occlusion");
+	std::shared_ptr<Material> const small = material_named(*model, "small_occlusion");
 	BOOST_CHECK(small->occlusion());
-	TexturePtr const texture = small->metallic_roughness_texture();
+	std::shared_ptr<Texture> const texture = small->metallic_roughness_texture();
 	BOOST_REQUIRE(texture);
 	BOOST_REQUIRE_EQUAL(texture->width(), 4);
 	BOOST_REQUIRE_EQUAL(texture->height(), 4);
@@ -239,10 +239,10 @@ BOOST_AUTO_TEST_CASE(occlusion_without_a_metallic_roughness_texture_leaves_its_f
 {
 	auto renderer = std::make_shared<NullRenderer>(4, 4);
 	auto const model = loaded(renderer, "test_occlusion.gltf");
-	MaterialPtr const only = material_named(*model, "occlusion_only");
+	std::shared_ptr<Material> const only = material_named(*model, "occlusion_only");
 	BOOST_CHECK(only->occlusion());
 	BOOST_CHECK_EQUAL(only->occlusion_strength(), 0.25f);
-	TexturePtr const texture = only->metallic_roughness_texture();
+	std::shared_ptr<Texture> const texture = only->metallic_roughness_texture();
 	BOOST_REQUIRE(texture);
 	auto const got = texels(texture);
 	BOOST_REQUIRE_EQUAL(got.size(), 4u);
@@ -256,7 +256,7 @@ BOOST_AUTO_TEST_CASE(packed_occlusion_is_compressed_as_the_loader_compresses_tex
 {
 	auto renderer = std::make_shared<NullRenderer>(4, 4);
 	auto const model = loaded(renderer, "test_occlusion.gltf", GltfOptions());     // compress_textures: BC1/BC3 at load
-	TexturePtr const texture = material_named(*model, "separate")->metallic_roughness_texture();
+	std::shared_ptr<Texture> const texture = material_named(*model, "separate")->metallic_roughness_texture();
 	BOOST_REQUIRE(texture);
 	BOOST_CHECK(texture->pixel_format() == PixelFormat::BC1 || texture->pixel_format() == PixelFormat::BC3);
 	BOOST_CHECK(material_named(*model, "separate")->occlusion());
@@ -273,7 +273,7 @@ BOOST_AUTO_TEST_CASE(a_gltf_without_occlusion_loads_as_it_did)
 {
 	auto renderer = std::make_shared<NullRenderer>(4, 4);
 	auto const model = loaded(renderer, "test_gltf_loader_pbr.glb");
-	MaterialPtr const pbr = material_named(*model, "pbr");
+	std::shared_ptr<Material> const pbr = material_named(*model, "pbr");
 	BOOST_CHECK(!pbr->occlusion());
 	auto const got = texels(pbr->metallic_roughness_texture());
 	BOOST_CHECK(got[0][0].x == 0 && got[0][0].y == 192 && got[0][0].z == 128);
@@ -287,7 +287,7 @@ BOOST_AUTO_TEST_CASE(a_format_10_file_loads_without_occlusion)
 	auto renderer = std::make_shared<NullRenderer>(4, 4);
 	auto const model = std::make_shared<StaticModelPTBNT>(renderer);
 	model->load_from_file(asset("test_format10_pbr.edge"));
-	MaterialPtr const pbr = material_named(*model, "pbr");
+	std::shared_ptr<Material> const pbr = material_named(*model, "pbr");
 	BOOST_CHECK(!pbr->occlusion());
 	BOOST_CHECK_EQUAL(pbr->occlusion_strength(), 1.0f);
 	BOOST_CHECK(pbr->metallic_roughness_texture());
@@ -389,7 +389,7 @@ BOOST_AUTO_TEST_CASE(a_converted_file_keeps_occlusion_and_its_strength)
 		BOOST_CHECK_EQUAL(material_named(*model, "orm")->occlusion_strength(), 0.5f);
 		BOOST_CHECK_EQUAL(material_named(*model, "occlusion_only")->occlusion_strength(), 0.25f);
 		BOOST_CHECK(!material_named(*model, "plain")->occlusion());
-		TexturePtr const packed = material_named(*model, "separate")->metallic_roughness_texture();
+		std::shared_ptr<Texture> const packed = material_named(*model, "separate")->metallic_roughness_texture();
 		BOOST_REQUIRE(packed);
 		BOOST_CHECK_EQUAL(packed->width(), 4);
 		if (!compress)
@@ -435,9 +435,9 @@ bool near(Rgba const &x, Rgba const &y, float tolerance = 2e-3f)
 		std::abs(x.a - y.a) < tolerance;
 }
 
-TexturePtr texture_of(RendererPtr const &renderer, unsigned char r, unsigned char g, unsigned char b)
+std::shared_ptr<Texture> texture_of(std::shared_ptr<Renderer> const &renderer, unsigned char r, unsigned char g, unsigned char b)
 {
-	TexturePtr texture = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8);
+	std::shared_ptr<Texture> texture = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8);
 	auto texture_mapping = texture->write(Contents::DISCARD);
 	unsigned char *p = texture_mapping.as<unsigned char>().data();
 	for (int i = 0; i < 16; ++i)
@@ -452,9 +452,9 @@ TexturePtr texture_of(RendererPtr const &renderer, unsigned char r, unsigned cha
 }
 
 /// The middle of a quad drawn with test_surface.frag's occlusion probe: (occlusion, roughness, metallic, strength as the flags say)
-Rgba surface(RendererPtr const &renderer, MaterialPtr const &material)
+Rgba surface(std::shared_ptr<Renderer> const &renderer, std::shared_ptr<Material> const &material)
 {
-	VertexBufferPtr vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PTBNT>(), sizeof(VERTEX_PTBNT) * 4);
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PTBNT>(), sizeof(VERTEX_PTBNT) * 4);
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	auto *v = vb_mapping.as<VERTEX_PTBNT>().data();
 	float const xs[4] = {-1, 1, 1, -1}, ys[4] = {-1, -1, 1, 1};
@@ -467,19 +467,19 @@ Rgba surface(RendererPtr const &renderer, MaterialPtr const &material)
 		v[k].texcoords = rove::vec<2>(0.5f, 0.5f);
 	}
 	vb_mapping.unmap();
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
 	auto ib_mapping = ib->write(Contents::DISCARD);
 	auto *i = ib_mapping.as<INDEX_U16>().data();
 	INDEX_U16 const order[6] = {0, 1, 2, 0, 2, 3};
 	std::memcpy(i, order, sizeof(order));
 	ib_mapping.unmap();
-	CameraPtr camera(new Camera());
+	std::shared_ptr<Camera> camera(new Camera());
 	camera->set_orthographic_projection(2.0f, 2.0f, 0.0f, 2.0f);
 	camera->look_at(rove::vec<3>(0, 0, 1), rove::vec<3>(0, 0, 0), rove::vec<3>(0, 1, 0));
 	material->set_cull_mode(Material::CullMode::NONE);
 	material->set_shader_program(renderer->create_shader_program("", test_shader("test_surface.frag")));
 	material->set_extra_parameter(0, rove::vec<4>(6, 0, 0, 0));
-	DrawCallPtr draw = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> draw = renderer->create_draw_call();
 	draw->set_vertex_buffer(vb);
 	draw->set_index_buffer(ib);
 	draw->set_material(material);
@@ -487,7 +487,7 @@ Rgba surface(RendererPtr const &renderer, MaterialPtr const &material)
 	draw->set_triangles_count(2);
 	draw->set_always_visible(true);
 	draw->commit();
-	RenderTargetPtr target = renderer->create_render_target(8, 8, PixelFormat::R32G32B32A32F);
+	std::shared_ptr<RenderTarget> target = renderer->create_render_target(8, 8, PixelFormat::R32G32B32A32F);
 	RenderPassClearState clear;
 	clear.clear_color_r = clear.clear_color_g = clear.clear_color_b = clear.clear_color_a = -1.0f;
 	renderer->begin_frame();
@@ -504,7 +504,7 @@ Rgba surface(RendererPtr const &renderer, MaterialPtr const &material)
 	}
 	renderer->end_pass();
 	renderer->finish_frame();
-	TexturePtr color = target->color_texture();
+	std::shared_ptr<Texture> color = target->color_texture();
 	color->download();
 	auto color_mapping = color->read();
 	Rgba const middle = color_mapping.as<Rgba const>().data()[4 * 8 + 4];
@@ -519,7 +519,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_surface_takes_its_occlusion_from_red_by_its_stre
 	F fixture;
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
-	MaterialPtr const material = renderer->create_material();
+	std::shared_ptr<Material> const material = renderer->create_material();
 	material->set_roughness_factor(0.5f);
 	material->set_metallic_factor(1.0f);
 	material->set_metallic_roughness_texture(texture_of(renderer, 51, 102, 204));     // 0.2, 0.4, 0.8
@@ -542,7 +542,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(occlusion_without_a_metallic_roughness_texture_to_
 	F fixture;
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
-	MaterialPtr const material = renderer->create_material();
+	std::shared_ptr<Material> const material = renderer->create_material();
 	material->set_occlusion(true);
 	BOOST_CHECK_THROW(surface(renderer, material), std::logic_error);
 }

@@ -41,7 +41,7 @@ rove::aabb<3> const &MeshBuilder::local_bounds() const
 	return bounds_;
 }
 
-rove::aabb<3> MeshBuilder::exact_bounds(std::vector<JointPtr> const &, Joint const &owner,
+rove::aabb<3> MeshBuilder::exact_bounds(std::vector<std::shared_ptr<Joint>> const &, Joint const &owner,
 	rove::matrix<4,4> const &world_matrix) const
 {
 	if (base_vertices_.empty())
@@ -60,7 +60,7 @@ rove::aabb<3> MeshBuilder::exact_bounds(std::vector<JointPtr> const &, Joint con
 	return bounds;
 }
 
-rove::obb<3> MeshBuilder::conservative_bounds(std::vector<JointPtr> const &, Joint const &owner,
+rove::obb<3> MeshBuilder::conservative_bounds(std::vector<std::shared_ptr<Joint>> const &, Joint const &owner,
 	rove::matrix<4,4> const &world_matrix) const
 {
 	rove::obb<3> bounds(local_bounds());
@@ -68,7 +68,7 @@ rove::obb<3> MeshBuilder::conservative_bounds(std::vector<JointPtr> const &, Joi
 	return bounds;
 }
 
-void MeshBuilder::insert_triangles(octree_type &octree, int id, std::vector<JointPtr> const &,
+void MeshBuilder::insert_triangles(octree_type &octree, int id, std::vector<std::shared_ptr<Joint>> const &,
 	Joint const &owner, rove::matrix<4,4> const &world_matrix) const
 {
 	TriangleIterator<vertex_type, index_type, Mesh::Triangles>
@@ -79,7 +79,7 @@ void MeshBuilder::insert_triangles(octree_type &octree, int id, std::vector<Join
 	}
 }
 
-MeshPtr MeshBuilder::shallow_copy() const
+std::shared_ptr<Mesh> MeshBuilder::shallow_copy() const
 {
 	return std::make_shared<MeshBuilder>(*this);
 }
@@ -140,7 +140,7 @@ void MeshBuilder::append_geometry(std::vector<vertex_type> const &vertices, std:
 		{
 			throw std::runtime_error("mesh builder indices count must be divisible by 3 for triangle lists");
 		}
-		add_triangles(MaterialPtr(), first_index_offset, indices.size() / 3);
+		add_triangles(std::shared_ptr<Material>(), first_index_offset, indices.size() / 3);
 	}
 }
 
@@ -149,7 +149,7 @@ void MeshBuilder::clear_triangles()
 	triangles_.clear();
 }
 
-void MeshBuilder::add_triangles(MaterialPtr const &material_ptr, size_t first_index_offset, size_t triangles_count)
+void MeshBuilder::add_triangles(std::shared_ptr<Material> const &material_ptr, size_t first_index_offset, size_t triangles_count)
 {
 	if (triangles_count == 0)
 	{

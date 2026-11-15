@@ -46,7 +46,6 @@ private:
 	bool extensions_loaded_ = false;
 };
 
-using GLESContextPtr = std::shared_ptr<GLESContext>;
 
 /// Binds a texture for the renderer to make or fill it, in a texture unit that no draw samples from (the last of the 32 every ES 3.0 has):
 /// a texture made or uploaded in the middle of a draw's bindings leaves the units it has set as they are.

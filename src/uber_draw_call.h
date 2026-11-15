@@ -14,7 +14,7 @@ namespace edge
 /// skin by its joint matrices.
 class UberDrawCall: public DrawCall {
 public:
-	UberDrawCall(RendererPtr const &renderer);
+	UberDrawCall(std::shared_ptr<Renderer> const &renderer);
 	~UberDrawCall() override;
 
 	/// The skin's joint matrices; std::length_error for more than MAX_JOINT_MATRICES.

@@ -17,9 +17,9 @@
 namespace
 {
 
-edge::MaterialPtr make_material()
+std::shared_ptr<edge::Material> make_material()
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
 	return renderer->create_material();
 }
 
@@ -30,10 +30,10 @@ BOOST_AUTO_TEST_SUITE(material)
 /// What a material is before it is set (a glTF material is made from it, field by field) is what SerializedMaterial is before it is filled.
 BOOST_AUTO_TEST_CASE(a_new_material_saves_as_a_serialized_material_that_was_not_filled)
 {
-	edge::MaterialPtr const fresh = make_material();
+	std::shared_ptr<edge::Material> const fresh = make_material();
 	fresh->set_name("m");
 	edge::TextureTable textures;
-	edge::SerializedMaterial const saved = edge::export_material(fresh, textures);
+	edge::SerializedMaterial const saved = edge::export_material(*fresh, textures);
 	edge::SerializedMaterial const blank;
 	BOOST_CHECK_EQUAL(saved.cull_mode, blank.cull_mode);
 	BOOST_CHECK_EQUAL(saved.zwrite_enabled, blank.zwrite_enabled);
@@ -225,7 +225,7 @@ BOOST_AUTO_TEST_CASE(set_zwrite)
 BOOST_AUTO_TEST_CASE(set_diffuse_texture_by_ptr)
 {
 	auto mat = make_material();
-	edge::TexturePtr tex = mat->renderer()->create_texture(16, 16, edge::PixelFormat::X8R8G8B8);
+	std::shared_ptr<edge::Texture> tex = mat->renderer()->create_texture(16, 16, edge::PixelFormat::X8R8G8B8);
 	mat->set_diffuse_texture(tex);
 	BOOST_CHECK_EQUAL(mat->diffuse_textures_count(), 1u);
 	BOOST_CHECK_EQUAL(mat->diffuse_texture(0), tex);
@@ -234,8 +234,8 @@ BOOST_AUTO_TEST_CASE(set_diffuse_texture_by_ptr)
 BOOST_AUTO_TEST_CASE(set_multiple_diffuse_textures)
 {
 	auto mat = make_material();
-	edge::TexturePtr tex0 = mat->renderer()->create_texture(16, 16, edge::PixelFormat::X8R8G8B8);
-	edge::TexturePtr tex1 = mat->renderer()->create_texture(32, 32, edge::PixelFormat::A8R8G8B8);
+	std::shared_ptr<edge::Texture> tex0 = mat->renderer()->create_texture(16, 16, edge::PixelFormat::X8R8G8B8);
+	std::shared_ptr<edge::Texture> tex1 = mat->renderer()->create_texture(32, 32, edge::PixelFormat::A8R8G8B8);
 	mat->set_diffuse_texture(tex0);
 	mat->set_diffuse_texture(tex1, 1);
 	BOOST_CHECK_EQUAL(mat->diffuse_textures_count(), 2u);
@@ -246,7 +246,7 @@ BOOST_AUTO_TEST_CASE(set_multiple_diffuse_textures)
 BOOST_AUTO_TEST_CASE(set_normal_map_texture_by_ptr)
 {
 	auto mat = make_material();
-	edge::TexturePtr tex = mat->renderer()->create_texture(16, 16, edge::PixelFormat::X8R8G8B8);
+	std::shared_ptr<edge::Texture> tex = mat->renderer()->create_texture(16, 16, edge::PixelFormat::X8R8G8B8);
 	mat->set_normal_map_texture(tex);
 	BOOST_CHECK_EQUAL(mat->normal_map_texture(), tex);
 }
@@ -276,7 +276,7 @@ BOOST_AUTO_TEST_CASE(set_base_color_factor)
 BOOST_AUTO_TEST_CASE(a_material_has_a_renderer)
 {
 	// its textures are the renderer's: there is no texture that is only a file name
-	BOOST_CHECK_THROW(edge::Material{edge::RendererPtr{}}, std::invalid_argument);
+	BOOST_CHECK_THROW(edge::Material{std::shared_ptr<edge::Renderer>{}}, std::invalid_argument);
 }
 
 BOOST_AUTO_TEST_CASE(a_blending_weights_texture_by_file_name_is_loaded_by_the_material_s_renderer)

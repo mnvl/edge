@@ -193,7 +193,7 @@ class TextureTable
 public:
 	/// The index of @p texture in the table, which it is added to on first sight; -1 for no texture.  Throws
 	/// std::runtime_error for a texture that has no CPU copy to save.
-	std::int64_t add(TexturePtr const &texture);
+	std::int64_t add(Texture *texture);
 	std::vector<SerializedTexture> const &textures() const { return textures_; }
 
 private:
@@ -201,11 +201,11 @@ private:
 	std::unordered_map<Texture const *, std::int64_t> index_;
 };
 
-SerializedTexture export_texture(TexturePtr const &texture);
+SerializedTexture export_texture(Texture &texture);
 /// A texture on @p renderer_ptr as @p serialized describes it; its CPU copy is kept when @p keep_cpu_copy.  Throws
 /// std::runtime_error when the texels are not as many as the size, format and levels need.
-TexturePtr import_texture(SerializedTexture const &serialized, RendererPtr const &renderer_ptr, bool keep_cpu_copy);
-SerializedMaterial export_material(MaterialPtr const &material_ptr, TextureTable &textures);
-MaterialPtr import_material(SerializedMaterial const &serialized, std::vector<TexturePtr> const &textures, RendererPtr const &renderer_ptr);
+std::shared_ptr<Texture> import_texture(SerializedTexture const &serialized, std::shared_ptr<Renderer> const &renderer_ptr, bool keep_cpu_copy);
+SerializedMaterial export_material(Material const &material, TextureTable &textures);
+std::shared_ptr<Material> import_material(SerializedMaterial const &serialized, std::vector<std::shared_ptr<Texture>> const &textures, std::shared_ptr<Renderer> const &renderer_ptr);
 
 }  // namespace edge

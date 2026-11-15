@@ -24,20 +24,20 @@ public:
 	BasicStaticMesh(Model *model_ptr);
 	~BasicStaticMesh() override;
 
-	rove::aabb<3> exact_bounds(std::vector<JointPtr> const &joints, Joint const &owner,
+	rove::aabb<3> exact_bounds(std::vector<std::shared_ptr<Joint>> const &joints, Joint const &owner,
 		rove::matrix<4,4> const &world_matrix) const override;
-	rove::obb<3> conservative_bounds(std::vector<JointPtr> const &joints, Joint const &owner,
+	rove::obb<3> conservative_bounds(std::vector<std::shared_ptr<Joint>> const &joints, Joint const &owner,
 		rove::matrix<4,4> const &world_matrix) const override;
-	void insert_triangles(octree_type &octree, int id, std::vector<JointPtr> const &joints,
+	void insert_triangles(octree_type &octree, int id, std::vector<std::shared_ptr<Joint>> const &joints,
 		Joint const &owner, rove::matrix<4,4> const &world_matrix) const override;
-	MeshPtr shallow_copy() const override;
+	std::shared_ptr<Mesh> shallow_copy() const override;
 
 	BasicStaticModel<V> *model();
 
 	void check() override;
 
-	void draw(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod = 0) override;
-	void draw_instances(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
+	void draw(Scheduler &scheduler, Joint *joint_ptr, std::shared_ptr<Camera> const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod = 0) override;
+	void draw_instances(Scheduler &scheduler, Joint *joint_ptr, std::shared_ptr<Camera> const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
 		unsigned lod = 0) override;
 
 	void set_vertices(GenericVertex *vertices, GenericVertex::format_type format, size_t count) override;
@@ -64,12 +64,12 @@ public:
 
 	/// The GPU buffers draw() binds; shallow copies share them, except a
 	/// mesh with morph targets, whose weights are written into its own.
-	VertexBufferPtr const &vertex_buffer() const { return vertex_array_->vertex_buffer(); }
-	IndexBufferPtr const &index_buffer() const { return index_array_->index_buffer(); }
+	std::shared_ptr<VertexBuffer> const &vertex_buffer() const { return vertex_array_->vertex_buffer(); }
+	std::shared_ptr<IndexBuffer> const &index_buffer() const { return index_array_->index_buffer(); }
 
 protected:
 	/// draw() and draw_instances(): the triangle groups' draw calls at @p world_matrix, drawn once for each of @p instances if any
-	void submit(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod,
+	void submit(Scheduler &scheduler, Joint *joint_ptr, std::shared_ptr<Camera> const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod,
 		std::vector<rove::matrix<4,4>> const *instances);
 	using vertex_array_type = VertexArray<V>;
 	using index_array_type = IndexArray32;

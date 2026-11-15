@@ -15,16 +15,16 @@ class FullscreenCopy
 {
 public:
 	/// std::invalid_argument for no renderer.
-	explicit FullscreenCopy(RendererPtr const &renderer);
+	explicit FullscreenCopy(std::shared_ptr<Renderer> const &renderer);
 
 	/// In a pass (std::logic_error outside one, as any draw); std::invalid_argument for no texture.
-	void draw(TexturePtr const &source);
+	void draw(std::shared_ptr<Texture> const &source);
 
 private:
-	RendererPtr renderer_;
-	VertexBufferPtr triangle_;
-	MaterialPtr material_;
-	DrawCallPtr draw_;
+	std::shared_ptr<Renderer> renderer_;
+	std::shared_ptr<VertexBuffer> triangle_;
+	std::shared_ptr<Material> material_;
+	std::shared_ptr<DrawCall> draw_;
 };
 
 }

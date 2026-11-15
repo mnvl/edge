@@ -194,12 +194,12 @@ BlendFactors blend_factors(Material::BlendMode src_mode, Material::BlendMode des
 
 VkPipeline VulkanPipelineBuilder::pipeline(VkDevice device, VkPipelineLayout pipeline_layout,
 	VkRenderPass render_pass, uint32_t color_attachments, uint32_t pass_type,
-	VertexTraits const *traits, MaterialPtr const &material)
+	VertexTraits const *traits, std::shared_ptr<Material> const &material)
 {
 	PipelineKey key;
-	ShaderProgramPtr shader_program = material
+	std::shared_ptr<ShaderProgram> shader_program = material
 		? material->shader_program(pass_type)
-		: ShaderProgramPtr();
+		: std::shared_ptr<ShaderProgram>();
 	key.render_pass = render_pass;
 	key.traits = traits;
 	if (shader_program)

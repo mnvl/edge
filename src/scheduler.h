@@ -15,19 +15,19 @@ class Scheduler: public std::enable_shared_from_this<Scheduler> {
 public:
 	Scheduler(Scheduler const &) = delete;
 	Scheduler &operator=(Scheduler const &) = delete;
-	Scheduler(RendererPtr const &renderer);
+	Scheduler(std::shared_ptr<Renderer> const &renderer);
 	~Scheduler();
 
 	/// The renderer this scheduler was made for; null once it is gone.
-	RendererPtr renderer() const { return renderer_.lock(); }
+	std::shared_ptr<Renderer> renderer() const { return renderer_.lock(); }
 
-	void add(DrawCallPtr const &draw_call);
+	void add(std::shared_ptr<DrawCall> const &draw_call);
 
 	/// Replace the camera on all queued draw calls and re-commit them
 	/// (recomputes view-projection and frustum).  Use this to render the
 	/// same geometry from a different viewpoint without resubmitting
 	/// draw calls.
-	void change_draw_calls_camera(CameraPtr const &camera);
+	void change_draw_calls_camera(std::shared_ptr<Camera> const &camera);
 
 	/// Sort queued draw calls by priority, cull against each call's frustum,
 	/// and execute the visible ones.
@@ -58,7 +58,7 @@ public:
 	uint64_t offered_triangles_count() const { return offered_triangles_; }
 
 private:
-	using draw_calls_type = std::vector<DrawCallPtr>;
+	using draw_calls_type = std::vector<std::shared_ptr<DrawCall>>;
 
 	std::weak_ptr<Renderer> renderer_;
 

@@ -66,9 +66,9 @@ struct GlesFixture
 
 /// A triangle wide at the bottom with its apex at the top, counter-clockwise as the target is looked at, at depth z (the eye is at z = 1
 /// looking at the origin: a smaller z is nearer).
-VertexBufferPtr triangle(RendererPtr const &renderer, float z, bool counter_clockwise = true)
+std::shared_ptr<VertexBuffer> triangle(std::shared_ptr<Renderer> const &renderer, float z, bool counter_clockwise = true)
 {
-	VertexBufferPtr vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_P>(), sizeof(VERTEX_P) * 3);
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_P>(), sizeof(VERTEX_P) * 3);
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	VERTEX_P *v = vb_mapping.as<VERTEX_P>().data();
 	BOOST_REQUIRE(v);
@@ -79,22 +79,22 @@ VertexBufferPtr triangle(RendererPtr const &renderer, float z, bool counter_cloc
 	return vb;
 }
 
-CameraPtr camera()
+std::shared_ptr<Camera> camera()
 {
-	CameraPtr c(new Camera());
+	std::shared_ptr<Camera> c(new Camera());
 	c->set_orthographic_projection(2.0f, 2.0f, 0.0f, 2.0f);
 	c->look_at(rove::vec<3>(0, 0, 1), rove::vec<3>(0, 0, 0), rove::vec<3>(0, 1, 0));
 	return c;
 }
 
-DrawCallPtr draw_of(RendererPtr const &renderer, VertexBufferPtr const &vb, Bgra color, Material::CullMode cull)
+std::shared_ptr<DrawCall> draw_of(std::shared_ptr<Renderer> const &renderer, std::shared_ptr<VertexBuffer> const &vb, Bgra color, Material::CullMode cull)
 {
-	MaterialPtr material = renderer->create_material();
+	std::shared_ptr<Material> material = renderer->create_material();
 	material->set_cull_mode(cull);
 	material->set_base_color_factor(rove::vec<4>(color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f));
 	material->set_shader_program(renderer->create_shader_program(
 		"test_gles_triangle.es.vert", "test_gles_triangle.es.frag"));
-	DrawCallPtr draw = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> draw = renderer->create_draw_call();
 	draw->set_vertex_buffer(vb);
 	draw->set_material(material);
 	draw->set_camera(camera());
@@ -115,16 +115,16 @@ RenderPassClearState clear_to(Bgra c)
 }
 
 /// Draws into a fresh target (cleared to gray) and returns its pixels.
-std::vector<Bgra> render(RendererPtr const &renderer, std::vector<DrawCallPtr> const &draws)
+std::vector<Bgra> render(std::shared_ptr<Renderer> const &renderer, std::vector<std::shared_ptr<DrawCall>> const &draws)
 {
-	RenderTargetPtr target = renderer->create_render_target(SIZE, SIZE, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> target = renderer->create_render_target(SIZE, SIZE, PixelFormat::A8R8G8B8);
 	renderer->begin_frame();
 	renderer->begin_pass(target, clear_to(GRAY));
 	for (auto const &draw : draws)
 		draw->execute();
 	renderer->end_pass();
 	renderer->finish_frame();
-	TexturePtr color = target->color_texture();
+	std::shared_ptr<Texture> color = target->color_texture();
 	color->download();
 	auto color_mapping = color->read();
 	Bgra const *p = color_mapping.as<Bgra const>().data();
@@ -150,7 +150,7 @@ BOOST_FIXTURE_TEST_CASE(a_pass_clears_its_target, GlesFixture)
 
 BOOST_FIXTURE_TEST_CASE(a_float_target_is_cleared_and_read_back_as_floats, GlesFixture)
 {
-	RenderTargetPtr target = renderer->create_render_target(8, 4, PixelFormat::R32G32B32A32F);
+	std::shared_ptr<RenderTarget> target = renderer->create_render_target(8, 4, PixelFormat::R32G32B32A32F);
 	RenderPassClearState clear;
 	clear.clear_color_r = 0.25f;
 	clear.clear_color_g = 2.5f;      // above 1: a float target keeps it
@@ -160,7 +160,7 @@ BOOST_FIXTURE_TEST_CASE(a_float_target_is_cleared_and_read_back_as_floats, GlesF
 	renderer->begin_pass(target, clear);
 	renderer->end_pass();
 	renderer->finish_frame();
-	TexturePtr color = target->color_texture();
+	std::shared_ptr<Texture> color = target->color_texture();
 	color->download();
 	auto color_mapping = color->read();
 	float const *p = color_mapping.as<float const>().data();
@@ -206,7 +206,7 @@ BOOST_FIXTURE_TEST_CASE(culling_keeps_the_faces_the_material_names, GlesFixture)
 
 BOOST_FIXTURE_TEST_CASE(the_nearer_triangle_wins_whichever_is_drawn_first, GlesFixture)
 {
-	VertexBufferPtr near_triangle = triangle(renderer, 0.5f), far_triangle = triangle(renderer, -0.5f);
+	std::shared_ptr<VertexBuffer> near_triangle = triangle(renderer, 0.5f), far_triangle = triangle(renderer, -0.5f);
 	auto near_draw = draw_of(renderer, near_triangle, RED, Material::CullMode::NONE);
 	auto far_draw = draw_of(renderer, far_triangle, GREEN, Material::CullMode::NONE);
 	BOOST_TEST(at(render(renderer, {near_draw, far_draw}), SIZE / 2, SIZE - 8) == RED);
@@ -222,7 +222,7 @@ BOOST_FIXTURE_TEST_CASE(a_triangle_outside_the_depth_range_is_clipped, GlesFixtu
 
 BOOST_FIXTURE_TEST_CASE(a_viewport_confines_the_draws_to_its_rectangle_from_the_top_left, GlesFixture)
 {
-	RenderTargetPtr target = renderer->create_render_target(SIZE, SIZE, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> target = renderer->create_render_target(SIZE, SIZE, PixelFormat::A8R8G8B8);
 	auto red = draw_of(renderer, triangle(renderer, 0.0f), RED, Material::CullMode::NONE);
 	auto green = draw_of(renderer, triangle(renderer, 0.0f), GREEN, Material::CullMode::NONE);
 	renderer->begin_frame();
@@ -233,7 +233,7 @@ BOOST_FIXTURE_TEST_CASE(a_viewport_confines_the_draws_to_its_rectangle_from_the_
 	green->execute();
 	renderer->end_pass();
 	renderer->finish_frame();
-	TexturePtr color = target->color_texture();
+	std::shared_ptr<Texture> color = target->color_texture();
 	color->download();
 	auto color_mapping = color->read();
 	Bgra const *p = color_mapping.as<Bgra const>().data();
@@ -254,20 +254,20 @@ BOOST_FIXTURE_TEST_CASE(alpha_blending_mixes_with_what_is_there, GlesFixture)
 {
 	auto blended = [&](bool preserve_destination_alpha)
 	{
-		VertexBufferPtr vb = triangle(renderer, 0.0f);
+		std::shared_ptr<VertexBuffer> vb = triangle(renderer, 0.0f);
 		auto draw = draw_of(renderer, vb, Bgra{0, 0, 255, 128}, Material::CullMode::NONE);
-		MaterialPtr material = draw->material();
+		std::shared_ptr<Material> material = draw->material();
 		material->set_alpha_blend_enabled(true);
 		material->set_src_blend_mode(Material::BlendMode::SRC_ALPHA);
 		material->set_dest_blend_mode(Material::BlendMode::INV_SRC_ALPHA);
 		material->set_preserve_destination_alpha(preserve_destination_alpha);
-		RenderTargetPtr target = renderer->create_render_target(SIZE, SIZE, PixelFormat::A8R8G8B8);
+		std::shared_ptr<RenderTarget> target = renderer->create_render_target(SIZE, SIZE, PixelFormat::A8R8G8B8);
 		renderer->begin_frame();
 		renderer->begin_pass(target, clear_to(Bgra{64, 64, 64, 200}));
 		draw->execute();
 		renderer->end_pass();
 		renderer->finish_frame();
-		TexturePtr color = target->color_texture();
+		std::shared_ptr<Texture> color = target->color_texture();
 		color->download();
 		auto color_mapping = color->read();
 		Bgra const *p = color_mapping.as<Bgra const>().data();
@@ -301,7 +301,7 @@ BOOST_FIXTURE_TEST_CASE(a_texture_comes_back_as_written, GlesFixture)
 	std::vector<Bgra> expected;
 	for (int i = 0; i < W * H; ++i)
 		expected.push_back(Bgra{uint8_t(10 + i), uint8_t(100 + 3 * i), uint8_t(200 - 7 * i), uint8_t(255 - i)});
-	TexturePtr texture = renderer->create_texture(W, H, PixelFormat::A8R8G8B8);
+	std::shared_ptr<Texture> texture = renderer->create_texture(W, H, PixelFormat::A8R8G8B8);
 	auto texture_mapping = texture->write(Contents::DISCARD);
 	std::memcpy(texture_mapping.data(), expected.data(), sizeof(Bgra) * expected.size());
 	texture_mapping.unmap();
@@ -325,7 +325,7 @@ BOOST_FIXTURE_TEST_CASE(half_float_texels_come_back_as_they_were_written_and_as_
 	// bits of IEEE binary16: 1, -2.5, the largest, the smallest normal, a third, the smallest subnormal, minus zero, pi, both infinities,
 	// a half, and a number between
 	uint16_t const written[] = {0x3C00, 0xC100, 0x7BFF, 0x0400,  0x3555, 0x0001, 0x8000, 0x4248,  0x7C00, 0xFC00, 0x3800, 0x5640};
-	TexturePtr texture = renderer->create_texture(3, 1, PixelFormat::R16G16B16A16F);
+	std::shared_ptr<Texture> texture = renderer->create_texture(3, 1, PixelFormat::R16G16B16A16F);
 	auto texture_mapping = texture->write(Contents::DISCARD);
 	std::memcpy(texture_mapping.data(), written, sizeof(written));
 	texture_mapping.unmap();
@@ -337,7 +337,7 @@ BOOST_FIXTURE_TEST_CASE(half_float_texels_come_back_as_they_were_written_and_as_
 	read_mapping.unmap();
 
 	// a clear to values with no exact half: the GPU's own conversion, the nearest half or the one next to it
-	RenderTargetPtr target = renderer->create_render_target(1, 1, PixelFormat::R16G16B16A16F);
+	std::shared_ptr<RenderTarget> target = renderer->create_render_target(1, 1, PixelFormat::R16G16B16A16F);
 	RenderPassClearState clear;
 	clear.clear_color_r = 0.3f;
 	clear.clear_color_g = 1e-6f;
@@ -347,7 +347,7 @@ BOOST_FIXTURE_TEST_CASE(half_float_texels_come_back_as_they_were_written_and_as_
 	renderer->begin_pass(target, clear);
 	renderer->end_pass();
 	renderer->finish_frame();
-	TexturePtr color = target->color_texture();
+	std::shared_ptr<Texture> color = target->color_texture();
 	color->download();
 	auto color_mapping = color->read();
 	auto const *h = color_mapping.as<uint16_t const>().data();
@@ -361,7 +361,7 @@ BOOST_FIXTURE_TEST_CASE(half_float_texels_come_back_as_they_were_written_and_as_
 
 BOOST_FIXTURE_TEST_CASE(a_target_is_the_size_it_was_made_with, GlesFixture)
 {
-	RenderTargetPtr target = renderer->create_render_target(12, 7, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> target = renderer->create_render_target(12, 7, PixelFormat::A8R8G8B8);
 	BOOST_TEST(target->width() == 12);
 	BOOST_TEST(target->height() == 7);
 	BOOST_TEST(target->color_texture()->width() == 12);
@@ -377,7 +377,7 @@ BOOST_FIXTURE_TEST_CASE(a_target_is_the_size_it_was_made_with, GlesFixture)
 
 BOOST_FIXTURE_TEST_CASE(the_frame_and_pass_protocol_is_enforced, GlesFixture)
 {
-	RenderTargetPtr target = renderer->default_render_target();
+	std::shared_ptr<RenderTarget> target = renderer->default_render_target();
 	auto draw = draw_of(renderer, triangle(renderer, 0.0f), RED, Material::CullMode::NONE);
 	BOOST_CHECK_THROW(renderer->begin_pass(target), std::logic_error);      // no frame
 	BOOST_CHECK_THROW(renderer->end_pass(), std::logic_error);              // no pass
@@ -385,7 +385,7 @@ BOOST_FIXTURE_TEST_CASE(the_frame_and_pass_protocol_is_enforced, GlesFixture)
 	renderer->begin_frame();
 	BOOST_CHECK_THROW(renderer->begin_frame(), std::logic_error);           // already open
 	BOOST_CHECK_THROW(draw->execute(), std::logic_error);                   // a frame, no pass
-	BOOST_CHECK_THROW(renderer->begin_pass(RenderTargetPtr()), std::invalid_argument);
+	BOOST_CHECK_THROW(renderer->begin_pass(std::shared_ptr<RenderTarget>()), std::invalid_argument);
 	BOOST_CHECK_THROW(renderer->set_viewport(0, 0, 1, 1), std::logic_error);  // outside a pass
 	renderer->begin_pass(target);
 	BOOST_CHECK_THROW(renderer->begin_pass(target), std::logic_error);      // already in a pass
@@ -401,8 +401,8 @@ BOOST_FIXTURE_TEST_CASE(the_frame_and_pass_protocol_is_enforced, GlesFixture)
 BOOST_FIXTURE_TEST_CASE(a_material_without_a_shader_program_draws_with_the_built_in_one_and_names_it_where_missing, GlesFixture)
 {
 	// (this fixture's directory has only the hand-written shaders: the built-in vertex.spv is not translated there)
-	MaterialPtr material = renderer->create_material();
-	DrawCallPtr draw = renderer->create_draw_call();
+	std::shared_ptr<Material> material = renderer->create_material();
+	std::shared_ptr<DrawCall> draw = renderer->create_draw_call();
 	draw->set_vertex_buffer(triangle(renderer, 0.0f));
 	draw->set_material(material);
 	draw->set_camera(camera());
@@ -427,9 +427,9 @@ BOOST_FIXTURE_TEST_CASE(a_material_without_a_shader_program_draws_with_the_built
 BOOST_FIXTURE_TEST_CASE(a_shader_that_does_not_compile_names_its_file_and_the_log, GlesFixture)
 {
 	// a fragment shader with an error in it (a vertex shader given as the fragment one crashes Mesa 25's linker instead)
-	MaterialPtr material = renderer->create_material();
+	std::shared_ptr<Material> material = renderer->create_material();
 	material->set_shader_program(renderer->create_shader_program("test_gles_triangle.es.vert", "test_gles_broken.es.frag"));
-	DrawCallPtr draw = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> draw = renderer->create_draw_call();
 	draw->set_vertex_buffer(triangle(renderer, 0.0f));
 	draw->set_material(material);
 	draw->set_camera(camera());
@@ -454,9 +454,9 @@ BOOST_FIXTURE_TEST_CASE(a_shader_that_does_not_compile_names_its_file_and_the_lo
 
 BOOST_FIXTURE_TEST_CASE(a_missing_shader_file_is_a_runtime_error_naming_it, GlesFixture)
 {
-	MaterialPtr material = renderer->create_material();
+	std::shared_ptr<Material> material = renderer->create_material();
 	material->set_shader_program(renderer->create_shader_program("no_such.es.vert", "test_gles_triangle.es.frag"));
-	DrawCallPtr draw = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> draw = renderer->create_draw_call();
 	draw->set_vertex_buffer(triangle(renderer, 0.0f));
 	draw->set_material(material);
 	draw->set_camera(camera());
@@ -519,13 +519,13 @@ BOOST_AUTO_TEST_CASE(a_texture_is_shown_in_the_hosts_window_without_a_download)
 	{
 		GLESRenderer renderer(SIZE, SIZE, std::string(EDGE_ROOT) + "/test/shaders", std::make_shared<GLESSDLContext>(window));
 		// the same 2 x 2 as a texture of the renderer's (a render target's colour texture is one): top row red, green; bottom blue, white
-		TexturePtr texture = renderer.create_texture(2, 2, PixelFormat::A8R8G8B8);
+		std::shared_ptr<Texture> texture = renderer.create_texture(2, 2, PixelFormat::A8R8G8B8);
 		uint8_t const texels[] = {0, 0, 255, 255,  0, 255, 0, 255,
 		                          255, 0, 0, 255,  255, 255, 255, 255};          // (B, G, R, A bytes, as a texture is locked)
 		auto texture_mapping = texture->write(Contents::DISCARD);
 		std::memcpy(texture_mapping.data(), texels, sizeof texels);
 		texture_mapping.unmap();
-		renderer.show_frame(texture, 40, 20);
+		renderer.show_frame(*texture, 40, 20);
 		auto pixel = [](int x, int y_from_top)
 		{
 			uint8_t rgba[4];
@@ -536,10 +536,9 @@ BOOST_AUTO_TEST_CASE(a_texture_is_shown_in_the_hosts_window_without_a_download)
 		BOOST_TEST((pixel(35, 3) == std::array<int, 3>{0, 255, 0}), "top right is green");
 		BOOST_TEST((pixel(5, 16) == std::array<int, 3>{0, 0, 255}), "bottom left is blue");
 		BOOST_TEST((pixel(35, 16) == std::array<int, 3>{255, 255, 255}), "bottom right is white");
-		BOOST_CHECK_THROW(renderer.show_frame(TexturePtr(), 40, 20), std::invalid_argument);
-		BOOST_CHECK_THROW(renderer.show_frame(texture, 40, 0), std::invalid_argument);
+		BOOST_CHECK_THROW(renderer.show_frame(*texture, 40, 0), std::invalid_argument);
 		GLESRenderer other(SIZE, SIZE, std::string(EDGE_ROOT) + "/test/shaders", std::make_shared<GLESSDLContext>());
-		BOOST_CHECK_THROW(renderer.show_frame(other.create_texture(2, 2, PixelFormat::A8R8G8B8), 40, 20), std::invalid_argument);
+		BOOST_CHECK_THROW(renderer.show_frame(*other.create_texture(2, 2, PixelFormat::A8R8G8B8), 40, 20), std::invalid_argument);
 	}
 	SDL_DestroyWindow(window);
 }

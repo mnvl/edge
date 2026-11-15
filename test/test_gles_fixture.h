@@ -17,7 +17,7 @@ namespace edge
 /// translations of edge's SPIR-V (EDGE_GLES_SHADER_DIR).
 struct GlesFixture
 {
-	GLESRendererPtr renderer;
+	std::shared_ptr<GLESRenderer> renderer;
 	std::string error;
 
 	GlesFixture()

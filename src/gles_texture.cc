@@ -92,7 +92,7 @@ void swap_red_blue(unsigned char *texels, size_t count)
 
 }
 
-GLESTexture::GLESTexture(GLESContextPtr const &context, int width, int height, PixelFormat pixel_format, TextureUsage const &usage):
+GLESTexture::GLESTexture(std::shared_ptr<GLESContext> const &context, int width, int height, PixelFormat pixel_format, TextureUsage const &usage):
 	Texture(width, height, pixel_format, usage),
 	context_(context)
 {
@@ -158,7 +158,7 @@ void layers_storage(GLenum target, GLenum internal_format, int width, int height
 
 }
 
-GLESTexture::GLESTexture(GLESContextPtr const &context, int width, int height, PixelFormat pixel_format, Layers layers):
+GLESTexture::GLESTexture(std::shared_ptr<GLESContext> const &context, int width, int height, PixelFormat pixel_format, Layers layers):
 	Texture(width, height, pixel_format, depth_usage(layers.count)),
 	context_(context),
 	target_(layers_target(layers))
@@ -183,7 +183,7 @@ GLESTexture::GLESTexture(GLESContextPtr const &context, int width, int height, P
 	check_gl("creating a layered texture");
 }
 
-GLESTexture::GLESTexture(GLESContextPtr const &context, int width, int height, Depth, Layers layers):
+GLESTexture::GLESTexture(std::shared_ptr<GLESContext> const &context, int width, int height, Depth, Layers layers):
 	Texture(width, height, PixelFormat::R32F, depth_usage(layers.count)),
 	context_(context),
 	target_(layers_target(layers)),

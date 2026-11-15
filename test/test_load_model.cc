@@ -33,8 +33,8 @@ std::string asset(std::string const &name)
 
 struct Fixture
 {
-	edge::RendererPtr renderer = [] { edge::RendererPtr r(new edge::NullRenderer(320, 200)); return r; }();
-	edge::SchedulerPtr scheduler = std::make_shared<edge::Scheduler>(renderer);
+	std::shared_ptr<edge::Renderer> renderer = [] { std::shared_ptr<edge::Renderer> r(new edge::NullRenderer(320, 200)); return r; }();
+	std::shared_ptr<edge::Scheduler> scheduler = std::make_shared<edge::Scheduler>(renderer);
 	std::filesystem::path const dir = std::filesystem::temp_directory_path() / "edge_load_model";
 
 	Fixture()
@@ -70,7 +70,7 @@ struct Fixture
 	}
 };
 
-template <class M> void is_a(edge::ModelPtr const &model, std::string const &what)
+template <class M> void is_a(std::shared_ptr<edge::Model> const &model, std::string const &what)
 {
 	BOOST_REQUIRE_MESSAGE(model, what);
 	BOOST_CHECK_MESSAGE(dynamic_cast<M const *>(model.get()) != nullptr, what << " is a " << typeid(*model).name());
@@ -91,7 +91,7 @@ BOOST_AUTO_TEST_CASE(a_edge_file_makes_a_model_of_the_type_its_meshes_are)
 BOOST_AUTO_TEST_CASE(the_model_is_the_one_its_type_loads)
 {
 	std::string const file = converted("test_figure.glb");
-	edge::ModelPtr const any = edge::load_model(renderer, file);
+	std::shared_ptr<edge::Model> const any = edge::load_model(renderer, file);
 	auto typed = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer);
 	typed->load_from_file(file);
 	BOOST_CHECK(saved(*any, "any.edge") == saved(*typed, "typed.edge"));
@@ -107,7 +107,7 @@ BOOST_AUTO_TEST_CASE(a_glTF_makes_the_model_the_converter_would_make_of_it)
 	// its options are the glTF's loading options
 	edge::GltfOptions keep;
 	keep.keep_cpu_copy = false;
-	edge::ModelPtr const gpu_only = edge::load_model(renderer, asset("test_gltf_loader_pbr.glb"), keep);
+	std::shared_ptr<edge::Model> const gpu_only = edge::load_model(renderer, asset("test_gltf_loader_pbr.glb"), keep);
 	BOOST_CHECK_THROW(gpu_only->save_to_file(out("gpu.edge")), std::runtime_error);      // no CPU copy of the textures to save
 }
 

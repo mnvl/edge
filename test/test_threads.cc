@@ -41,7 +41,7 @@ std::vector<std::uint8_t> draw_figure()
 	auto const camera = std::make_shared<edge::Camera>();
 	camera->set_perspective_projection(0.8f, 1.0f, 0.05f, 50.0f);
 	camera->look_at(rove::vec<3>(0, 1, 4), rove::vec<3>(0, 1, 0), rove::vec<3>(0, 1, 0));
-	edge::RenderTargetPtr const target = renderer->create_render_target(64, 64, edge::PixelFormat::A8R8G8B8);
+	std::shared_ptr<edge::RenderTarget> const target = renderer->create_render_target(64, 64, edge::PixelFormat::A8R8G8B8);
 	rove::matrix<4,4> left, right;
 	left.identity();
 	left.translate(rove::vec<3>(-0.6f, 0, 0));
@@ -60,7 +60,7 @@ std::vector<std::uint8_t> draw_figure()
 		scheduler->flush();
 		renderer->end_pass();
 		renderer->finish_frame();
-		edge::TexturePtr const colour = target->color_texture();
+		std::shared_ptr<edge::Texture> const colour = target->color_texture();
 		colour->download();
 		auto colour_mapping = colour->read();
 		auto const *bytes = colour_mapping.as<std::uint8_t const>().data();

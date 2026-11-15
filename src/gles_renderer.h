@@ -22,7 +22,6 @@ namespace edge
 class GLESGpuTimer;      // (the renderer's own: its header is not installed)
 
 class GLESRenderer;
-using GLESRendererPtr = std::shared_ptr<GLESRenderer>;
 
 /// A linked GL program, and what the renderer binds for it.
 ///
@@ -33,10 +32,10 @@ struct GLESProgram
 {
 	/// The shaders in @p shader_dir; std::runtime_error naming the file and the log if one cannot be read, does not compile, or the
 	/// program does not link.
-	GLESProgram(GLESContextPtr const &context, std::string const &shader_dir, std::string const &vertex_shader,
+	GLESProgram(std::shared_ptr<GLESContext> const &context, std::string const &shader_dir, std::string const &vertex_shader,
 		std::string const &fragment_shader);
 	/// From source text, with nothing to bind (the paths only name it in an error).
-	GLESProgram(GLESContextPtr const &context, std::string const &vertex_source, std::string const &vertex_path,
+	GLESProgram(std::shared_ptr<GLESContext> const &context, std::string const &vertex_source, std::string const &vertex_path,
 		std::string const &fragment_source, std::string const &fragment_path);
 	~GLESProgram();
 	struct Map;
@@ -54,7 +53,7 @@ struct GLESProgram
 		int unit;
 	};
 
-	GLESContextPtr context;
+	std::shared_ptr<GLESContext> context;
 	GLuint id = 0;
 	std::vector<Sampler> samplers;
 	// -1 where the shader does not declare it
@@ -76,7 +75,7 @@ struct GLESProgram
 /// normal 3, joint indices 4-5, weights 6-7, texcoords 8-9, colour 10); the uniforms are the members of GLESProgram.
 class GLESRenderer: public Renderer {
 public:
-	GLESRendererPtr shared_from_this()
+	std::shared_ptr<GLESRenderer> shared_from_this()
 	{
 		return std::static_pointer_cast<GLESRenderer>(Renderer::shared_from_this());
 	}
@@ -84,7 +83,7 @@ public:
 	/// In @p context, which the host made and keeps for as long as the renderer lives (any window system's; if it is hosted(), show_frame()
 	/// shows frames in its window, and otherwise it is a std::logic_error).  std::invalid_argument for no context or a size that is not
 	/// positive; std::runtime_error when the context cannot be made current.
-	GLESRenderer(int width, int height, std::string const &shader_dir, GLESContextPtr const &context);
+	GLESRenderer(int width, int height, std::string const &shader_dir, std::shared_ptr<GLESContext> const &context);
 	~GLESRenderer() override;
 
 
@@ -92,15 +91,15 @@ public:
 	int screen_height() const override { return height_; }
 	void resize(int width, int height) override;
 
-	VertexBufferPtr create_vertex_buffer(VertexTraits const *vertex_traits, size_t size,
+	std::shared_ptr<VertexBuffer> create_vertex_buffer(VertexTraits const *vertex_traits, size_t size,
 		BufferUsage usage = BufferUsage::STATIC) override;
-	IndexBufferPtr create_index_buffer(IndexFormat index_format, size_t size, BufferUsage usage = BufferUsage::STATIC) override;
-	TexturePtr create_texture(int width, int height, PixelFormat pixel_format, TextureUsage const &usage = TextureUsage()) override;
+	std::shared_ptr<IndexBuffer> create_index_buffer(IndexFormat index_format, size_t size, BufferUsage usage = BufferUsage::STATIC) override;
+	std::shared_ptr<Texture> create_texture(int width, int height, PixelFormat pixel_format, TextureUsage const &usage = TextureUsage()) override;
 
-	RenderTargetPtr default_render_target() override;
+	std::shared_ptr<RenderTarget> default_render_target() override;
 	/// The GL's GL_MAX_DRAW_BUFFERS, or its GL_MAX_COLOR_ATTACHMENTS where that is fewer.
 	unsigned max_color_attachments() const override;
-	MaterialPtr create_material() override;
+	std::shared_ptr<Material> create_material() override;
 
 	/// Draws a frame of the host (B, G, R, X bytes, rows tight, row 0 the top, width x height) into the window's framebuffer, stretched
 	/// to window_width x window_height pixels, the window's size; swap_window() shows it.  std::logic_error inside a frame or without
@@ -109,10 +108,10 @@ public:
 	/// The same of a texture of this renderer's (a render target's colour texture: the frame drawn stays on the GPU, nothing is
 	/// downloaded), sampled as it is.  std::invalid_argument for no texture, one of another renderer, or a size that is not positive;
 	/// std::logic_error as above.
-	void show_frame(TexturePtr const &frame, int window_width, int window_height);
+	void show_frame(Texture &frame, int window_width, int window_height);
 	void swap_window();
 
-	GLESContextPtr const &context() const { return context_; }
+	std::shared_ptr<GLESContext> const &context() const { return context_; }
 	uint64_t frame_serial() const override { return frame_serial_; }
 	/// Joint matrices of the skeleton a draw is skinned by, at most this many (std::length_error for more).
 	static constexpr size_t MAX_JOINT_MATRICES = 256;
@@ -130,10 +129,10 @@ public:
 	std::shared_ptr<GLESProgram> program(std::string const &vertex_shader_filename, std::string const &fragment_shader_filename);
 
 private:
-	GLESContextPtr context_;
+	std::shared_ptr<GLESContext> context_;
 	std::string shader_dir_;
 	int width_, height_;
-	RenderTargetPtr default_render_target_;
+	std::shared_ptr<RenderTarget> default_render_target_;
 	GLuint vertex_array_ = 0;
 	std::map<std::pair<std::string, std::string>, std::shared_ptr<GLESProgram>> programs_;
 	std::shared_ptr<GLESProgram> show_program_, show_texture_program_;
@@ -144,8 +143,8 @@ private:
 	GLuint material_parameters_buffer_ = 0; // the drawn material's own block, at binding 20
 	GLuint material_sampler_ = 0, global_sampler_ = 0, show_sampler_ = 0;          // (show_sampler_: a shown texture's, linear, no mipmaps)
 	GLuint compare_sampler_ = 0;          // a shadow texture's: compared, then filtered
-	TexturePtr white_texture_;
-	TexturePtr global_textures_[GLOBAL_TEXTURES_COUNT];
+	std::shared_ptr<Texture> white_texture_;
+	std::shared_ptr<Texture> global_textures_[GLOBAL_TEXTURES_COUNT];
 	bool global_compare_[GLOBAL_TEXTURES_COUNT] = {};      // global_shadow_texture: sampled with a comparison
 	GLuint frame_texture_ = 0;
 	int frame_texture_width_ = 0, frame_texture_height_ = 0;
@@ -158,16 +157,16 @@ protected:
 	void do_begin_frame() override;
 	/// glFinish(): the frame is drawn when it returns.
 	void do_finish_frame() override;
-	void do_begin_pass(RenderTargetPtr const &target, RenderPassClearState const &clear_state, uint32_t pass_type) override;
+	void do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state, uint32_t pass_type) override;
 	void do_end_pass() override;
 	void do_set_viewport(int x, int y, int width, int height) override;
 	void do_set_frame_constants(void const *data, size_t size) override;
-	void do_set_global_texture(unsigned slot, TexturePtr const &texture, bool compare) override;
+	void do_set_global_texture(unsigned slot, std::shared_ptr<Texture> const &texture, bool compare) override;
 	/// std::invalid_argument for a vertex or index buffer that is not this renderer's.
 	void do_draw(DrawCall const &call) override;
 	/// std::invalid_argument for more layers than GL_MAX_ARRAY_TEXTURE_LAYERS, a cube larger than GL_MAX_CUBE_MAP_TEXTURE_SIZE;
 	/// std::runtime_error for a colour format the device cannot draw into (the framebuffer is incomplete).
-	RenderTargetPtr do_create_render_target(int width, int height, RenderTargetFormat const &format) override;
+	std::shared_ptr<RenderTarget> do_create_render_target(int width, int height, RenderTargetFormat const &format) override;
 	/// A GLESGpuTimer: a frame's durations are read when the renderer begins or ends a frame and the GL has them.
 	GpuTimer &gpu_timer() const override;
 };

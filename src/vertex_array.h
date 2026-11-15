@@ -19,7 +19,7 @@ class VertexArray {
 public:
 	using vertex_type = T;
 
-	VertexArray(VertexBufferPtr const &vertex_buffer):
+	VertexArray(std::shared_ptr<VertexBuffer> const &vertex_buffer):
 		vertex_buffer_(vertex_buffer)
 	{
 	}
@@ -33,10 +33,10 @@ public:
 	size_t size() const { return vertex_buffer_->size(); }
 	size_t count() const { return size() / sizeof(T); }
 
-	VertexBufferPtr const &vertex_buffer() { return vertex_buffer_;	}
+	std::shared_ptr<VertexBuffer> const &vertex_buffer() { return vertex_buffer_;	}
 
 protected:
-	VertexBufferPtr vertex_buffer_;
+	std::shared_ptr<VertexBuffer> vertex_buffer_;
 };
 
 using VertexArrayPT = VertexArray<VERTEX_PT>;

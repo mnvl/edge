@@ -96,7 +96,7 @@ struct MetalGpuTimer::Impl
 	}
 };
 
-MetalGpuTimer::MetalGpuTimer(MetalContextPtr const &context):
+MetalGpuTimer::MetalGpuTimer(std::shared_ptr<MetalContext> const &context):
 	GpuTimer(unavailable_reason_of(context->impl().device)),
 	context_(context),
 	impl_(new Impl)

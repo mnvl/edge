@@ -37,9 +37,9 @@ struct Rgba
 };
 
 /// A quad of colour (0.8, 0.2, 0.4) over a whole target, drawn with `program`: the pixel in the middle.
-Rgba drawn_with(VulkanRendererPtr const &renderer, ShaderProgramPtr const &program)
+Rgba drawn_with(std::shared_ptr<VulkanRenderer> const &renderer, std::shared_ptr<ShaderProgram> const &program)
 {
-	VertexBufferPtr vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PTBNTC>(), sizeof(VERTEX_PTBNTC) * 4);
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PTBNTC>(), sizeof(VERTEX_PTBNTC) * 4);
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	VERTEX_PTBNTC *v = vb_mapping.as<VERTEX_PTBNTC>().data();
 	BOOST_REQUIRE(v);
@@ -51,21 +51,21 @@ Rgba drawn_with(VulkanRendererPtr const &renderer, ShaderProgramPtr const &progr
 		v[k].color.set(0.8f, 0.2f, 0.4f, 1.0f);
 	}
 	vb_mapping.unmap();
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
 	auto ib_mapping = ib->write(Contents::DISCARD);
 	INDEX_U16 *idx = ib_mapping.as<INDEX_U16>().data();
 	BOOST_REQUIRE(idx);
 	idx[0] = 0; idx[1] = 1; idx[2] = 2; idx[3] = 0; idx[4] = 2; idx[5] = 3;
 	ib_mapping.unmap();
-	CameraPtr camera(new Camera());
+	std::shared_ptr<Camera> camera(new Camera());
 	camera->set_orthographic_projection(2.0f, 2.0f, 0.0f, 2.0f);
 	camera->look_at(rove::vec<3>(0, 0, 1), rove::vec<3>(0, 0, 0), rove::vec<3>(0, 1, 0));
-	RenderTargetPtr target = renderer->create_render_target(TARGET_SIZE, TARGET_SIZE, PixelFormat::R32G32B32A32F);
+	std::shared_ptr<RenderTarget> target = renderer->create_render_target(TARGET_SIZE, TARGET_SIZE, PixelFormat::R32G32B32A32F);
 
-	MaterialPtr material = renderer->create_material();
+	std::shared_ptr<Material> material = renderer->create_material();
 	material->set_cull_mode(Material::CullMode::NONE);
 	material->set_shader_program(program);
-	DrawCallPtr draw_call = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> draw_call = renderer->create_draw_call();
 	draw_call->set_vertex_buffer(vb);
 	draw_call->set_index_buffer(ib);
 	draw_call->set_material(material);
@@ -81,7 +81,7 @@ Rgba drawn_with(VulkanRendererPtr const &renderer, ShaderProgramPtr const &progr
 	renderer->end_pass();
 	renderer->finish_frame();
 
-	TexturePtr color = target->color_texture();
+	std::shared_ptr<Texture> color = target->color_texture();
 	color->download();
 	auto color_mapping = color->read();
 	Rgba const *pixels = color_mapping.as<Rgba const>().data();
@@ -106,15 +106,15 @@ BOOST_AUTO_TEST_CASE(a_program_made_where_a_freed_one_stood_draws_with_its_own_s
 	// both programs in the same storage, one after the other: the second has the freed one's address whatever the allocator does
 	alignas(ShaderProgram) unsigned char storage[sizeof(ShaderProgram)];
 	auto const in_storage = [&](std::string const &fragment) {
-		return ShaderProgramPtr(new (storage) ShaderProgram(edge::test_shader("test_vertex_color.vert"), fragment), [](ShaderProgram *p) { p->~ShaderProgram(); });
+		return std::shared_ptr<ShaderProgram>(new (storage) ShaderProgram(edge::test_shader("test_vertex_color.vert"), fragment), [](ShaderProgram *p) { p->~ShaderProgram(); });
 	};
 	{
-		ShaderProgramPtr const plain = in_storage(edge::test_shader("test_vertex_color.frag"));
+		std::shared_ptr<ShaderProgram> const plain = in_storage(edge::test_shader("test_vertex_color.frag"));
 		Rgba const p = drawn_with(renderer, plain);
 		BOOST_REQUIRE_MESSAGE(near(p.r, 0.8f) && near(p.g, 0.2f) && near(p.b, 0.4f), "the plain program drew " << p.r << " " << p.g << " " << p.b);
 		BOOST_REQUIRE_EQUAL(plain.use_count(), 1);         // nothing kept it: it is freed below
 	}
-	ShaderProgramPtr const inverse = in_storage(edge::test_shader("test_inverse_color.frag"));
+	std::shared_ptr<ShaderProgram> const inverse = in_storage(edge::test_shader("test_inverse_color.frag"));
 	BOOST_REQUIRE(static_cast<void const *>(inverse.get()) == static_cast<void const *>(storage));
 	Rgba const p = drawn_with(renderer, inverse);
 	BOOST_CHECK_MESSAGE(near(p.r, 0.2f) && near(p.g, 0.8f) && near(p.b, 0.6f),

@@ -29,7 +29,7 @@ id<MTLBuffer> make_buffer(MetalContext &context, size_t size, void const *bytes)
 
 }
 
-MetalBufferStore::MetalBufferStore(MetalContextPtr const &context, size_t size):
+MetalBufferStore::MetalBufferStore(std::shared_ptr<MetalContext> const &context, size_t size):
 	bytes_(size, 0),
 	context_(context),
 	impl_(new Impl)
@@ -57,14 +57,14 @@ void MetalBufferStore::used()
 	impl_->last_use = context_->current_frame();
 }
 
-MetalVertexBuffer::MetalVertexBuffer(MetalContextPtr const &context, VertexTraits const *traits, size_t size):
+MetalVertexBuffer::MetalVertexBuffer(std::shared_ptr<MetalContext> const &context, VertexTraits const *traits, size_t size):
 	context_(context),
 	store_(context, size),
 	traits_(traits)
 {
 }
 
-MetalIndexBuffer::MetalIndexBuffer(MetalContextPtr const &context, IndexFormat index_format, size_t size):
+MetalIndexBuffer::MetalIndexBuffer(std::shared_ptr<MetalContext> const &context, IndexFormat index_format, size_t size):
 	context_(context),
 	store_(context, size),
 	index_size_(0)

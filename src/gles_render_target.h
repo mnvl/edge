@@ -25,14 +25,14 @@ public:
 	/// @p depth: the readable depth (a GLESTexture::Depth of the target's size), or null for a renderbuffer no one reads.  @p layer >= 0:
 	/// the target of that layer of the textures.  std::runtime_error naming the formats if GL finds the framebuffer incomplete (a colour
 	/// format the device cannot draw into).
-	GLESRenderTarget(GLESContextPtr const &context, int width, int height, std::vector<std::shared_ptr<GLESTexture>> const &colors,
+	GLESRenderTarget(std::shared_ptr<GLESContext> const &context, int width, int height, std::vector<std::shared_ptr<GLESTexture>> const &colors,
 		std::shared_ptr<GLESTexture> const &depth = nullptr, int layer = -1);
 	~GLESRenderTarget() override;
 
 	/// The framebuffer drawn into (none for a target of layers).
 	GLuint framebuffer() const { return framebuffer_; }
 	/// The context of the renderer that made it.
-	GLESContextPtr const &context() const { return context_; }
+	std::shared_ptr<GLESContext> const &context() const { return context_; }
 	/// The renderbuffer its passes draw their depth into when it keeps none (0 with a readable depth), which the layers of a target of
 	/// layers share.
 	GLuint depth_renderbuffer() const;
@@ -42,10 +42,10 @@ private:
 	/// and clears it).
 	struct DepthRenderbuffer;
 	/// The target of layer @p layer, drawing its depth into @p depth when it keeps none (null: a renderbuffer of its own).
-	GLESRenderTarget(GLESContextPtr const &context, int width, int height, std::vector<std::shared_ptr<GLESTexture>> const &colors,
+	GLESRenderTarget(std::shared_ptr<GLESContext> const &context, int width, int height, std::vector<std::shared_ptr<GLESTexture>> const &colors,
 		std::shared_ptr<GLESTexture> const &depth, int layer, std::shared_ptr<DepthRenderbuffer> const &depth_renderbuffer);
 
-	GLESContextPtr context_;
+	std::shared_ptr<GLESContext> context_;
 	GLuint framebuffer_ = 0;
 	std::shared_ptr<DepthRenderbuffer> depth_;
 };

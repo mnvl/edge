@@ -61,6 +61,5 @@ private:
 	std::string error_;
 };
 
-using MetalContextPtr = std::shared_ptr<MetalContext>;
 
 }

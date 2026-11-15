@@ -34,7 +34,7 @@ private:
 
 	using samples_type = std::vector<Sample>;
 
-	MeshWeakPtr mesh_;
+	std::weak_ptr<Mesh> mesh_;
 	Interpolation interpolation_;
 	samples_type samples_;
 
@@ -44,7 +44,7 @@ public:
 	{
 	}
 
-	void set_target(MeshPtr mesh_ptr) { mesh_ = mesh_ptr; }
+	void set_target(std::shared_ptr<Mesh> mesh_ptr) { mesh_ = mesh_ptr; }
 	void set_interpolation(Interpolation interpolation) { interpolation_ = interpolation; }
 	void add_sample(rove::scalar time, std::vector<float> const &weights);
 	std::vector<float> get(rove::scalar time) const;
@@ -62,8 +62,8 @@ public:
 	std::size_t samples_count() const { return samples_.size(); }
 	rove::scalar sample_time(std::size_t index) const { return samples_.at(index).time; }
 	std::vector<float> const &sample_weights(std::size_t index) const { return samples_.at(index).weights; }
-	MeshPtr mesh() const { return mesh_.lock(); }
-	void set_mesh(MeshPtr const &mesh_ptr) { mesh_ = mesh_ptr; }
+	std::shared_ptr<Mesh> mesh() const { return mesh_.lock(); }
+	void set_mesh(std::shared_ptr<Mesh> const &mesh_ptr) { mesh_ = mesh_ptr; }
 };
 
 }

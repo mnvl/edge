@@ -45,7 +45,7 @@ class ModelCache {
 public:
 	/// glTF files are read with @p gltf_options; a .edge file takes from them whether its textures keep a CPU copy (the rest of
 	/// what the options say it has already been settled when it was made from the glTF).
-	explicit ModelCache(RendererPtr const &renderer, GltfOptions const &gltf_options = GltfOptions());
+	explicit ModelCache(std::shared_ptr<Renderer> const &renderer, GltfOptions const &gltf_options = GltfOptions());
 
 	/// A new instance of @p filename as a model of type @p M, of this cache's
 	/// renderer (it draws into any scheduler of it).  A glTF file is read with
@@ -60,7 +60,7 @@ public:
 	using FileReader = std::function<std::string(std::string const &filename)>;
 	void read_edge_files_with(FileReader reader) { reader_ = std::move(reader); }
 
-	RendererPtr const &renderer() const { return renderer_; }
+	std::shared_ptr<Renderer> const &renderer() const { return renderer_; }
 	/// Prototypes some instance still holds.
 	std::size_t prototypes_count() const;
 	/// Forgets the prototypes no instance holds any more; returns how many.
@@ -68,7 +68,7 @@ public:
 	void clear() { prototypes_.clear(); }
 
 private:
-	RendererPtr const renderer_;
+	std::shared_ptr<Renderer> const renderer_;
 	GltfOptions const gltf_options_;
 	std::map<std::pair<std::type_index, std::string>, std::weak_ptr<Model>> prototypes_;
 	FileReader reader_;
@@ -80,7 +80,7 @@ template <class M>
 std::shared_ptr<M> ModelCache::load(std::string const &filename)
 {
 	auto const key = std::make_pair(std::type_index(typeid(M)), filename);
-	ModelPtr prototype;
+	std::shared_ptr<Model> prototype;
 	auto it = prototypes_.find(key);
 	if (it != prototypes_.end())
 		prototype = it->second.lock();

@@ -38,7 +38,7 @@ public:
 	/// @p color_attachments: the colours of @p render_pass's subpass, each blended as the material says.
 	VkPipeline pipeline(VkDevice device, VkPipelineLayout pipeline_layout,
 		VkRenderPass render_pass, uint32_t color_attachments, uint32_t pass_type,
-		VertexTraits const *traits, MaterialPtr const &material);
+		VertexTraits const *traits, std::shared_ptr<Material> const &material);
 
 	void destroy_all(VkDevice device);
 

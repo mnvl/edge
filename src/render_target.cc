@@ -14,15 +14,15 @@ namespace
 {
 
 /// The texture a target's layers are read from: its first colour, or its depth; null for neither (the null renderer's default target).
-Texture const *first_texture(std::vector<TexturePtr> const &color_textures, TexturePtr const &depth_texture)
+Texture const *first_texture(std::vector<std::shared_ptr<Texture>> const &color_textures, std::shared_ptr<Texture> const &depth_texture)
 {
 	return color_textures.empty() ? depth_texture.get() : color_textures.front().get();
 }
 
 }
 
-RenderTarget::RenderTarget(int width, int height, std::vector<TexturePtr> const &color_textures, TexturePtr const &depth_texture,
-	TexturePtr const &stencil_texture, int layer):
+RenderTarget::RenderTarget(int width, int height, std::vector<std::shared_ptr<Texture>> const &color_textures, std::shared_ptr<Texture> const &depth_texture,
+	std::shared_ptr<Texture> const &stencil_texture, int layer):
 	width_(width),
 	height_(height),
 	color_textures_(color_textures),
@@ -32,7 +32,7 @@ RenderTarget::RenderTarget(int width, int height, std::vector<TexturePtr> const 
 	cube_(first_texture(color_textures, depth_texture) && first_texture(color_textures, depth_texture)->is_cube()),
 	layer_(layer)
 {
-	for (TexturePtr const &texture : color_textures_)
+	for (std::shared_ptr<Texture> const &texture : color_textures_)
 		if (!texture || texture->array_layers() != layers_ || texture->is_cube() != cube_)
 			throw std::logic_error("a render target's colour textures are of as many layers as each other");
 	if (depth_texture_ && (depth_texture_->array_layers() != layers_ || depth_texture_->is_cube() != cube_))
@@ -43,19 +43,19 @@ RenderTarget::RenderTarget(int width, int height, std::vector<TexturePtr> const 
 
 RenderTarget::~RenderTarget() = default;
 
-TexturePtr RenderTarget::color_texture() const
+std::shared_ptr<Texture> RenderTarget::color_texture() const
 {
-	return color_textures_.empty() ? TexturePtr() : color_textures_.front();
+	return color_textures_.empty() ? std::shared_ptr<Texture>() : color_textures_.front();
 }
 
-TexturePtr const &RenderTarget::color_texture(size_t attachment) const
+std::shared_ptr<Texture> const &RenderTarget::color_texture(size_t attachment) const
 {
 	if (attachment >= color_textures_.size())
 		throw std::out_of_range("colour attachment " + std::to_string(attachment) + " of a target of " + std::to_string(color_textures_.size()));
 	return color_textures_[attachment];
 }
 
-RenderTargetPtr const &RenderTarget::layer(int i) const
+std::shared_ptr<RenderTarget> const &RenderTarget::layer(int i) const
 {
 	if (layer_ >= 0)
 		throw std::logic_error("layer() of a layer: the layers are the target's");

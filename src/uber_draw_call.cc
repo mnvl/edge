@@ -10,7 +10,7 @@
 namespace edge
 {
 
-UberDrawCall::UberDrawCall(RendererPtr const &renderer):
+UberDrawCall::UberDrawCall(std::shared_ptr<Renderer> const &renderer):
 	DrawCall(renderer)
 {
 }

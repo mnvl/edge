@@ -151,7 +151,7 @@ BOOST_AUTO_TEST_CASE(three_keyframes)
 
 BOOST_AUTO_TEST_CASE(apply_updates_joint)
 {
-	edge::JointPtr joint(new edge::Joint(0));
+	std::shared_ptr<edge::Joint> joint(new edge::Joint(0));
 	joint->transforms.push_back(edge::Joint::Transform{"translate", make_translation(0.0f, 0.0f, 0.0f)});
 
 	edge::Sampler s;

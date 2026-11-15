@@ -6,7 +6,7 @@
 namespace edge
 {
 
-ModelCache::ModelCache(RendererPtr const &renderer, GltfOptions const &gltf_options):
+ModelCache::ModelCache(std::shared_ptr<Renderer> const &renderer, GltfOptions const &gltf_options):
 	renderer_(renderer),
 	gltf_options_(gltf_options)
 {

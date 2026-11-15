@@ -11,8 +11,8 @@ BOOST_AUTO_TEST_SUITE(texture)
 
 BOOST_AUTO_TEST_CASE(a_texture_has_the_size_and_format_it_was_made_with)
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
-	edge::TexturePtr tex = renderer->create_texture(64, 32, edge::PixelFormat::X8R8G8B8);
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Texture> tex = renderer->create_texture(64, 32, edge::PixelFormat::X8R8G8B8);
 	BOOST_CHECK_EQUAL(tex->width(), 64);
 	BOOST_CHECK_EQUAL(tex->height(), 32);
 	BOOST_CHECK_EQUAL(tex->pixel_format(), edge::PixelFormat::X8R8G8B8);
@@ -23,9 +23,9 @@ BOOST_AUTO_TEST_CASE(a_texture_has_the_size_and_format_it_was_made_with)
 
 BOOST_AUTO_TEST_CASE(renderer_create_texture)
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
 
-	edge::TexturePtr tex = renderer->create_texture(64, 64,
+	std::shared_ptr<edge::Texture> tex = renderer->create_texture(64, 64,
 		edge::PixelFormat::X8R8G8B8);
 	BOOST_REQUIRE(tex);
 	BOOST_CHECK_EQUAL(tex->width(), 64);

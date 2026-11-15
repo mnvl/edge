@@ -366,7 +366,7 @@ void bind_renderer(nb::module_ &m)
         .def("get_default_render_target", pyedge::deprecated("Renderer.get_default_render_target() is Renderer.default_render_target",
             &edge::Renderer::default_render_target))
         .def("create_render_target",
-            static_cast<edge::RenderTargetPtr (edge::Renderer::*)(int, int, edge::PixelFormat, bool)>(&edge::Renderer::create_render_target),
+            static_cast<std::shared_ptr<edge::RenderTarget> (edge::Renderer::*)(int, int, edge::PixelFormat, bool)>(&edge::Renderer::create_render_target),
             "width"_a, "height"_a,
             "pixel_format"_a = edge::DEFAULT_PIXEL_FORMAT, "readable_depth"_a = false)
         .def("create_render_target",
@@ -386,7 +386,7 @@ void bind_renderer(nb::module_ &m)
         .def_prop_ro("max_color_attachments", &edge::Renderer::max_color_attachments,
             "The colour attachments a target can have here: the device's, at least 4 (the null backend's are 4)")
         .def("batch_download_textures",
-            [](edge::Renderer &self, std::vector<edge::TexturePtr> const &textures) {
+            [](edge::Renderer &self, std::vector<std::shared_ptr<edge::Texture>> const &textures) {
                 nb::gil_scoped_release release;
                 self.batch_download_textures(textures);
             },
@@ -457,18 +457,18 @@ void bind_renderer(nb::module_ &m)
         .def("is_gpu_time_disjoint", &edge::Renderer::is_gpu_time_disjoint, "frame"_a,
             "Whether frame `frame` was timed and the GPU could not measure it (OpenGL ES's disjoint): its times never come")
         .def("begin_pass",
-            [](edge::Renderer &self, edge::RenderTargetPtr const &target) {
+            [](edge::Renderer &self, std::shared_ptr<edge::RenderTarget> const &target) {
                 self.begin_pass(target, edge::RenderPassClearState());
             },
             "target"_a)
         .def("begin_pass",
-            [](edge::Renderer &self, edge::RenderTargetPtr const &target,
+            [](edge::Renderer &self, std::shared_ptr<edge::RenderTarget> const &target,
                 edge::RenderPassClearState const &clear_state) {
                 self.begin_pass(target, clear_state);
             },
             "target"_a, "clear_state"_a)
         .def("begin_pass",
-            [](edge::Renderer &self, edge::RenderTargetPtr const &target,
+            [](edge::Renderer &self, std::shared_ptr<edge::RenderTarget> const &target,
                 edge::RenderPassClearState const &clear_state, uint32_t pass_type) {
                 self.begin_pass(target, clear_state, pass_type);
             },

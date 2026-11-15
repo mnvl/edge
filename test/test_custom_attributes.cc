@@ -31,8 +31,8 @@ std::string asset(std::string const &name)
 
 struct Fixture
 {
-	edge::RendererPtr renderer = [] { edge::RendererPtr r(new edge::NullRenderer(320, 200)); return r; }();
-	edge::SchedulerPtr scheduler = std::make_shared<edge::Scheduler>(renderer);
+	std::shared_ptr<edge::Renderer> renderer = [] { std::shared_ptr<edge::Renderer> r(new edge::NullRenderer(320, 200)); return r; }();
+	std::shared_ptr<edge::Scheduler> scheduler = std::make_shared<edge::Scheduler>(renderer);
 	std::filesystem::path const file = std::filesystem::temp_directory_path() / "edge_custom_attributes.edge";
 
 	~Fixture()

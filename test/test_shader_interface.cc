@@ -21,9 +21,9 @@ namespace
 
 struct Fixture
 {
-	RendererPtr renderer = std::make_shared<NullRenderer>(4, 4);
-	MaterialPtr material = renderer->create_material();
-	TexturePtr texture = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8);
+	std::shared_ptr<Renderer> renderer = std::make_shared<NullRenderer>(4, 4);
+	std::shared_ptr<Material> material = renderer->create_material();
+	std::shared_ptr<Texture> texture = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8);
 };
 
 }
@@ -79,7 +79,7 @@ BOOST_FIXTURE_TEST_CASE(a_plain_draw_has_the_material_s_flags_and_an_uber_draw_w
 	BOOST_TEST(pc.camera_eye[3] == 1.0f);
 	pc = shader::push_constants(*material, plain, true, true, rove::vec<3>(1, 2, 3));
 	BOOST_TEST(pc.flags == (shader::FLAG_NORMAL_MAP | shader::FLAG_TEXTURE_BLENDING_TEXTURE | shader::FLAG_SKELETAL));
-	material->set_texture_blending_weights_texture(TexturePtr());
+	material->set_texture_blending_weights_texture(std::shared_ptr<Texture>());
 	BOOST_TEST(shader::push_constants(*material, plain, true, false, rove::vec<3>()).flags == shader::FLAG_NORMAL_MAP);
 	// a weights texture or else the vertex's second set of coordinates (VERTEX_PNTB's), which the blending vertex shader reads
 	VertexTraits const &blended = *VertexTraits::of<VERTEX_PNTB>();

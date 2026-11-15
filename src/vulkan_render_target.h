@@ -21,8 +21,8 @@ public:
 	/// @p depth_texture (a depth VulkanTexture of its size), drawing its depth into it and keeping it; without, into a depth image of its own
 	/// that each pass throws away.  Textures of layers make a target of layers, which has no framebuffer and makes the target of each
 	/// layer; @p layer >= 0 is that target, drawing into layer @p layer through views of that layer alone.
-	VulkanRenderTarget(VulkanRenderer *renderer, int width, int height, std::vector<TexturePtr> const &color_textures,
-		TexturePtr const &depth_texture = TexturePtr(), int layer = -1);
+	VulkanRenderTarget(VulkanRenderer *renderer, int width, int height, std::vector<std::shared_ptr<Texture>> const &color_textures,
+		std::shared_ptr<Texture> const &depth_texture = std::shared_ptr<Texture>(), int layer = -1);
 	~VulkanRenderTarget() override;
 
 	/// The pass and framebuffer the target is drawn with: none for a target of layers (its layers' targets have them).
@@ -30,7 +30,7 @@ public:
 	VkFramebuffer framebuffer() const { return framebuffer_; }
 	VkExtent2D extent() const { return extent_; }
 	/// That of the renderer that made it.
-	VulkanDeviceContextPtr const &device_context() const { return context_; }
+	std::shared_ptr<VulkanDeviceContext> const &device_context() const { return context_; }
 	/// The image its passes draw their depth into: the readable depth's, or one it throws away, which the layers of a target of layers share.
 	VkImage depth_image() const;
 
@@ -39,12 +39,12 @@ private:
 	/// draws one layer and clears it).
 	struct DepthImage;
 	/// The target of layer @p layer, drawing its depth into @p depth_image when it keeps none (null: an image of its own).
-	VulkanRenderTarget(VulkanRenderer *renderer, int width, int height, std::vector<TexturePtr> const &color_textures,
-		TexturePtr const &depth_texture, int layer, std::shared_ptr<DepthImage> const &depth_image);
+	VulkanRenderTarget(VulkanRenderer *renderer, int width, int height, std::vector<std::shared_ptr<Texture>> const &color_textures,
+		std::shared_ptr<Texture> const &depth_texture, int layer, std::shared_ptr<DepthImage> const &depth_image);
 
 	// Keeps the device alive for as long as this target's framebuffer and
 	// depth attachment exist, whichever is released last.
-	VulkanDeviceContextPtr context_;
+	std::shared_ptr<VulkanDeviceContext> context_;
 	VkRenderPass render_pass_;
 	VkExtent2D extent_;
 	VkFramebuffer framebuffer_;

@@ -24,15 +24,15 @@ class DrawCall: public std::enable_shared_from_this<DrawCall> {
 public:
 	DrawCall(DrawCall const &) = delete;
 	DrawCall &operator=(DrawCall const &) = delete;
-	DrawCall(RendererPtr const &renderer);
+	DrawCall(std::shared_ptr<Renderer> const &renderer);
 	virtual ~DrawCall();
 
 	void set_priority(int priority);
 	int priority() const { return priority_; }
 	void set_always_visible(bool always_visible);
 	void set_obb(rove::obb<3> const &bounds);
-	void set_vertex_buffer(VertexBufferPtr const &vertex_buffer);
-	void set_index_buffer(IndexBufferPtr const &index_buffer);
+	void set_vertex_buffer(std::shared_ptr<VertexBuffer> const &vertex_buffer);
+	void set_index_buffer(std::shared_ptr<IndexBuffer> const &index_buffer);
 	void set_material(std::shared_ptr<Material> const &material);
 	void set_minimal_vertex_index(size_t minimal_vertex_index);
 	void set_first_index_offset(size_t first_index_offset);
@@ -45,17 +45,17 @@ public:
 	void set_instances(std::vector<rove::matrix<4,4>> const &instances);
 	/// The same of a list shared, not copied (a model's mesh hands one to each call it makes).
 	void set_instances(SharedMatrices const &instances);
-	void set_camera(CameraPtr const &camera);
+	void set_camera(std::shared_ptr<Camera> const &camera);
 	/// Works out the matrices the shader reads and which instances are in view, from the camera's and the call's state as they are now:
 	/// commit again after changing either.  It reads the call and its camera alone.  std::logic_error without a vertex buffer, a
 	/// material or a camera.
 	void commit();
 
-	VertexBufferPtr const &vertex_buffer() const { return vertex_buffer_; }
+	std::shared_ptr<VertexBuffer> const &vertex_buffer() const { return vertex_buffer_; }
 	/// None: the vertices from minimal_vertex_index(), three a triangle.
-	IndexBufferPtr const &index_buffer() const { return index_buffer_; }
-	MaterialPtr const &material() const { return material_; }
-	CameraPtr const &camera() const { return camera_; }
+	std::shared_ptr<IndexBuffer> const &index_buffer() const { return index_buffer_; }
+	std::shared_ptr<Material> const &material() const { return material_; }
+	std::shared_ptr<Camera> const &camera() const { return camera_; }
 	size_t minimal_vertex_index() const { return minimal_vertex_index_; }
 	size_t first_index_offset() const { return first_index_offset_; }
 	size_t triangles_count() const { return triangles_count_; }
@@ -85,16 +85,16 @@ public:
 	void execute();
 
 protected:
-	RendererPtr const renderer_;
+	std::shared_ptr<Renderer> const renderer_;
 	int priority_;
 	bool always_visible_;
 	rove::obb<3> bounds_;
-	VertexBufferPtr vertex_buffer_;
-	IndexBufferPtr index_buffer_;
+	std::shared_ptr<VertexBuffer> vertex_buffer_;
+	std::shared_ptr<IndexBuffer> index_buffer_;
 	std::shared_ptr<Material> material_;
 	size_t minimal_vertex_index_, first_index_offset_, triangles_count_;
 	rove::matrix<4,4> world_matrix_;
-	CameraPtr camera_;
+	std::shared_ptr<Camera> camera_;
 	rove::matrix<4,4> shader_world_view_projection_, shader_world_;      // commit()
 	rove::frustum<> frustum_;
 	bool committed_ = false;

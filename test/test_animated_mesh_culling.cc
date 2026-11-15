@@ -34,8 +34,8 @@ using mesh_type = edge::AnimatedMeshPTBNJWT;
 
 struct CullingFixture
 {
-	edge::RendererPtr renderer;
-	edge::SchedulerPtr scheduler;
+	std::shared_ptr<edge::Renderer> renderer;
+	std::shared_ptr<edge::Scheduler> scheduler;
 	std::shared_ptr<model_type> model;
 
 	CullingFixture()
@@ -54,7 +54,7 @@ struct CullingFixture
 		std::vector<std::pair<edge::Joint *, mesh_type *>> result;
 		for (auto const &joint : model->joints())
 		{
-			edge::MeshPtr mesh_ptr = joint->mesh.lock();
+			std::shared_ptr<edge::Mesh> mesh_ptr = joint->mesh.lock();
 			if (!mesh_ptr)
 				continue;
 			mesh_type *mesh = dynamic_cast<mesh_type *>(mesh_ptr.get());
@@ -93,9 +93,9 @@ struct CullingFixture
 		return result;
 	}
 
-	static edge::CameraPtr make_camera(rove::vec<3> const &eye, rove::vec<3> const &target, float fov)
+	static std::shared_ptr<edge::Camera> make_camera(rove::vec<3> const &eye, rove::vec<3> const &target, float fov)
 	{
-		edge::CameraPtr camera(new edge::Camera());
+		std::shared_ptr<edge::Camera> camera(new edge::Camera());
 		camera->set_perspective_projection(fov, 4.0f / 3.0f, 0.05f, 50.0f);
 		rove::vec<3> up(0, 0, 1);
 		rove::vec<3> dir = target - eye;
@@ -105,14 +105,14 @@ struct CullingFixture
 		return camera;
 	}
 
-	static rove::frustum<> camera_frustum(edge::CameraPtr const &camera)
+	static rove::frustum<> camera_frustum(std::shared_ptr<edge::Camera> const &camera)
 	{
 		return rove::frustum<>(camera->projection_matrix() * camera->view_matrix());
 	}
 
 	/// Submits one mesh's draw calls from the given camera and reports whether
 	/// every one of them survived culling.
-	bool mesh_drawn(edge::Joint *joint, mesh_type *mesh, edge::CameraPtr const &camera,
+	bool mesh_drawn(edge::Joint *joint, mesh_type *mesh, std::shared_ptr<edge::Camera> const &camera,
 		rove::matrix<4,4> const &world)
 	{
 		scheduler->clear();
@@ -196,7 +196,7 @@ BOOST_AUTO_TEST_CASE(skinned_vertex_in_view_is_never_culled)
 				{
 					rove::vec<3> offset(0, 0, 0);
 					offset.i[side / 2] = (side % 2 == 0) ? distance : -distance;
-					edge::CameraPtr camera = make_camera(target + offset, target, fov);
+					std::shared_ptr<edge::Camera> camera = make_camera(target + offset, target, fov);
 
 					// The vertex is in the frustum by construction; make sure of it
 					// so a failure below is the culling's, not the camera's.
@@ -252,7 +252,7 @@ BOOST_AUTO_TEST_CASE(figure_behind_camera_is_culled)
 			rove::vec<3> const face = (side % 2 == 0) ? figure.hi : figure.lo;
 			rove::vec<3> eye = centre;
 			eye.i[side / 2] = face.i[side / 2] + dir.i[side / 2] * reach;
-			edge::CameraPtr camera = make_camera(eye, eye + dir, 60.0f * rove::PI / 180.0f);
+			std::shared_ptr<edge::Camera> camera = make_camera(eye, eye + dir, 60.0f * rove::PI / 180.0f);
 
 			for (auto const &entry : skinned_meshes())
 			{
@@ -272,7 +272,7 @@ BOOST_AUTO_TEST_CASE(a_model_posed_by_hand_is_culled_by_the_pose_it_is_in)
 	rove::matrix<4,4> world;
 	world.identity();
 	model->pose(0.0f);
-	edge::JointPtr root;
+	std::shared_ptr<edge::Joint> root;
 	for (auto const &joint : model->joints())
 		if (!joint->parent.lock() && !joint->transforms.empty())
 			root = joint;
@@ -296,7 +296,7 @@ BOOST_AUTO_TEST_CASE(a_model_posed_by_hand_is_culled_by_the_pose_it_is_in)
 	}
 	BOOST_REQUIRE_GT(figure.lo.x, 4.0f);          // (carried off: none of it where the clips have it)
 	rove::vec<3> const centre = (figure.lo + figure.hi) * 0.5f;
-	edge::CameraPtr const camera = make_camera(centre + rove::vec<3>(0, -3, 0), centre, 30.0f * rove::PI / 180.0f);
+	std::shared_ptr<edge::Camera> const camera = make_camera(centre + rove::vec<3>(0, -3, 0), centre, 30.0f * rove::PI / 180.0f);
 	for (auto const &entry : skinned_meshes())
 		BOOST_CHECK_MESSAGE(mesh_drawn(entry.first, entry.second, camera, world), "mesh '" << entry.second->name() << "' culled where it stands");
 }

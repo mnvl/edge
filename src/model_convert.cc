@@ -51,7 +51,7 @@ std::string describe(GltfOptions const &options, LodOptions const &lods, float t
 }
 
 template <class M>
-std::vector<std::size_t> convert_as(RendererPtr const &renderer, std::string const &gltf_file, std::string const &temporary, GltfOptions const &options,
+std::vector<std::size_t> convert_as(std::shared_ptr<Renderer> const &renderer, std::string const &gltf_file, std::string const &temporary, GltfOptions const &options,
 	LodOptions const &lods, float tile_metres, TextureOptions const &textures, ConvertOptions const &how, bool bake)
 {
 	auto model = std::make_shared<M>(renderer);
@@ -108,7 +108,7 @@ std::vector<std::size_t> convert_as(RendererPtr const &renderer, std::string con
 std::vector<std::size_t> convert_gltf_to_edge(std::string const &gltf_file, std::string const &edge_file, GltfOptions const &options, LodOptions const &lods,
 	float tile_metres, TextureOptions const &textures, ConvertOptions const &convert)
 {
-	RendererPtr renderer(new NullRenderer(1, 1));
+	std::shared_ptr<Renderer> renderer(new NullRenderer(1, 1));
 
 	if (options.compress_textures && options.mipmaps)
 	{

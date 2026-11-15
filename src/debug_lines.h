@@ -26,7 +26,7 @@ class DebugLines
 {
 public:
 	/// std::invalid_argument for no renderer or a width that is not more than zero.
-	DebugLines(RendererPtr const &renderer, float width);
+	DebugLines(std::shared_ptr<Renderer> const &renderer, float width);
 	~DebugLines();
 	DebugLines(DebugLines const &) = delete;
 	DebugLines &operator=(DebugLines const &) = delete;
@@ -44,7 +44,7 @@ public:
 	/// Segments collected since the last draw
 	std::size_t segments() const;
 	/// Queues one draw call for each colour collected in @p scheduler, the strips turned to face @p camera, and starts afresh.
-	void draw(Scheduler &scheduler, CameraPtr const &camera);
+	void draw(Scheduler &scheduler, std::shared_ptr<Camera> const &camera);
 	void clear();
 	void set_priority(int priority) { priority_ = priority; }
 
@@ -66,7 +66,7 @@ private:
 		bool operator()(rove::vec<4> const &a, rove::vec<4> const &b) const { return std::less<rove::vec<4>>()(a, b); }
 	};
 
-	RendererPtr renderer_;
+	std::shared_ptr<Renderer> renderer_;
 	float width_;
 	int priority_ = 0;
 	std::map<rove::vec<4>, Colour, ColourOrder> colours_;           // by colour

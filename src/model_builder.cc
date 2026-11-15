@@ -9,16 +9,16 @@
 namespace edge
 {
 
-ModelBuilder::ModelBuilder(RendererPtr const &renderer_ptr):
+ModelBuilder::ModelBuilder(std::shared_ptr<Renderer> const &renderer_ptr):
 	Model(renderer_ptr)
 {
 }
 
 ModelBuilder::~ModelBuilder() = default;
 
-MeshBuilderPtr ModelBuilder::add_mesh_builder(std::string const &id, std::string const &name)
+std::shared_ptr<MeshBuilder> ModelBuilder::add_mesh_builder(std::string const &id, std::string const &name)
 {
-	MeshBuilderPtr const mesh_ptr = std::static_pointer_cast<MeshBuilder>(add_mesh());
+	std::shared_ptr<MeshBuilder> const mesh_ptr = std::static_pointer_cast<MeshBuilder>(add_mesh());
 	if (!id.empty())
 	{
 		mesh_ptr->set_id(id);
@@ -30,14 +30,14 @@ MeshBuilderPtr ModelBuilder::add_mesh_builder(std::string const &id, std::string
 	return mesh_ptr;
 }
 
-JointPtr ModelBuilder::attach_mesh_to_joint(MeshBuilderPtr const &mesh_ptr, std::string const &joint_name)
+std::shared_ptr<Joint> ModelBuilder::attach_mesh_to_joint(std::shared_ptr<MeshBuilder> const &mesh_ptr, std::string const &joint_name)
 {
 	if (!mesh_ptr)
 	{
 		throw std::runtime_error("cannot attach null mesh to joint");
 	}
 
-	JointPtr const joint_ptr = add_joint();
+	std::shared_ptr<Joint> const joint_ptr = add_joint();
 	joint_ptr->matrix.identity();
 	std::string const base_name = !joint_name.empty() ? joint_name :
 		(!mesh_ptr->name().empty() ? mesh_ptr->name() : ("mesh_" + std::to_string(joint_ptr->index)));
@@ -64,12 +64,12 @@ JointPtr ModelBuilder::attach_mesh_to_joint(MeshBuilderPtr const &mesh_ptr, std:
 	return joint_ptr;
 }
 
-MeshBuilderPtr ModelBuilder::add_geometry(std::vector<MeshBuilder::vertex_type> const &vertices,
+std::shared_ptr<MeshBuilder> ModelBuilder::add_geometry(std::vector<MeshBuilder::vertex_type> const &vertices,
 	std::vector<MeshBuilder::index_type> const &indices,
 	std::string const &mesh_name,
-	MaterialPtr const &material_ptr)
+	std::shared_ptr<Material> const &material_ptr)
 {
-	MeshBuilderPtr mesh_ptr = add_mesh_builder(mesh_name, mesh_name);
+	std::shared_ptr<MeshBuilder> mesh_ptr = add_mesh_builder(mesh_name, mesh_name);
 	mesh_ptr->set_geometry(vertices, indices);
 	if (!indices.empty())
 	{
@@ -92,13 +92,13 @@ MeshBuilderPtr ModelBuilder::add_geometry(std::vector<MeshBuilder::vertex_type> 
 	return mesh_ptr;
 }
 
-MeshPtr ModelBuilder::add_mesh()
+std::shared_ptr<Mesh> ModelBuilder::add_mesh()
 {
 	meshes_.push_back(std::make_shared<MeshBuilder>(this));
 	return meshes().back();
 }
 
-void ModelBuilder::draw(Scheduler &, CameraPtr const &, rove::matrix<4,4> const &, unsigned)
+void ModelBuilder::draw(Scheduler &, std::shared_ptr<Camera> const &, rove::matrix<4,4> const &, unsigned)
 {
 	throw std::runtime_error("ModelBuilder cannot render. Save the model with save_to_file() "
 		"and load it with StaticModel/AnimatedModel for rendering.");

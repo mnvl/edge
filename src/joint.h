@@ -21,11 +21,11 @@ struct Joint {
 		rove::matrix<4,4> matrix;
 	};
 
-	using children_type = std::vector<JointWeakPtr>;
+	using children_type = std::vector<std::weak_ptr<Joint>>;
 
 	std::size_t index;
 	std::string id, name;
-	JointWeakPtr parent;
+	std::weak_ptr<Joint> parent;
 	children_type children;
 	/// Applied in order, after the parent's matrix.
 	std::vector<Transform> transforms;
@@ -56,11 +56,11 @@ struct Joint {
 			matrix *= t.matrix;
 		}
 
-		if (JointPtr p = parent.lock()) matrix = p->matrix * matrix;
+		if (std::shared_ptr<Joint> p = parent.lock()) matrix = p->matrix * matrix;
 
-		for (JointWeakPtr const &child_ptr : children)
+		for (std::weak_ptr<Joint> const &child_ptr : children)
 		{
-			if (JointPtr child = child_ptr.lock()) child->build_frame_transforms();
+			if (std::shared_ptr<Joint> child = child_ptr.lock()) child->build_frame_transforms();
 		}
 	}
 };

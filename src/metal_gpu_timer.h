@@ -18,7 +18,7 @@ namespace edge
 /// counter set or sampling at stage boundaries.
 class MetalGpuTimer: public GpuTimer {
 public:
-	explicit MetalGpuTimer(MetalContextPtr const &context);
+	explicit MetalGpuTimer(std::shared_ptr<MetalContext> const &context);
 	~MetalGpuTimer() override;
 
 	struct Impl;
@@ -41,7 +41,7 @@ protected:
 	void stop() override;
 
 private:
-	MetalContextPtr context_;
+	std::shared_ptr<MetalContext> context_;
 	std::unique_ptr<Impl> impl_;
 };
 

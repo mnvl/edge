@@ -31,19 +31,19 @@ namespace
 int const SIZE = 64;
 
 /// [-1, 1] on x and y seen from +z: pixel (x, y) of the target is world (x, y)
-CameraPtr view()
+std::shared_ptr<Camera> view()
 {
-	CameraPtr camera = std::make_shared<Camera>();
+	std::shared_ptr<Camera> camera = std::make_shared<Camera>();
 	camera->set_orthographic_projection(2.0f, 2.0f, 0.0f, 10.0f);
 	camera->look_at(rove::vec<3>(0, 0, 5), rove::vec<3>(0, 0, 0), rove::vec<3>(0, 1, 0));
 	return camera;
 }
 
-Image<rove::rgba<float>> draw(RendererPtr const &renderer, DebugLines &lines, CameraPtr const &camera)
+Image<rove::rgba<float>> draw(std::shared_ptr<Renderer> const &renderer, DebugLines &lines, std::shared_ptr<Camera> const &camera)
 {
 	auto const scheduler = std::make_shared<Scheduler>(renderer);
 	lines.draw(*scheduler, camera);
-	RenderTargetPtr const target = renderer->create_render_target(SIZE, SIZE, PixelFormat::R32G32B32A32F);
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(SIZE, SIZE, PixelFormat::R32G32B32A32F);
 	RenderPassClearState clear;
 	clear.clear_color_r = clear.clear_color_g = clear.clear_color_b = clear.clear_color_a = 0;
 	renderer->begin_frame();
@@ -105,7 +105,7 @@ BOOST_AUTO_TEST_CASE(one_draw_for_each_colour_and_a_draw_starts_afresh)
 {
 	auto const renderer = std::make_shared<NullRenderer>(64, 64);
 	auto const scheduler = std::make_shared<Scheduler>(renderer);
-	CameraPtr const camera = view();
+	std::shared_ptr<Camera> const camera = view();
 	DebugLines lines(renderer, 0.05f);
 	lines.line(rove::vec<3>(0, 0, 0), rove::vec<3>(1, 0, 0), rove::vec<4>(1, 0, 0, 1));
 	lines.line(rove::vec<3>(0, 0, 0), rove::vec<3>(0, 1, 0), rove::vec<4>(1, 0, 0, 1));

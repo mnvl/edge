@@ -51,9 +51,9 @@ protected:
 };
 
 /// A square over the whole view of a default camera (which looks down +z from the origin), white, blended over what is there.
-DrawCallPtr cover(Renderer &renderer)
+std::shared_ptr<DrawCall> cover(Renderer &renderer)
 {
-	VertexBufferPtr const vb = renderer.create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 6);
+	std::shared_ptr<VertexBuffer> const vb = renderer.create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 6);
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	auto *v = vb_mapping.as<VERTEX_PT>().data();
 	float const corners[6][2] = {{-50, -50}, {50, -50}, {50, 50}, {-50, -50}, {50, 50}, {-50, 50}};
@@ -63,11 +63,11 @@ DrawCallPtr cover(Renderer &renderer)
 		v[i].texcoords = rove::vec<2>(0, 0);
 	}
 	vb_mapping.unmap();
-	MaterialPtr const material = renderer.create_material();
+	std::shared_ptr<Material> const material = renderer.create_material();
 	material->set_cull_mode(Material::CullMode::NONE);
 	material->set_alpha_blend_enabled(true);
 	material->set_base_color_factor(rove::vec<4>(1, 1, 1, 0.01f));
-	DrawCallPtr const draw = renderer.create_draw_call();
+	std::shared_ptr<DrawCall> const draw = renderer.create_draw_call();
 	draw->set_vertex_buffer(vb);
 	draw->set_material(material);
 	draw->set_camera(std::make_shared<Camera>());
@@ -78,7 +78,7 @@ DrawCallPtr cover(Renderer &renderer)
 }
 
 /// One frame of `passes` passes into `target`, none drawing anything; its number.
-uint64_t empty_frame(Renderer &renderer, RenderTargetPtr const &target, int passes)
+uint64_t empty_frame(Renderer &renderer, std::shared_ptr<RenderTarget> const &target, int passes)
 {
 	renderer.begin_frame();
 	uint64_t const frame = renderer.frame_serial();
@@ -92,7 +92,7 @@ uint64_t empty_frame(Renderer &renderer, RenderTargetPtr const &target, int pass
 }
 
 /// The durations of `frame`, drawing empty frames until they come: none if they have not after as many frames as are kept.
-std::optional<std::vector<double>> times_of(Renderer &renderer, RenderTargetPtr const &target, uint64_t frame)
+std::optional<std::vector<double>> times_of(Renderer &renderer, std::shared_ptr<RenderTarget> const &target, uint64_t frame)
 {
 	for (size_t waited = 0; waited < GpuTimer::HISTORY / 2; ++waited)
 	{
@@ -220,7 +220,7 @@ BOOST_AUTO_TEST_CASE(the_null_renderer_has_no_gpu_timer_and_says_so)
 	BOOST_CHECK_THROW(renderer.set_gpu_trace_enabled(true), std::runtime_error);
 	BOOST_CHECK(!renderer.gpu_trace_enabled());
 	renderer.set_gpu_trace_enabled(false);
-	RenderTargetPtr const target = renderer.create_render_target(8, 8, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const target = renderer.create_render_target(8, 8, PixelFormat::A8R8G8B8);
 	uint64_t const frame = empty_frame(renderer, target, 2);
 	BOOST_CHECK_EQUAL(frame, 1u);
 	BOOST_CHECK_EQUAL(empty_frame(renderer, target, 0), 2u);
@@ -274,7 +274,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_timed_frame_s_durations_come_after_it_is_ended_o
 	F fixture;
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
-	RenderTargetPtr const target = renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
 	renderer->set_gpu_trace_enabled(true);
 	renderer->begin_frame();
 	uint64_t const frame = renderer->frame_serial();
@@ -303,7 +303,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_frame_begun_untimed_never_gets_durations, F, Bac
 	F fixture;
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
-	RenderTargetPtr const target = renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
 	uint64_t const untimed = empty_frame(*renderer, target, 2);
 	renderer->set_gpu_trace_enabled(true);
 	uint64_t const timed = empty_frame(*renderer, target, 2);
@@ -317,7 +317,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(passes_past_the_most_a_frame_times_are_drawn_untim
 	F fixture;
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
-	RenderTargetPtr const target = renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
 	renderer->set_gpu_trace_enabled(true);
 	uint64_t const many = empty_frame(*renderer, target, GpuTimer::MAX_PASSES + 9);
 	uint64_t const few = empty_frame(*renderer, target, 2);
@@ -334,7 +334,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(turning_tracing_off_drops_the_durations_and_times_
 	F fixture;
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
-	RenderTargetPtr const target = renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
 	renderer->set_gpu_trace_enabled(true);
 	uint64_t const timed = empty_frame(*renderer, target, 2);
 	BOOST_REQUIRE(times_of(*renderer, target, timed));
@@ -449,7 +449,7 @@ BOOST_AUTO_TEST_CASE(a_gles_context_without_the_timer_query_function_has_no_gpu_
 		BOOST_CHECK_MESSAGE(std::string(e.what()).find("glGetQueryObjectui64vEXT") != std::string::npos, e.what());
 	}
 	BOOST_CHECK(!renderer.gpu_trace_enabled());
-	RenderTargetPtr const target = renderer.create_render_target(8, 8, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const target = renderer.create_render_target(8, 8, PixelFormat::A8R8G8B8);
 	uint64_t const frame = empty_frame(renderer, target, 2);
 	BOOST_CHECK(!renderer.pass_times_us(frame));
 }
@@ -472,8 +472,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_pass_that_draws_more_takes_measurably_longer, F,
 	F fixture;
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
-	RenderTargetPtr const target = renderer->create_render_target(1024, 1024, PixelFormat::A8R8G8B8);
-	DrawCallPtr const square = cover(*renderer);
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(1024, 1024, PixelFormat::A8R8G8B8);
+	std::shared_ptr<DrawCall> const square = cover(*renderer);
 	renderer->set_gpu_trace_enabled(true);
 	std::vector<double> empty, drawn;
 	for (int round = 0; round < 5; ++round)

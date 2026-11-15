@@ -262,12 +262,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(make_texture, F, edge::Backends)
 {
 	F fixture;
 	BOOST_REQUIRE_MESSAGE(fixture.renderer, "renderer unavailable: " << fixture.error);
-	edge::RendererPtr const renderer = fixture.renderer;
+	std::shared_ptr<edge::Renderer> const renderer = fixture.renderer;
 
 
 	edge::Font const font(resolve_test_font_path(), 72);
 
-	edge::TexturePtr texture = edge::make_text_texture(renderer, font, "bonjour", rove::vec<4>(1, 1, 1, 0), rove::vec<4>(0, 0.2f, 0.2f, 0));
+	std::shared_ptr<edge::Texture> texture = edge::make_text_texture(renderer, font, "bonjour", rove::vec<4>(1, 1, 1, 0), rove::vec<4>(0, 0.2f, 0.2f, 0));
 	BOOST_REQUIRE(texture);
 	BOOST_CHECK_GT(texture->width(), 0);
 	BOOST_CHECK_GT(texture->height(), 0);
@@ -277,7 +277,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(make_draw_call, F, edge::Backends)
 {
 	F fixture;
 	BOOST_REQUIRE_MESSAGE(fixture.renderer, "renderer unavailable: " << fixture.error);
-	edge::RendererPtr const renderer = fixture.renderer;
+	std::shared_ptr<edge::Renderer> const renderer = fixture.renderer;
 
 	std::string const src = edge::TestFixture::graphic_sources_path();
 
@@ -291,17 +291,17 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(make_draw_call, F, edge::Backends)
 	view_matrix.scale(1, -1, 1);
 	camera->set_view_matrix(view_matrix);
 
-	edge::MaterialPtr hacked_material = renderer->create_material();
+	std::shared_ptr<edge::Material> hacked_material = renderer->create_material();
 	hacked_material->set_diffuse_texture(edge::Texture::load_from_file(renderer,
 		src + "test/data/test_directions.png"));
 
-	edge::DrawCallPtr draw_call = edge::make_text_draw_call(renderer, font, rove::vec<3>(0, 0, 0), rove::vec<3>(100, 0, 0),
+	std::shared_ptr<edge::DrawCall> draw_call = edge::make_text_draw_call(renderer, font, rove::vec<3>(0, 0, 0), rove::vec<3>(100, 0, 0),
 		rove::vec<3>(100, 100, 0), rove::vec<3>(0, 100, 0), "bonjour", rove::vec<4>(1, 1, 1, 0), rove::vec<4>(0, 0.2f, 0.2f, 0));
 	draw_call->set_camera(camera);
 	draw_call->set_always_visible(true);
 	draw_call->commit();
 
-	edge::DrawCallPtr hacked_draw_call = edge::make_text_draw_call(renderer, font, rove::vec<3>(0, 100, 0), rove::vec<3>(100, 100, 0),
+	std::shared_ptr<edge::DrawCall> hacked_draw_call = edge::make_text_draw_call(renderer, font, rove::vec<3>(0, 100, 0), rove::vec<3>(100, 100, 0),
 		rove::vec<3>(100, 200, 0), rove::vec<3>(0, 200, 0), "bonjour", rove::vec<4>(1, 1, 1, 0), rove::vec<4>(0, 0.2f, 0.2f, 0));
 	hacked_draw_call->set_material(hacked_material);
 	hacked_draw_call->set_camera(camera);

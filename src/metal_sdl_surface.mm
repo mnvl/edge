@@ -32,7 +32,7 @@ MetalSDLSurface::~MetalSDLSurface()
 	SDL_Metal_DestroyView(view_);
 }
 
-MetalContextPtr MetalSDLSurface::make_context() const
+std::shared_ptr<MetalContext> MetalSDLSurface::make_context() const
 {
 	return std::make_shared<MetalContext>(layer_);
 }

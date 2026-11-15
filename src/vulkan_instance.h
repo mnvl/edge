@@ -57,6 +57,5 @@ private:
 	bool surface_extension_ = false;
 };
 
-using VulkanInstancePtr = std::shared_ptr<VulkanInstance>;
 
 }

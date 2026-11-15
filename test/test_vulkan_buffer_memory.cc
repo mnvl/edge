@@ -79,7 +79,7 @@ RenderPassClearState make_clear_state()
 }
 
 // Quad covering x in [x0, x1] and the full y range, at z = 0.
-void write_quad(VertexBufferPtr const &vb, float x0, float x1)
+void write_quad(std::shared_ptr<VertexBuffer> const &vb, float x0, float x1)
 {
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	VERTEX_PT *v = vb_mapping.as<VERTEX_PT>().data();
@@ -91,7 +91,7 @@ void write_quad(VertexBufferPtr const &vb, float x0, float x1)
 	vb_mapping.unmap();
 }
 
-void write_quad_indices(IndexBufferPtr const &ib)
+void write_quad_indices(std::shared_ptr<IndexBuffer> const &ib)
 {
 	auto ib_mapping = ib->write(Contents::DISCARD);
 	INDEX_U16 *idx = ib_mapping.as<INDEX_U16>().data();
@@ -103,7 +103,7 @@ void write_quad_indices(IndexBufferPtr const &ib)
 
 // Degenerate indices: every triangle collapses to a point, so nothing is
 // rasterised even though the vertex buffer still holds a full-screen quad.
-void write_degenerate_indices(IndexBufferPtr const &ib)
+void write_degenerate_indices(std::shared_ptr<IndexBuffer> const &ib)
 {
 	auto ib_mapping = ib->write(Contents::DISCARD);
 	INDEX_U16 *idx = ib_mapping.as<INDEX_U16>().data();
@@ -115,10 +115,10 @@ void write_degenerate_indices(IndexBufferPtr const &ib)
 	ib_mapping.unmap();
 }
 
-CameraPtr make_ortho_camera()
+std::shared_ptr<Camera> make_ortho_camera()
 {
 	// World x,y in [-1, 1] maps exactly onto the render target.
-	CameraPtr camera(new Camera());
+	std::shared_ptr<Camera> camera(new Camera());
 	camera->set_orthographic_projection(2.0f, 2.0f, 0.0f, 2.0f);
 	camera->look_at(
 		rove::vec<3>(0, 0, 1),
@@ -127,9 +127,9 @@ CameraPtr make_ortho_camera()
 	return camera;
 }
 
-TexturePtr make_green_texture(VulkanRendererPtr const &renderer)
+std::shared_ptr<Texture> make_green_texture(std::shared_ptr<VulkanRenderer> const &renderer)
 {
-	TexturePtr texture = renderer->create_texture(2, 2, PixelFormat::X8R8G8B8);
+	std::shared_ptr<Texture> texture = renderer->create_texture(2, 2, PixelFormat::X8R8G8B8);
 	auto texture_mapping = texture->write(Contents::DISCARD);
 	unsigned *p = texture_mapping.as<unsigned>().data();
 	BOOST_REQUIRE(p);
@@ -140,11 +140,11 @@ TexturePtr make_green_texture(VulkanRendererPtr const &renderer)
 
 // The uber draw call is the path production geometry goes through; it draws
 // the texture's colour.
-DrawCallPtr make_quad_draw_call(VulkanRendererPtr const &renderer,
-	VertexBufferPtr const &vb, IndexBufferPtr const &ib,
-	MaterialPtr const &material, CameraPtr const &camera)
+std::shared_ptr<DrawCall> make_quad_draw_call(std::shared_ptr<VulkanRenderer> const &renderer,
+	std::shared_ptr<VertexBuffer> const &vb, std::shared_ptr<IndexBuffer> const &ib,
+	std::shared_ptr<Material> const &material, std::shared_ptr<Camera> const &camera)
 {
-	DrawCallPtr draw_call = renderer->create_uber_draw_call();
+	std::shared_ptr<DrawCall> draw_call = renderer->create_uber_draw_call();
 	draw_call->set_vertex_buffer(vb);
 	draw_call->set_index_buffer(ib);
 	draw_call->set_material(material);
@@ -155,7 +155,7 @@ DrawCallPtr make_quad_draw_call(VulkanRendererPtr const &renderer,
 	return draw_call;
 }
 
-uint32_t read_pixel(TexturePtr const &texture, int x, int y)
+uint32_t read_pixel(std::shared_ptr<Texture> const &texture, int x, int y)
 {
 	texture->download();
 	auto texture_mapping = texture->read();
@@ -223,7 +223,7 @@ BOOST_AUTO_TEST_CASE(vertex_buffer_lives_in_device_local_memory)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	VertexBufferPtr vb = renderer->create_vertex_buffer(
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(
 		VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
 	std::shared_ptr<VulkanVertexBuffer> vulkan_vb =
 		std::dynamic_pointer_cast<VulkanVertexBuffer>(vb);
@@ -236,7 +236,7 @@ BOOST_AUTO_TEST_CASE(index_buffer_lives_in_device_local_memory)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
 	std::shared_ptr<VulkanIndexBuffer> vulkan_ib =
 		std::dynamic_pointer_cast<VulkanIndexBuffer>(ib);
 	BOOST_REQUIRE(vulkan_ib);
@@ -248,7 +248,7 @@ BOOST_AUTO_TEST_CASE(texture_staging_prefers_cached_host_memory)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	TexturePtr texture = renderer->create_texture(16, 16, PixelFormat::X8R8G8B8);
+	std::shared_ptr<Texture> texture = renderer->create_texture(16, 16, PixelFormat::X8R8G8B8);
 	std::shared_ptr<VulkanTexture> vulkan_texture =
 		std::dynamic_pointer_cast<VulkanTexture>(texture);
 	BOOST_REQUIRE(vulkan_texture);
@@ -271,14 +271,14 @@ BOOST_AUTO_TEST_CASE(upload_before_frame_is_rendered)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	RenderTargetPtr target = renderer->create_render_target(
+	std::shared_ptr<RenderTarget> target = renderer->create_render_target(
 		TARGET_SIZE, TARGET_SIZE, PixelFormat::X8R8G8B8);
 	BOOST_REQUIRE(target);
 
-	VertexBufferPtr vb = renderer->create_vertex_buffer(
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(
 		VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
-	MaterialPtr material = renderer->create_material();
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
+	std::shared_ptr<Material> material = renderer->create_material();
 	material->set_diffuse_texture(make_green_texture(renderer));
 	// The subject here is buffer contents, not winding order.
 	material->set_cull_mode(Material::CullMode::NONE);
@@ -288,7 +288,7 @@ BOOST_AUTO_TEST_CASE(upload_before_frame_is_rendered)
 	write_quad(vb, -1.0f, 0.0f);
 	write_quad_indices(ib);
 
-	DrawCallPtr draw_call = make_quad_draw_call(renderer, vb, ib, material, make_ortho_camera());
+	std::shared_ptr<DrawCall> draw_call = make_quad_draw_call(renderer, vb, ib, material, make_ortho_camera());
 
 	renderer->begin_frame();
 	renderer->begin_pass(target, make_clear_state());
@@ -296,7 +296,7 @@ BOOST_AUTO_TEST_CASE(upload_before_frame_is_rendered)
 	renderer->end_pass();
 	renderer->finish_frame();
 
-	TexturePtr color = target->color_texture();
+	std::shared_ptr<Texture> color = target->color_texture();
 	uint32_t const left = read_pixel(color, LEFT_X, MID_Y);
 	uint32_t const right = read_pixel(color, RIGHT_X, MID_Y);
 
@@ -310,12 +310,12 @@ BOOST_AUTO_TEST_CASE(reupload_between_frames_replaces_geometry)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	RenderTargetPtr target = renderer->create_render_target(
+	std::shared_ptr<RenderTarget> target = renderer->create_render_target(
 		TARGET_SIZE, TARGET_SIZE, PixelFormat::X8R8G8B8);
-	VertexBufferPtr vb = renderer->create_vertex_buffer(
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(
 		VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
-	MaterialPtr material = renderer->create_material();
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
+	std::shared_ptr<Material> material = renderer->create_material();
 	material->set_diffuse_texture(make_green_texture(renderer));
 	// The subject here is buffer contents, not winding order.
 	material->set_cull_mode(Material::CullMode::NONE);
@@ -323,8 +323,8 @@ BOOST_AUTO_TEST_CASE(reupload_between_frames_replaces_geometry)
 	write_quad(vb, -1.0f, 0.0f);
 	write_quad_indices(ib);
 
-	DrawCallPtr draw_call = make_quad_draw_call(renderer, vb, ib, material, make_ortho_camera());
-	TexturePtr color = target->color_texture();
+	std::shared_ptr<DrawCall> draw_call = make_quad_draw_call(renderer, vb, ib, material, make_ortho_camera());
+	std::shared_ptr<Texture> color = target->color_texture();
 
 	renderer->begin_frame();
 	renderer->begin_pass(target, make_clear_state());
@@ -358,12 +358,12 @@ BOOST_AUTO_TEST_CASE(index_reupload_between_frames_replaces_geometry)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	RenderTargetPtr target = renderer->create_render_target(
+	std::shared_ptr<RenderTarget> target = renderer->create_render_target(
 		TARGET_SIZE, TARGET_SIZE, PixelFormat::X8R8G8B8);
-	VertexBufferPtr vb = renderer->create_vertex_buffer(
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(
 		VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
-	MaterialPtr material = renderer->create_material();
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
+	std::shared_ptr<Material> material = renderer->create_material();
 	material->set_diffuse_texture(make_green_texture(renderer));
 	// The subject here is buffer contents, not winding order.
 	material->set_cull_mode(Material::CullMode::NONE);
@@ -371,8 +371,8 @@ BOOST_AUTO_TEST_CASE(index_reupload_between_frames_replaces_geometry)
 	write_quad(vb, -1.0f, 1.0f);
 	write_quad_indices(ib);
 
-	DrawCallPtr draw_call = make_quad_draw_call(renderer, vb, ib, material, make_ortho_camera());
-	TexturePtr color = target->color_texture();
+	std::shared_ptr<DrawCall> draw_call = make_quad_draw_call(renderer, vb, ib, material, make_ortho_camera());
+	std::shared_ptr<Texture> color = target->color_texture();
 
 	renderer->begin_frame();
 	renderer->begin_pass(target, make_clear_state());
@@ -400,14 +400,14 @@ BOOST_AUTO_TEST_CASE(upload_between_passes_affects_only_later_passes)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	RenderTargetPtr first = renderer->create_render_target(
+	std::shared_ptr<RenderTarget> first = renderer->create_render_target(
 		TARGET_SIZE, TARGET_SIZE, PixelFormat::X8R8G8B8);
-	RenderTargetPtr second = renderer->create_render_target(
+	std::shared_ptr<RenderTarget> second = renderer->create_render_target(
 		TARGET_SIZE, TARGET_SIZE, PixelFormat::X8R8G8B8);
-	VertexBufferPtr vb = renderer->create_vertex_buffer(
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(
 		VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
-	MaterialPtr material = renderer->create_material();
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
+	std::shared_ptr<Material> material = renderer->create_material();
 	material->set_diffuse_texture(make_green_texture(renderer));
 	// The subject here is buffer contents, not winding order.
 	material->set_cull_mode(Material::CullMode::NONE);
@@ -415,7 +415,7 @@ BOOST_AUTO_TEST_CASE(upload_between_passes_affects_only_later_passes)
 	write_quad(vb, -1.0f, 0.0f);
 	write_quad_indices(ib);
 
-	DrawCallPtr draw_call = make_quad_draw_call(renderer, vb, ib, material, make_ortho_camera());
+	std::shared_ptr<DrawCall> draw_call = make_quad_draw_call(renderer, vb, ib, material, make_ortho_camera());
 
 	renderer->begin_frame();
 
@@ -433,8 +433,8 @@ BOOST_AUTO_TEST_CASE(upload_between_passes_affects_only_later_passes)
 
 	renderer->finish_frame();
 
-	TexturePtr first_color = first->color_texture();
-	TexturePtr second_color = second->color_texture();
+	std::shared_ptr<Texture> first_color = first->color_texture();
+	std::shared_ptr<Texture> second_color = second->color_texture();
 
 	BOOST_CHECK_MESSAGE(is_covered(read_pixel(first_color, LEFT_X, MID_Y)),
 		"first pass should still show the original left-half quad");
@@ -450,26 +450,26 @@ BOOST_AUTO_TEST_CASE(many_buffers_uploaded_before_one_frame_all_arrive)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	RenderTargetPtr target = renderer->create_render_target(
+	std::shared_ptr<RenderTarget> target = renderer->create_render_target(
 		TARGET_SIZE, TARGET_SIZE, PixelFormat::X8R8G8B8);
-	MaterialPtr material = renderer->create_material();
+	std::shared_ptr<Material> material = renderer->create_material();
 	material->set_diffuse_texture(make_green_texture(renderer));
 	// The subject here is buffer contents, not winding order.
 	material->set_cull_mode(Material::CullMode::NONE);
-	CameraPtr camera = make_ortho_camera();
+	std::shared_ptr<Camera> camera = make_ortho_camera();
 
 	// Four quads, each covering one vertical quarter, uploaded while the
 	// renderer is idle: every pending copy has to be flushed, not just the last.
 	int const STRIPES = 4;
-	std::vector<DrawCallPtr> draw_calls;
-	std::vector<VertexBufferPtr> vertex_buffers;
-	std::vector<IndexBufferPtr> index_buffers;
+	std::vector<std::shared_ptr<DrawCall>> draw_calls;
+	std::vector<std::shared_ptr<VertexBuffer>> vertex_buffers;
+	std::vector<std::shared_ptr<IndexBuffer>> index_buffers;
 
 	for (int i = 0; i < STRIPES; ++i)
 	{
-		VertexBufferPtr vb = renderer->create_vertex_buffer(
+		std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(
 			VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
-		IndexBufferPtr ib = renderer->create_index_buffer(
+		std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(
 			IndexFormat::U16, sizeof(INDEX_U16) * 6);
 
 		float const x0 = -1.0f + 2.0f * static_cast<float>(i) / STRIPES;
@@ -491,7 +491,7 @@ BOOST_AUTO_TEST_CASE(many_buffers_uploaded_before_one_frame_all_arrive)
 	renderer->end_pass();
 	renderer->finish_frame();
 
-	TexturePtr color = target->color_texture();
+	std::shared_ptr<Texture> color = target->color_texture();
 	for (int i = 0; i < STRIPES; ++i)
 	{
 		int const x = (TARGET_SIZE * (2 * i + 1)) / (2 * STRIPES);
@@ -505,32 +505,32 @@ BOOST_AUTO_TEST_CASE(buffer_destroyed_before_flush_does_not_corrupt_next_frame)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	RenderTargetPtr target = renderer->create_render_target(
+	std::shared_ptr<RenderTarget> target = renderer->create_render_target(
 		TARGET_SIZE, TARGET_SIZE, PixelFormat::X8R8G8B8);
-	MaterialPtr material = renderer->create_material();
+	std::shared_ptr<Material> material = renderer->create_material();
 	material->set_diffuse_texture(make_green_texture(renderer));
 	// The subject here is buffer contents, not winding order.
 	material->set_cull_mode(Material::CullMode::NONE);
-	CameraPtr camera = make_ortho_camera();
+	std::shared_ptr<Camera> camera = make_ortho_camera();
 
 	// Upload into a buffer and drop it before any frame flushes the copy: the
 	// pending upload must go with it rather than referencing a dead VkBuffer.
 	{
-		VertexBufferPtr doomed_vb = renderer->create_vertex_buffer(
+		std::shared_ptr<VertexBuffer> doomed_vb = renderer->create_vertex_buffer(
 			VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
-		IndexBufferPtr doomed_ib = renderer->create_index_buffer(
+		std::shared_ptr<IndexBuffer> doomed_ib = renderer->create_index_buffer(
 			IndexFormat::U16, sizeof(INDEX_U16) * 6);
 		write_quad(doomed_vb, -1.0f, 1.0f);
 		write_quad_indices(doomed_ib);
 	}
 
-	VertexBufferPtr vb = renderer->create_vertex_buffer(
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(
 		VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
 	write_quad(vb, -1.0f, 0.0f);
 	write_quad_indices(ib);
 
-	DrawCallPtr draw_call = make_quad_draw_call(renderer, vb, ib, material, camera);
+	std::shared_ptr<DrawCall> draw_call = make_quad_draw_call(renderer, vb, ib, material, camera);
 
 	renderer->begin_frame();
 	renderer->begin_pass(target, make_clear_state());
@@ -538,7 +538,7 @@ BOOST_AUTO_TEST_CASE(buffer_destroyed_before_flush_does_not_corrupt_next_frame)
 	renderer->end_pass();
 	renderer->finish_frame();
 
-	TexturePtr color = target->color_texture();
+	std::shared_ptr<Texture> color = target->color_texture();
 	BOOST_CHECK(is_covered(read_pixel(color, LEFT_X, MID_Y)));
 	BOOST_CHECK(is_cleared(read_pixel(color, RIGHT_X, MID_Y)));
 }
@@ -547,19 +547,19 @@ BOOST_AUTO_TEST_CASE(buffer_destroyed_mid_frame_after_upload_is_safe)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	RenderTargetPtr target = renderer->create_render_target(
+	std::shared_ptr<RenderTarget> target = renderer->create_render_target(
 		TARGET_SIZE, TARGET_SIZE, PixelFormat::X8R8G8B8);
-	MaterialPtr material = renderer->create_material();
+	std::shared_ptr<Material> material = renderer->create_material();
 	material->set_diffuse_texture(make_green_texture(renderer));
 	material->set_cull_mode(Material::CullMode::NONE);
-	CameraPtr camera = make_ortho_camera();
+	std::shared_ptr<Camera> camera = make_ortho_camera();
 
-	VertexBufferPtr vb = renderer->create_vertex_buffer(
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(
 		VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
 	write_quad(vb, -1.0f, 0.0f);
 	write_quad_indices(ib);
-	DrawCallPtr draw_call = make_quad_draw_call(renderer, vb, ib, material, camera);
+	std::shared_ptr<DrawCall> draw_call = make_quad_draw_call(renderer, vb, ib, material, camera);
 
 	renderer->begin_frame();
 
@@ -567,9 +567,9 @@ BOOST_AUTO_TEST_CASE(buffer_destroyed_mid_frame_after_upload_is_safe)
 	// its copy is already recorded in the frame's command buffer, so the
 	// handles must outlive the submit.
 	{
-		VertexBufferPtr doomed_vb = renderer->create_vertex_buffer(
+		std::shared_ptr<VertexBuffer> doomed_vb = renderer->create_vertex_buffer(
 			VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
-		IndexBufferPtr doomed_ib = renderer->create_index_buffer(
+		std::shared_ptr<IndexBuffer> doomed_ib = renderer->create_index_buffer(
 			IndexFormat::U16, sizeof(INDEX_U16) * 6);
 		write_quad(doomed_vb, 0.0f, 1.0f);
 		write_quad_indices(doomed_ib);
@@ -580,7 +580,7 @@ BOOST_AUTO_TEST_CASE(buffer_destroyed_mid_frame_after_upload_is_safe)
 	renderer->end_pass();
 	renderer->finish_frame();
 
-	TexturePtr color = target->color_texture();
+	std::shared_ptr<Texture> color = target->color_texture();
 	BOOST_CHECK(is_covered(read_pixel(color, LEFT_X, MID_Y)));
 	BOOST_CHECK(is_cleared(read_pixel(color, RIGHT_X, MID_Y)));
 
@@ -599,8 +599,8 @@ BOOST_AUTO_TEST_CASE(empty_buffers_are_safe_to_create_and_unlock)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	VertexBufferPtr vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), 0);
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, 0);
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), 0);
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, 0);
 	BOOST_REQUIRE(vb);
 	BOOST_REQUIRE(ib);
 
@@ -624,9 +624,9 @@ BOOST_AUTO_TEST_CASE(download_returns_fresh_pixels_after_every_render)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	RenderTargetPtr target = renderer->create_render_target(
+	std::shared_ptr<RenderTarget> target = renderer->create_render_target(
 		TARGET_SIZE, TARGET_SIZE, PixelFormat::X8R8G8B8);
-	TexturePtr color = target->color_texture();
+	std::shared_ptr<Texture> color = target->color_texture();
 	BOOST_REQUIRE(color);
 
 	// Three different clear colours in a row: cached staging memory must be
@@ -669,12 +669,12 @@ BOOST_AUTO_TEST_CASE(batch_download_returns_fresh_pixels_after_every_render)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	RenderTargetPtr first = renderer->create_render_target(
+	std::shared_ptr<RenderTarget> first = renderer->create_render_target(
 		TARGET_SIZE, TARGET_SIZE, PixelFormat::X8R8G8B8);
-	RenderTargetPtr second = renderer->create_render_target(
+	std::shared_ptr<RenderTarget> second = renderer->create_render_target(
 		TARGET_SIZE, TARGET_SIZE, PixelFormat::X8R8G8B8);
 
-	std::vector<TexturePtr> textures;
+	std::vector<std::shared_ptr<Texture>> textures;
 	textures.push_back(first->color_texture());
 	textures.push_back(second->color_texture());
 
@@ -728,22 +728,22 @@ BOOST_AUTO_TEST_CASE(batch_download_returns_fresh_pixels_after_every_render)
 BOOST_AUTO_TEST_CASE(batch_download_refuses_what_download_refuses)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
-	TexturePtr const fine = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, TextureUsage());
+	std::shared_ptr<Texture> const fine = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, TextureUsage());
 	auto fine_mapping = fine->write(Contents::DISCARD);
 	std::memset(fine_mapping.data(), 0x7F, 4 * 4 * 4);
 	fine_mapping.unmap();
 	TextureUsage array_usage;
 	array_usage.array_layers = 2;
-	TexturePtr const array = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, array_usage);
+	std::shared_ptr<Texture> const array = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, array_usage);
 	TextureUsage no_copy_usage;
 	no_copy_usage.keep_cpu_copy = false;
-	TexturePtr const no_copy = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, no_copy_usage);
-	for (TexturePtr const &texture : {array, no_copy})
+	std::shared_ptr<Texture> const no_copy = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, no_copy_usage);
+	for (std::shared_ptr<Texture> const &texture : {array, no_copy})
 	{
 		BOOST_CHECK_THROW(texture->download(), std::logic_error);
 		BOOST_CHECK_THROW(renderer->batch_download_textures({fine, texture}), std::logic_error);
 	}
-	BOOST_CHECK_THROW(renderer->batch_download_textures({fine, TexturePtr()}), std::invalid_argument);
+	BOOST_CHECK_THROW(renderer->batch_download_textures({fine, std::shared_ptr<Texture>()}), std::invalid_argument);
 	renderer->batch_download_textures({fine});
 	BOOST_CHECK_EQUAL(int(texel_byte(*fine, 0)), 0x7F);
 }
@@ -753,10 +753,10 @@ BOOST_AUTO_TEST_CASE(batch_download_refuses_what_download_refuses)
 BOOST_AUTO_TEST_CASE(batch_upload_sends_the_written_textures_in_one_submit)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
-	std::vector<TexturePtr> textures;
+	std::vector<std::shared_ptr<Texture>> textures;
 	for (int i = 0; i < 3; ++i)
 	{
-		TexturePtr const texture = renderer->create_texture(8, 8, PixelFormat::A8R8G8B8, TextureUsage());
+		std::shared_ptr<Texture> const texture = renderer->create_texture(8, 8, PixelFormat::A8R8G8B8, TextureUsage());
 		write_unsent(*texture, 0x20 + 0x20 * i);
 		textures.push_back(texture);
 	}
@@ -780,18 +780,18 @@ BOOST_AUTO_TEST_CASE(batch_upload_sends_the_written_textures_in_one_submit)
 BOOST_AUTO_TEST_CASE(batch_upload_refuses_before_it_uploads_anything)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
-	TexturePtr const fine = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, TextureUsage());
+	std::shared_ptr<Texture> const fine = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, TextureUsage());
 	write_unsent(*fine, 0x11);
 	TextureUsage no_copy_usage;
 	no_copy_usage.keep_cpu_copy = false;
-	TexturePtr const no_copy = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, no_copy_usage);
+	std::shared_ptr<Texture> const no_copy = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, no_copy_usage);
 	{
 		auto texels = no_copy->write(Contents::DISCARD);
 		std::memset(texels.data(), 0x22, texels.size());
 	}                                                                      // sent once, its CPU copy and staging gone
 	uint64_t const before = renderer->single_time_submit_count();
 	BOOST_CHECK_THROW(renderer->batch_upload_textures({fine, no_copy}), std::logic_error);
-	BOOST_CHECK_THROW(renderer->batch_upload_textures({fine, TexturePtr()}), std::invalid_argument);
+	BOOST_CHECK_THROW(renderer->batch_upload_textures({fine, std::shared_ptr<Texture>()}), std::invalid_argument);
 	BOOST_CHECK_THROW(renderer->batch_upload_textures({fine, fine}), std::invalid_argument);
 	BOOST_CHECK_EQUAL(renderer->single_time_submit_count(), before);
 }
@@ -801,10 +801,10 @@ BOOST_AUTO_TEST_CASE(batch_upload_refuses_before_it_uploads_anything)
 BOOST_AUTO_TEST_CASE(stream_textures_ride_in_the_frame_without_a_submit_of_their_own)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
-	std::vector<TexturePtr> textures;
+	std::vector<std::shared_ptr<Texture>> textures;
 	for (int i = 0; i < 3; ++i)
 		textures.push_back(renderer->create_texture(8, 8, PixelFormat::A8R8G8B8, TextureUsage()));
-	RenderTargetPtr const target = renderer->create_render_target(TARGET_SIZE, TARGET_SIZE, PixelFormat::X8R8G8B8);
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(TARGET_SIZE, TARGET_SIZE, PixelFormat::X8R8G8B8);
 	for (int round = 0; round < 3; ++round)                                   // again and again, as a sea is
 	{
 		for (int i = 0; i < 3; ++i)
@@ -831,7 +831,7 @@ BOOST_AUTO_TEST_CASE(stream_textures_ride_in_the_frame_without_a_submit_of_their
 BOOST_AUTO_TEST_CASE(stream_textures_outside_a_frame_are_sent_at_once_and_refuse_what_they_cannot_send)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
-	TexturePtr const fine = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, TextureUsage());
+	std::shared_ptr<Texture> const fine = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, TextureUsage());
 	write_unsent(*fine, 0x44);
 	renderer->stream_textures({fine});                                       // idle: sent now
 	write_unsent(*fine, 0);
@@ -839,15 +839,15 @@ BOOST_AUTO_TEST_CASE(stream_textures_outside_a_frame_are_sent_at_once_and_refuse
 	BOOST_CHECK_EQUAL(int(texel_byte(*fine, 0)), 0x44);
 	TextureUsage mips;
 	mips.mipmaps = true;
-	TexturePtr const mipped = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, mips);
+	std::shared_ptr<Texture> const mipped = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, mips);
 	TextureUsage layers;
 	layers.array_layers = 2;
-	TexturePtr const array = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, layers);
-	for (TexturePtr const &texture : {mipped, array})
+	std::shared_ptr<Texture> const array = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, layers);
+	for (std::shared_ptr<Texture> const &texture : {mipped, array})
 		BOOST_CHECK_THROW(renderer->stream_textures({fine, texture}), std::logic_error);
-	BOOST_CHECK_THROW(renderer->stream_textures({fine, TexturePtr()}), std::invalid_argument);
+	BOOST_CHECK_THROW(renderer->stream_textures({fine, std::shared_ptr<Texture>()}), std::invalid_argument);
 	BOOST_CHECK_THROW(renderer->stream_textures({fine, fine}), std::invalid_argument);
-	RenderTargetPtr const target = renderer->create_render_target(TARGET_SIZE, TARGET_SIZE, PixelFormat::X8R8G8B8);
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(TARGET_SIZE, TARGET_SIZE, PixelFormat::X8R8G8B8);
 	renderer->begin_frame();
 	renderer->begin_pass(target, make_clear_state());
 	BOOST_CHECK_THROW(renderer->stream_textures({fine}), std::logic_error);   // inside a pass

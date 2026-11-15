@@ -30,7 +30,7 @@
 
 namespace edge {
 
-Model::Model(RendererPtr const &renderer_ptr):
+Model::Model(std::shared_ptr<Renderer> const &renderer_ptr):
 	renderer_(renderer_ptr),
 	always_visible_(false)
 {
@@ -60,9 +60,9 @@ Model::Model(std::shared_ptr<Model const> const &prototype):
 	prototype_(prototype)
 {
 	Model const &model = *prototype;
-	std::unordered_map<JointPtr, JointPtr> joints_tt;
-	std::unordered_map<MeshPtr, MeshPtr> meshes_tt;
-	std::unordered_map<MaterialPtr, MaterialPtr> materials_tt;
+	std::unordered_map<std::shared_ptr<Joint>, std::shared_ptr<Joint>> joints_tt;
+	std::unordered_map<std::shared_ptr<Mesh>, std::shared_ptr<Mesh>> meshes_tt;
+	std::unordered_map<std::shared_ptr<Material>, std::shared_ptr<Material>> materials_tt;
 
 	// Everything a copied mesh, joint or sampler points at must be this model's
 	// copy: one left pointing into the prototype would pose or morph it,
@@ -77,9 +77,9 @@ Model::Model(std::shared_ptr<Model const> const &prototype):
 	};
 
 	materials_.reserve(model.materials().size());
-	for (MaterialPtr const &source : model.materials())
+	for (std::shared_ptr<Material> const &source : model.materials())
 	{
-		MaterialPtr material = source ? source->clone() : MaterialPtr();
+		std::shared_ptr<Material> material = source ? source->clone() : std::shared_ptr<Material>();
 		materials_.push_back(material);
 		if (source)
 		{
@@ -93,7 +93,7 @@ Model::Model(std::shared_ptr<Model const> const &prototype):
 
 	for (auto source : model.joints())
 	{
-			JointPtr joint(new Joint(*source));
+			std::shared_ptr<Joint> joint(new Joint(*source));
 
 		joints_.push_back(joint);
 		joints_tt.insert(std::make_pair(source, joint));
@@ -106,7 +106,7 @@ Model::Model(std::shared_ptr<Model const> const &prototype):
 
 	for (auto source : model.meshes())
 	{
-		MeshPtr mesh = source->shallow_copy();
+		std::shared_ptr<Mesh> mesh = source->shallow_copy();
 		mesh->set_model(this);
 
 		// the copy's groups draw with the copies of their materials
@@ -135,17 +135,17 @@ Model::Model(std::shared_ptr<Model const> const &prototype):
 
 	for (auto &joint : joints())
 	{
-		if (JointPtr parent = joint->parent.lock())
+		if (std::shared_ptr<Joint> parent = joint->parent.lock())
 		{
 			joint->parent = remap(joints_tt, parent, "joint's parent");
 		}
 
-		for (JointWeakPtr &child : joint->children)
+		for (std::weak_ptr<Joint> &child : joint->children)
 		{
 			child = remap(joints_tt, child.lock(), "joint's child");
 		}
 
-		if (MeshPtr mesh_ptr = joint->mesh.lock())
+		if (std::shared_ptr<Mesh> mesh_ptr = joint->mesh.lock())
 		{
 			joint->mesh = remap(meshes_tt, mesh_ptr, "joint's mesh");
 		}
@@ -155,7 +155,7 @@ Model::Model(std::shared_ptr<Model const> const &prototype):
 	{
 		for (Sampler &sampler : animation->samplers)
 		{
-			if (JointPtr joint = sampler.joint())
+			if (std::shared_ptr<Joint> joint = sampler.joint())
 			{
 				sampler.set_joint(remap(joints_tt, joint, "sampler's joint"));
 			}
@@ -163,7 +163,7 @@ Model::Model(std::shared_ptr<Model const> const &prototype):
 
 		for (WeightsSampler &sampler : animation->weight_samplers)
 		{
-			if (MeshPtr mesh = sampler.mesh())
+			if (std::shared_ptr<Mesh> mesh = sampler.mesh())
 			{
 				sampler.set_mesh(remap(meshes_tt, mesh, "weights sampler's mesh"));
 			}
@@ -173,7 +173,7 @@ Model::Model(std::shared_ptr<Model const> const &prototype):
 
 Model::~Model() = default;
 
-JointPtr Model::add_joint()
+std::shared_ptr<Joint> Model::add_joint()
 {
 	joints_.push_back(std::make_shared<Joint>(joints().size()));
 	return joints().back();
@@ -223,7 +223,7 @@ SerializedModel Model::serialize() const
 	TextureTable textures;
 	std::unordered_map<Material const *, std::int64_t> material_index_by_ptr;
 
-	auto const add_material = [&](MaterialPtr const &material_ptr) {
+	auto const add_material = [&](std::shared_ptr<Material> const &material_ptr) {
 		if (!material_ptr)
 		{
 			throw std::logic_error("a null material in the model");
@@ -231,15 +231,15 @@ SerializedModel Model::serialize() const
 		if (material_index_by_ptr.find(material_ptr.get()) == material_index_by_ptr.end())
 		{
 			material_index_by_ptr[material_ptr.get()] = static_cast<std::int64_t>(serialized.materials.size());
-			serialized.materials.push_back(export_material(material_ptr, textures));
+			serialized.materials.push_back(export_material(*material_ptr, textures));
 		}
 	};
-	for (MaterialPtr const &material_ptr : materials())
+	for (std::shared_ptr<Material> const &material_ptr : materials())
 	{
 		add_material(material_ptr);
 	}
 	// a material only a mesh holds is kept all the same; triangles may have none
-	for (MeshPtr const &mesh_ptr : meshes())
+	for (std::shared_ptr<Mesh> const &mesh_ptr : meshes())
 	{
 		for (Mesh::Triangles const &triangles : mesh_ptr->triangles())
 		{
@@ -261,7 +261,7 @@ SerializedModel Model::serialize() const
 	}
 
 	serialized.meshes.reserve(meshes().size());
-	for (MeshPtr const &mesh_ptr : meshes())
+	for (std::shared_ptr<Mesh> const &mesh_ptr : meshes())
 	{
 		SerializedMesh serialized_mesh;
 		serialized_mesh.serialization_type = mesh_ptr->serialization_type();
@@ -324,7 +324,7 @@ SerializedModel Model::serialize() const
 	}
 
 	serialized.joints.reserve(joints().size());
-	for (JointPtr const &joint_ptr : joints())
+	for (std::shared_ptr<Joint> const &joint_ptr : joints())
 	{
 		SerializedJoint serialized_joint;
 		serialized_joint.index = joint_ptr->index;
@@ -333,14 +333,14 @@ SerializedModel Model::serialize() const
 		serialized_joint.matrix = joint_ptr->matrix;
 
 		serialized_joint.parent_index = -1;
-		if (JointPtr parent_ptr = joint_ptr->parent.lock())
+		if (std::shared_ptr<Joint> parent_ptr = joint_ptr->parent.lock())
 		{
 			serialized_joint.parent_index = joint_index_by_ptr.at(parent_ptr.get());
 		}
 
-		for (JointWeakPtr const &child : joint_ptr->children)
+		for (std::weak_ptr<Joint> const &child : joint_ptr->children)
 		{
-			JointPtr const child_ptr = child.lock();
+			std::shared_ptr<Joint> const child_ptr = child.lock();
 			if (!child_ptr)
 			{
 				throw std::logic_error("joint '" + joint_ptr->name + "' has a child that is gone");
@@ -349,7 +349,7 @@ SerializedModel Model::serialize() const
 		}
 
 		serialized_joint.mesh_index = -1;
-		if (MeshPtr mesh_ptr = joint_ptr->mesh.lock())
+		if (std::shared_ptr<Mesh> mesh_ptr = joint_ptr->mesh.lock())
 		{
 			serialized_joint.mesh_index = mesh_index_by_ptr.at(mesh_ptr.get());
 		}
@@ -362,14 +362,14 @@ SerializedModel Model::serialize() const
 		serialized.joints.push_back(serialized_joint);
 	}
 
-	for (AnimationPtr const &animation : animations())
+	for (std::shared_ptr<Animation> const &animation : animations())
 	{
 		SerializedAnimation serialized_animation;
 		serialized_animation.name = animation->name;
 		for (Sampler const &sampler : animation->samplers)
 		{
 			SerializedSampler serialized_sampler;
-			JointPtr const joint = sampler.joint();
+			std::shared_ptr<Joint> const joint = sampler.joint();
 			auto const found = joint ? joint_index_by_ptr.find(joint.get()) : joint_index_by_ptr.end();
 			if (found == joint_index_by_ptr.end())
 			{
@@ -391,7 +391,7 @@ SerializedModel Model::serialize() const
 		for (WeightsSampler const &sampler : animation->weight_samplers)
 		{
 			SerializedWeightsSampler serialized_sampler;
-			MeshPtr const mesh = sampler.mesh();
+			std::shared_ptr<Mesh> const mesh = sampler.mesh();
 			auto const found = mesh ? mesh_index_by_ptr.find(mesh.get()) : mesh_index_by_ptr.end();
 			if (found == mesh_index_by_ptr.end())
 			{
@@ -545,7 +545,7 @@ void Model::load(SerializedModel const &serialized, bool keep_cpu_copy, bool pos
 
 	clear();
 
-	std::vector<TexturePtr> textures;
+	std::vector<std::shared_ptr<Texture>> textures;
 	textures.reserve(serialized.textures.size());
 	for (SerializedTexture const &texture : serialized.textures)
 	{
@@ -558,11 +558,11 @@ void Model::load(SerializedModel const &serialized, bool keep_cpu_copy, bool pos
 		materials_.push_back(import_material(material, textures, renderer_));
 	}
 
-	std::vector<MeshPtr> loaded_meshes;
+	std::vector<std::shared_ptr<Mesh>> loaded_meshes;
 	loaded_meshes.reserve(serialized.meshes.size());
 	for (SerializedMesh const &serialized_mesh : serialized.meshes)
 	{
-		MeshPtr const mesh_ptr = add_mesh();
+		std::shared_ptr<Mesh> const mesh_ptr = add_mesh();
 		if (!mesh_ptr)
 		{
 			throw std::runtime_error("add_mesh returned null while loading model");
@@ -647,7 +647,7 @@ void Model::load(SerializedModel const &serialized, bool keep_cpu_copy, bool pos
 		loaded_meshes.push_back(mesh_ptr);
 	}
 
-	std::vector<JointPtr> loaded_joints;
+	std::vector<std::shared_ptr<Joint>> loaded_joints;
 	loaded_joints.reserve(serialized.joints.size());
 	for (std::size_t i = 0; i < serialized.joints.size(); ++i)
 	{
@@ -657,7 +657,7 @@ void Model::load(SerializedModel const &serialized, bool keep_cpu_copy, bool pos
 	for (std::size_t i = 0; i < serialized.joints.size(); ++i)
 	{
 		SerializedJoint const &serialized_joint = serialized.joints[i];
-		JointPtr const &joint_ptr = loaded_joints[i];
+		std::shared_ptr<Joint> const &joint_ptr = loaded_joints[i];
 		joint_ptr->index = serialized_joint.index;
 		joint_ptr->id = serialized_joint.id;
 		joint_ptr->name = serialized_joint.name;
@@ -676,7 +676,7 @@ void Model::load(SerializedModel const &serialized, bool keep_cpu_copy, bool pos
 	for (std::size_t i = 0; i < serialized.joints.size(); ++i)
 	{
 		SerializedJoint const &serialized_joint = serialized.joints[i];
-		JointPtr const &joint_ptr = loaded_joints[i];
+		std::shared_ptr<Joint> const &joint_ptr = loaded_joints[i];
 
 		if (serialized_joint.parent_index >= 0)
 		{
@@ -711,7 +711,7 @@ void Model::load(SerializedModel const &serialized, bool keep_cpu_copy, bool pos
 
 	for (SerializedAnimation const &serialized_animation : serialized.animations)
 	{
-		AnimationPtr const animation = std::make_shared<Animation>();
+		std::shared_ptr<Animation> const animation = std::make_shared<Animation>();
 		animation->name = serialized_animation.name;
 		for (SerializedSampler const &serialized_sampler : serialized_animation.samplers)
 		{
@@ -773,7 +773,7 @@ void Model::check()
 	}
 }
 
-JointPtr Model::joint_by_id(std::string const &id)
+std::shared_ptr<Joint> Model::joint_by_id(std::string const &id)
 {
 	ensure_joints();
 	for (auto &joint : joints()) {
@@ -783,7 +783,7 @@ JointPtr Model::joint_by_id(std::string const &id)
 	throw std::runtime_error("joint with id = " + id + " not found in model");
 }
 
-JointPtr Model::joint_by_name(std::string const &name)
+std::shared_ptr<Joint> Model::joint_by_name(std::string const &name)
 {
 	ensure_joints();
 	for (auto &joint : joints()) {
@@ -793,7 +793,7 @@ JointPtr Model::joint_by_name(std::string const &name)
 	throw std::runtime_error("joint with name = " + name + " not found");
 }
 
-MeshPtr Model::mesh_by_id(std::string const &id)
+std::shared_ptr<Mesh> Model::mesh_by_id(std::string const &id)
 {
 	for (auto &mesh : meshes()) {
 		if (mesh->id() == id) return mesh;
@@ -802,7 +802,7 @@ MeshPtr Model::mesh_by_id(std::string const &id)
 	throw std::runtime_error("mesh with id = " + id + " not found");
 }
 
-MeshPtr Model::mesh_by_name(std::string const &name)
+std::shared_ptr<Mesh> Model::mesh_by_name(std::string const &name)
 {
 	for (auto &mesh : meshes()) {
 		if (mesh->name() == name) return mesh;
@@ -811,7 +811,7 @@ MeshPtr Model::mesh_by_name(std::string const &name)
 	throw std::runtime_error("mesh with name = " + name + " not found");
 }
 
-MaterialPtr Model::material_by_name(std::string const &name)
+std::shared_ptr<Material> Model::material_by_name(std::string const &name)
 {
 	for (auto &material : materials()) {
 		if (material->name() == name) return material;
@@ -903,7 +903,7 @@ double Model::animation_duration() const
 	return d;
 }
 
-void Model::set_materials_shader_program(ShaderProgramPtr const &program)
+void Model::set_materials_shader_program(std::shared_ptr<ShaderProgram> const &program)
 {
 	for (auto const &material : materials())
 	{
@@ -917,7 +917,7 @@ void Model::clear_materials_shader_program()
 	for (auto const &material : materials())
 	{
 		if (material)
-			material->set_shader_program(ShaderProgramPtr());
+			material->set_shader_program(std::shared_ptr<ShaderProgram>());
 	}
 }
 
@@ -942,25 +942,25 @@ void Model::check_scheduler(Scheduler const &scheduler) const
 /// Draws the model by submitting one draw call per (mesh × material) pair to
 /// @p scheduler.  Per-draw-call frustum culling happens later in
 /// Scheduler::flush() — no model-level frustum test is needed here.
-void Model::draw(Scheduler &scheduler, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod)
+void Model::draw(Scheduler &scheduler, std::shared_ptr<Camera> const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod)
 {
 	check_scheduler(scheduler);
 	for (auto &joint : joints())
 	{
-		if (MeshPtr mesh_ptr = joint->mesh.lock())
+		if (std::shared_ptr<Mesh> mesh_ptr = joint->mesh.lock())
 		{
 			mesh_ptr->draw(scheduler, joint.get(), camera, world_matrix, lod);
 		}
 	}
 }
 
-void Model::draw(Scheduler &scheduler, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, LodChooser const &chooser)
+void Model::draw(Scheduler &scheduler, std::shared_ptr<Camera> const &camera, rove::matrix<4,4> const &world_matrix, LodChooser const &chooser)
 {
 	check_scheduler(scheduler);
 	ensure_joints();
 	for (auto &joint : joints())
 	{
-		if (MeshPtr mesh_ptr = joint->mesh.lock())
+		if (std::shared_ptr<Mesh> mesh_ptr = joint->mesh.lock())
 		{
 			mesh_ptr->draw(scheduler, joint.get(), camera, world_matrix,
 				chooser(*mesh_ptr, mesh_ptr->conservative_bounds(joints(), *joint, world_matrix)));
@@ -968,13 +968,13 @@ void Model::draw(Scheduler &scheduler, CameraPtr const &camera, rove::matrix<4,4
 	}
 }
 
-void Model::draw_instances(Scheduler &scheduler, CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
+void Model::draw_instances(Scheduler &scheduler, std::shared_ptr<Camera> const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
 	unsigned lod)
 {
 	check_scheduler(scheduler);
 	for (auto &joint : joints())
 	{
-		if (MeshPtr mesh_ptr = joint->mesh.lock())
+		if (std::shared_ptr<Mesh> mesh_ptr = joint->mesh.lock())
 		{
 			mesh_ptr->draw_instances(scheduler, joint.get(), camera, world_matrices, lod);
 		}
@@ -984,7 +984,7 @@ void Model::draw_instances(Scheduler &scheduler, CameraPtr const &camera, std::v
 unsigned Model::lod_count() const
 {
 	std::size_t count = 1;
-	for (MeshPtr const &mesh : meshes())
+	for (std::shared_ptr<Mesh> const &mesh : meshes())
 	{
 		count = std::max(count, mesh->lod_count());
 	}
@@ -994,7 +994,7 @@ unsigned Model::lod_count() const
 float Model::lod_error(unsigned lod) const
 {
 	float error = 0;
-	for (MeshPtr const &mesh : meshes())
+	for (std::shared_ptr<Mesh> const &mesh : meshes())
 	{
 		error = std::max(error, mesh->lod_error(lod));
 	}
@@ -1010,7 +1010,7 @@ rove::aabb<3> Model::bounds(rove::matrix<4,4> const &world_matrix) const
 
 	for (auto const &joint : joints())
 	{
-		if (MeshPtr mesh_ptr = joint->mesh.lock())
+		if (std::shared_ptr<Mesh> mesh_ptr = joint->mesh.lock())
 		{
 			bounds.extend(mesh_ptr->exact_bounds(joints(), *joint, world_matrix));
 			found = true;
@@ -1031,7 +1031,7 @@ Model::octree_type Model::build_octree(rove::matrix<4,4> const &world_matrix) co
 	int mesh_id = 0;
 	for (auto const &joint : joints())
 	{
-		if (MeshPtr mesh_ptr = joint->mesh.lock())
+		if (std::shared_ptr<Mesh> mesh_ptr = joint->mesh.lock())
 		{
 			mesh_ptr->insert_triangles(octree, mesh_id++, joints(), *joint, world_matrix);
 		}

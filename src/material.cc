@@ -11,7 +11,7 @@
 namespace edge
 {
 
-Material::Material(RendererPtr const &renderer_ptr):
+Material::Material(std::shared_ptr<Renderer> const &renderer_ptr):
 	renderer_(renderer_ptr),
 	cull_mode_(CullMode::NONE),
 	zwrite_enabled_(true),
@@ -42,9 +42,9 @@ void Material::set_occlusion_strength(float strength)
 	occlusion_strength_ = strength;
 }
 
-MaterialPtr Material::clone() const
+std::shared_ptr<Material> Material::clone() const
 {
-	MaterialPtr copy = std::make_shared<Material>(renderer_);
+	std::shared_ptr<Material> copy = std::make_shared<Material>(renderer_);
 	copy->name_ = name_;
 	copy->cull_mode_ = cull_mode_;
 	copy->zwrite_enabled_ = zwrite_enabled_;
@@ -103,7 +103,7 @@ void Material::set_extra_parameter(size_t index, rove::vec<4> const &value)
 	extra_parameters_[index] = value;
 }
 
-ShaderProgramPtr const &Material::shader_program(uint32_t pass_type) const
+std::shared_ptr<ShaderProgram> const &Material::shader_program(uint32_t pass_type) const
 {
 	if (pass_type == 0)
 	{
@@ -117,7 +117,7 @@ ShaderProgramPtr const &Material::shader_program(uint32_t pass_type) const
 	return shader_program_;
 }
 
-void Material::set_shader_program(uint32_t pass_type, ShaderProgramPtr const &shader_program)
+void Material::set_shader_program(uint32_t pass_type, std::shared_ptr<ShaderProgram> const &shader_program)
 {
 	if (pass_type == 0)
 	{
@@ -133,7 +133,7 @@ void Material::clear_shader_program(uint32_t pass_type)
 {
 	if (pass_type == 0)
 	{
-		shader_program_ = ShaderProgramPtr();
+		shader_program_ = std::shared_ptr<ShaderProgram>();
 	}
 	else
 	{
@@ -141,7 +141,7 @@ void Material::clear_shader_program(uint32_t pass_type)
 	}
 }
 
-void Material::set_diffuse_texture(TexturePtr const &texture, size_t index) {
+void Material::set_diffuse_texture(std::shared_ptr<Texture> const &texture, size_t index) {
 	if (diffuse_textures_.size() <= index) diffuse_textures_.resize(index + 1);
 	diffuse_textures_[index] = texture;
 }
@@ -158,7 +158,7 @@ void Material::set_texture_blending_weights_texture(std::string const &filename)
 	texture_blending_weights_texture_ = Texture::load_from_file(renderer_, filename);
 }
 
-void Material::set_texture_blending_weights_texture(TexturePtr const &texture)
+void Material::set_texture_blending_weights_texture(std::shared_ptr<Texture> const &texture)
 {
 	texture_blending_weights_texture_ = texture;
 }
@@ -168,7 +168,7 @@ void Material::set_normal_map_texture(std::string const &filename)
 	normal_map_texture_ = Texture::load_from_file(renderer_, filename);
 }
 
-void Material::set_normal_map_texture(TexturePtr const &texture)
+void Material::set_normal_map_texture(std::shared_ptr<Texture> const &texture)
 {
 	normal_map_texture_ = texture;
 }

@@ -42,11 +42,11 @@ std::string asset(std::string const &name)
 
 struct Fixture
 {
-	edge::RendererPtr renderer = [] { edge::RendererPtr r(new edge::NullRenderer(320, 200)); return r; }();
-	edge::SchedulerPtr scheduler = std::make_shared<edge::Scheduler>(renderer);
+	std::shared_ptr<edge::Renderer> renderer = [] { std::shared_ptr<edge::Renderer> r(new edge::NullRenderer(320, 200)); return r; }();
+	std::shared_ptr<edge::Scheduler> scheduler = std::make_shared<edge::Scheduler>(renderer);
 	std::filesystem::path const dir = edge::unique_temp_directory("edge_model_lod_");
-	edge::CameraPtr camera = [] {
-		edge::CameraPtr c(new edge::Camera());
+	std::shared_ptr<edge::Camera> camera = [] {
+		std::shared_ptr<edge::Camera> c(new edge::Camera());
 		c->set_perspective_projection(1.0f, 4.0f / 3.0f, 0.05f, 50.0f);
 		c->look_at(rove::vec<3>(0, 1, 3), rove::vec<3>(0, 1, 0), rove::vec<3>(0, 1, 0));
 		return c;
@@ -231,7 +231,7 @@ BOOST_AUTO_TEST_CASE(a_levels_materials_are_the_models_own_not_the_prototypes)
 BOOST_AUTO_TEST_CASE(the_collision_octree_is_made_of_level_zero_only)
 {
 	// a static model of a welded grid of 8192 triangles, with and without levels
-	edge::RendererPtr r = renderer;
+	std::shared_ptr<edge::Renderer> r = renderer;
 	auto plane = std::make_shared<edge::StaticModelPTBNT>(r);
 	plane->load_from_gltf(asset("test_gltf_loder_plane.glb"));
 	edge::SerializedModel model = plane->serialize();

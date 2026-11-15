@@ -64,14 +64,14 @@ void validate_upload_range(size_t total_size, size_t offset, size_t data_size, c
     }
 }
 
-void upload_bytes_to_texture(edge::TexturePtr const &texture, nb::bytes const &data,
+void upload_bytes_to_texture(edge::Texture &texture, nb::bytes const &data,
     size_t offset, bool discard)
 {
-    size_t const total_size = texture_total_size(*texture);
+    size_t const total_size = texture_total_size(texture);
     size_t const data_size = data.size();
     validate_upload_range(total_size, offset, data_size, "texture");
 
-    auto texels = texture->write(discard ? edge::Contents::DISCARD : edge::Contents::KEEP);
+    auto texels = texture.write(discard ? edge::Contents::DISCARD : edge::Contents::KEEP);
     if (data_size > 0)
     {
         std::memcpy(texels.data() + offset, data.c_str(), data_size);
@@ -86,32 +86,22 @@ nb::bytes clone_bytes(edge::Texture const &texture)
     return nb::bytes(reinterpret_cast<char const *>(texels.data()), total_size);
 }
 
-nb::bytes download_texture_bytes(edge::TexturePtr const &texture)
+nb::bytes download_texture_bytes(edge::Texture &texture)
 {
-    if (!texture)
-    {
-        throw std::runtime_error("texture is null");
-    }
-
     {
         // the readback lets other Python threads run; the bytes are made with the GIL
         nb::gil_scoped_release release;
-        texture->download();
+        texture.download();
     }
-    return clone_bytes(*texture);
+    return clone_bytes(texture);
 }
 
-nb::bytes read_cached_pixels_bytes(edge::TexturePtr const &texture)
+nb::bytes read_cached_pixels_bytes(edge::Texture const &texture)
 {
-    if (!texture)
-    {
-        throw std::runtime_error("texture is null");
-    }
-
     // No GPU readback — read whatever is already in the CPU-side clone.
     // The caller is responsible for having populated it (either through a
     // prior download() or through Renderer.batch_download_textures()).
-    return clone_bytes(*texture);
+    return clone_bytes(texture);
 }
 
 // The CPU copy as a numpy array, a copy: (h, w, 4) of the 8-bit formats' bytes (B, G, R, A, as stored), of R16G16B16A16F's halves
@@ -181,7 +171,7 @@ void bind_texture(nb::module_ &m)
             "returns whatever the last download / batch readback left behind. Empty "
             "bytes if the texture has no host-visible clone.")
         .def("save_to_file",
-            [](edge::TexturePtr const &self, std::string const &filename) {
+            [](edge::Texture const &self, std::string const &filename) {
                 edge::Texture::save_to_file(self, filename);
             },
             "filename"_a);

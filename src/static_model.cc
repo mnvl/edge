@@ -7,7 +7,7 @@ namespace edge
 {
 
 template <vertex_layout V>
-BasicStaticModel<V>::BasicStaticModel(RendererPtr const &renderer_ptr):
+BasicStaticModel<V>::BasicStaticModel(std::shared_ptr<Renderer> const &renderer_ptr):
 	Model(renderer_ptr)
 {
 }
@@ -16,7 +16,7 @@ template <vertex_layout V>
 BasicStaticModel<V>::~BasicStaticModel() = default;
 
 template <vertex_layout V>
-MeshPtr BasicStaticModel<V>::add_mesh()
+std::shared_ptr<Mesh> BasicStaticModel<V>::add_mesh()
 {
 	meshes_.push_back(std::make_shared<BasicStaticMesh<V>>(this));
 	return meshes().back();

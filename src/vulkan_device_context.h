@@ -57,7 +57,7 @@ public:
 	VkPhysicalDevice physical_device() const { return physical_device_; }
 	VkDevice device() const { return device_; }
 
-	void set_instance(VulkanInstancePtr const &instance) { instance_ = instance; }
+	void set_instance(std::shared_ptr<VulkanInstance> const &instance) { instance_ = instance; }
 	void set_device(VkPhysicalDevice physical_device, VkDevice device) { physical_device_ = physical_device; device_ = device; }
 
 	/// Called by ~VulkanRenderer: the device stays alive until the last
@@ -81,11 +81,10 @@ public:
 
 private:
 	VulkanRenderer *renderer_;
-	VulkanInstancePtr instance_;
+	std::shared_ptr<VulkanInstance> instance_;
 	VkPhysicalDevice physical_device_;
 	VkDevice device_;
 };
 
-using VulkanDeviceContextPtr = std::shared_ptr<VulkanDeviceContext>;
 
 }
