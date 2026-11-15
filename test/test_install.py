@@ -131,7 +131,7 @@ IMGUI_CONSUMER = """\
 
 #include <memory>
 
-std::unique_ptr<edge::ImGuiRenderer> make(edge::RendererPtr const &renderer)
+std::unique_ptr<edge::ImGuiRenderer> make(std::shared_ptr<edge::Renderer> const &renderer)
 {
 	ImGui::CreateContext();
 	return std::make_unique<edge::ImGuiRenderer>(renderer);
@@ -204,13 +204,13 @@ VULKAN_CONSUMER = """\
 double use(VkSurfaceKHR surface)
 {
 	auto renderer = std::make_shared<edge::VulkanRenderer>(64, 32, std::string(), std::vector<std::string>(), 2);
-	edge::RendererPtr base = renderer;
+	std::shared_ptr<edge::Renderer> base = renderer;
 	renderer->attach_surface(surface, true);
 	renderer->set_vsync(false);
 	VkInstance instance = renderer->instance();
 	VkDevice device = renderer->device();
 	VkPipelineLayout layout = renderer->pipeline_layout();
-	edge::VulkanRendererPtr self = renderer->shared_from_this();
+	std::shared_ptr<edge::VulkanRenderer> self = renderer->shared_from_this();
 	(void)instance; (void)device; (void)layout; (void)self;
 	renderer->wait_frames();
 	return renderer->gpu_wait_ms() + renderer->frames_in_flight() + double(renderer->device_uuid().size())
@@ -231,11 +231,11 @@ GLES_CONSUMER = """\
 
 #include <memory>
 
-double use(edge::GLESContextPtr const &context)
+double use(std::shared_ptr<edge::GLESContext> const &context)
 {
 	auto renderer = std::make_shared<edge::GLESRenderer>(64, 32, "shaders", context);
-	edge::RendererPtr base = renderer;
-	renderer->show_frame(renderer->create_texture(64, 32, edge::PixelFormat::A8R8G8B8), 640, 320);
+	std::shared_ptr<edge::Renderer> base = renderer;
+	renderer->show_frame(*renderer->create_texture(64, 32, edge::PixelFormat::A8R8G8B8), 640, 320);
 	renderer->swap_window();
 	return double(renderer->context() != nullptr) + double(renderer->frame_serial())
 		+ renderer->screen_width();

@@ -28,21 +28,21 @@ struct MetalTextureLayers
 class MetalTexture: public Texture
 {
 public:
-	MetalTexture(MetalContextPtr const &context, int width, int height, PixelFormat pixel_format, TextureUsage const &usage);
+	MetalTexture(std::shared_ptr<MetalContext> const &context, int width, int height, PixelFormat pixel_format, TextureUsage const &usage);
 	using Layers = MetalTextureLayers;
 	/// The colour of a render target of layers (RenderTargetFormat): an array of @p layers.count or a cube.  The GPU writes it and shaders
 	/// read it: no CPU copy.
-	MetalTexture(MetalContextPtr const &context, int width, int height, PixelFormat pixel_format, Layers layers);
+	MetalTexture(std::shared_ptr<MetalContext> const &context, int width, int height, PixelFormat pixel_format, Layers layers);
 	/// A render target's readable depth, or the depth it draws with when it keeps none: 32-bit float depth, sampled as one value in red
 	/// (0 near to 1 far); no CPU copy.  @p readable: later passes sample it.
 	struct Depth {};
-	MetalTexture(MetalContextPtr const &context, int width, int height, Depth, Layers layers = Layers(), bool readable = true);
+	MetalTexture(std::shared_ptr<MetalContext> const &context, int width, int height, Depth, Layers layers = Layers(), bool readable = true);
 	~MetalTexture() override;
 
 	bool is_depth() const override { return depth_; }
 	void download() override;
 
-	MetalContextPtr const &context() const { return context_; }
+	std::shared_ptr<MetalContext> const &context() const { return context_; }
 	/// A draw or pass of the open frame uses it.
 	void used();
 
@@ -56,7 +56,7 @@ protected:
 	void do_unlock() override;
 
 private:
-	MetalContextPtr context_;
+	std::shared_ptr<MetalContext> context_;
 	std::unique_ptr<Impl> impl_;
 	mutable std::vector<unsigned char> cpu_;
 	bool depth_ = false;

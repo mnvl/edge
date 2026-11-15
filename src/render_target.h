@@ -66,19 +66,19 @@ public:
 	int height() const { return height_; }
 
 	/// Colour attachment 0: the colour of a target of one; null for a target of depth alone.
-	TexturePtr color_texture() const;
+	std::shared_ptr<Texture> color_texture() const;
 	/// Colour attachment @p attachment, what a fragment shader writes at that output location; std::out_of_range past the last.  Each is a
 	/// texture of the target's size and its own format that later passes sample and, but for a target of layers, a download reads.
-	TexturePtr const &color_texture(size_t attachment) const;
+	std::shared_ptr<Texture> const &color_texture(size_t attachment) const;
 	size_t color_textures_count() const { return color_textures_.size(); }
-	std::vector<TexturePtr> const &color_textures() const { return color_textures_; }
+	std::vector<std::shared_ptr<Texture>> const &color_textures() const { return color_textures_; }
 	/// The depth of the last pass drawn into this target, for passes after it to sample; null unless the target was made with a readable
 	/// depth (Renderer::create_render_target).  It has no CPU copy: it cannot be locked or downloaded.
-	TexturePtr depth_texture() const { return depth_texture_; }
+	std::shared_ptr<Texture> depth_texture() const { return depth_texture_; }
 	/// The stencil of the last pass drawn into this target (R8UI: a usampler2D, read with texelFetch), for passes after it to read; null
 	/// unless the target was made with a readable depth whose format has a stencil, and on OpenGL ES (3.0 cannot sample a stencil), and
 	/// for a target of layers.  The Vulkan one has no CPU copy either.
-	TexturePtr stencil_texture() const { return stencil_texture_; }
+	std::shared_ptr<Texture> stencil_texture() const { return stencil_texture_; }
 
 	/// Layers of its textures: 0 for a plain target, N for an array of N, 6 for a cube.
 	int layers() const { return layers_; }
@@ -89,23 +89,23 @@ public:
 	/// (Renderer::begin_pass) drawing layer i alone and leaving the others as they are.  A target of layers is drawn only through
 	/// these.  Made with the target, the same each time; it keeps the textures, not the target.  std::out_of_range for a layer the target
 	/// has not (any of a plain target), std::logic_error for a layer's.
-	RenderTargetPtr const &layer(int i) const;
+	std::shared_ptr<RenderTarget> const &layer(int i) const;
 
 protected:
 	/// A target of these textures, drawing into all of them, or, @p layer >= 0, into their layer @p layer.  Its layers and whether it is a
 	/// cube are its textures'.
-	RenderTarget(int width, int height, std::vector<TexturePtr> const &color_textures, TexturePtr const &depth_texture,
-		TexturePtr const &stencil_texture, int layer = -1);
+	RenderTarget(int width, int height, std::vector<std::shared_ptr<Texture>> const &color_textures, std::shared_ptr<Texture> const &depth_texture,
+		std::shared_ptr<Texture> const &stencil_texture, int layer = -1);
 
 	int width_;
 	int height_;
 	/// The targets of a target of layers, layer() of each: the backend's target makes them when it is made.
-	std::vector<RenderTargetPtr> layer_targets_;
+	std::vector<std::shared_ptr<RenderTarget>> layer_targets_;
 
 private:
-	std::vector<TexturePtr> color_textures_;
-	TexturePtr depth_texture_;
-	TexturePtr stencil_texture_;
+	std::vector<std::shared_ptr<Texture>> color_textures_;
+	std::shared_ptr<Texture> depth_texture_;
+	std::shared_ptr<Texture> stencil_texture_;
 	int layers_;
 	bool cube_;
 	int layer_;

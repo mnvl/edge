@@ -24,7 +24,7 @@ BOOST_AUTO_TEST_CASE(no_current_context_is_refused)
 {
 	ImGuiContext *const before = ImGui::GetCurrentContext();
 	ImGui::SetCurrentContext(nullptr);
-	edge::RendererPtr renderer = std::make_shared<edge::NullRenderer>(64, 64);
+	std::shared_ptr<edge::Renderer> renderer = std::make_shared<edge::NullRenderer>(64, 64);
 	BOOST_CHECK_THROW(edge::ImGuiRenderer{renderer}, std::logic_error);
 	ImGui::SetCurrentContext(before);
 }
@@ -35,7 +35,7 @@ BOOST_AUTO_TEST_CASE(it_draws_through_the_program_s_imgui)
 	ImGuiContext *const context = ImGui::CreateContext();
 	ImGui::SetCurrentContext(context);
 	{
-		edge::RendererPtr renderer = std::make_shared<edge::NullRenderer>(64, 64);
+		std::shared_ptr<edge::Renderer> renderer = std::make_shared<edge::NullRenderer>(64, 64);
 		edge::ImGuiRenderer ui(renderer);
 		BOOST_TEST((ImGui::GetIO().BackendFlags & ImGuiBackendFlags_RendererHasTextures) != 0);
 	}

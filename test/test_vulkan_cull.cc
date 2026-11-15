@@ -34,9 +34,9 @@ struct Rgba
 
 /// One triangle over the middle of the target in red, its vertices running counter-clockwise (or clockwise) as a camera on +Z looking at
 /// the origin with +Y up sees them, drawn with a material of `cull_mode` into a target cleared to black: is the middle pixel red?
-bool drawn(RendererPtr const &renderer, Material::CullMode cull_mode, bool counter_clockwise, char const *fragment = "test_vertex_color.frag")
+bool drawn(std::shared_ptr<Renderer> const &renderer, Material::CullMode cull_mode, bool counter_clockwise, char const *fragment = "test_vertex_color.frag")
 {
-	VertexBufferPtr vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PTBNTC>(), sizeof(VERTEX_PTBNTC) * 3);
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PTBNTC>(), sizeof(VERTEX_PTBNTC) * 3);
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	VERTEX_PTBNTC *v = vb_mapping.as<VERTEX_PTBNTC>().data();
 	BOOST_REQUIRE(v);
@@ -48,7 +48,7 @@ bool drawn(RendererPtr const &renderer, Material::CullMode cull_mode, bool count
 		v[k].color.set(1.0f, 0.0f, 0.0f, 1.0f);
 	}
 	vb_mapping.unmap();
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 3);
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 3);
 	auto ib_mapping = ib->write(Contents::DISCARD);
 	INDEX_U16 *idx = ib_mapping.as<INDEX_U16>().data();
 	BOOST_REQUIRE(idx);
@@ -56,16 +56,16 @@ bool drawn(RendererPtr const &renderer, Material::CullMode cull_mode, bool count
 	idx[1] = counter_clockwise ? 1 : 2;
 	idx[2] = counter_clockwise ? 2 : 1;
 	ib_mapping.unmap();
-	CameraPtr camera(new Camera());
+	std::shared_ptr<Camera> camera(new Camera());
 	camera->set_orthographic_projection(2.0f, 2.0f, 0.0f, 2.0f);
 	camera->look_at(rove::vec<3>(0, 0, 1), rove::vec<3>(0, 0, 0), rove::vec<3>(0, 1, 0));
-	RenderTargetPtr target = renderer->create_render_target(TARGET_SIZE, TARGET_SIZE, PixelFormat::R32G32B32A32F);
+	std::shared_ptr<RenderTarget> target = renderer->create_render_target(TARGET_SIZE, TARGET_SIZE, PixelFormat::R32G32B32A32F);
 
-	MaterialPtr material = renderer->create_material();
+	std::shared_ptr<Material> material = renderer->create_material();
 	material->set_cull_mode(cull_mode);
 	material->set_shader_program(renderer->create_shader_program(edge::test_shader("test_vertex_color.vert"), edge::test_shader(fragment)));
 
-	DrawCallPtr draw_call = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> draw_call = renderer->create_draw_call();
 	draw_call->set_vertex_buffer(vb);
 	draw_call->set_index_buffer(ib);
 	draw_call->set_material(material);
@@ -81,7 +81,7 @@ bool drawn(RendererPtr const &renderer, Material::CullMode cull_mode, bool count
 	renderer->end_pass();
 	renderer->finish_frame();
 
-	TexturePtr color = target->color_texture();
+	std::shared_ptr<Texture> color = target->color_texture();
 	color->download();
 	auto color_mapping = color->read();
 	Rgba const *pixels = color_mapping.as<Rgba const>().data();

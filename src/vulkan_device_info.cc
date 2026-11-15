@@ -92,7 +92,7 @@ std::string normalize_vulkan_device_uuid(std::string const &text)
 std::vector<PhysicalDeviceInfo> enumerate_vulkan_physical_devices()
 {
 	// the process's instance: its renderers', or one made for this and let go when it returns
-	VulkanInstancePtr const shared = VulkanInstance::acquire(std::vector<std::string>());
+	std::shared_ptr<VulkanInstance> const shared = VulkanInstance::acquire(std::vector<std::string>());
 	VkInstance const instance = shared->get();
 	// what makes deviceUUID and the PCI address readable on a Vulkan 1.0 instance; without it the enumeration reports less
 	bool const has_properties2 = shared->has_extension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME)

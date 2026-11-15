@@ -101,9 +101,9 @@ void write_bytes(edge::Texture &texture, std::vector<uint8_t> const &bytes)
 	texture_mapping.unmap();
 }
 
-edge::RendererPtr null_renderer()
+std::shared_ptr<edge::Renderer> null_renderer()
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
 	return renderer;
 }
 
@@ -424,8 +424,8 @@ BOOST_FIXTURE_TEST_CASE(what_is_not_an_image_is_refused, Scratch)
 
 BOOST_AUTO_TEST_CASE(a_textures_pixels_are_its_cpu_copy)
 {
-	edge::RendererPtr const renderer = null_renderer();
-	edge::TexturePtr const texture = renderer->create_texture(3, 2, edge::PixelFormat::A8R8G8B8);
+	std::shared_ptr<edge::Renderer> const renderer = null_renderer();
+	std::shared_ptr<edge::Texture> const texture = renderer->create_texture(3, 2, edge::PixelFormat::A8R8G8B8);
 	write_bytes(*texture, {
 		1, 2, 3, 4,  5, 6, 7, 8,  9, 10, 11, 12,
 		13, 14, 15, 16,  17, 18, 19, 20,  21, 22, 23, 24});
@@ -443,7 +443,7 @@ BOOST_AUTO_TEST_CASE(a_textures_pixels_are_its_cpu_copy)
 	BOOST_TEST((view.at(2, 1).b == 21 && view.at(2, 1).g == 22 && view.at(2, 1).r == 23 && view.at(2, 1).a == 24));
 
 	// X8R8G8B8 lies the same
-	edge::TexturePtr const opaque = renderer->create_texture(1, 1, edge::PixelFormat::X8R8G8B8);
+	std::shared_ptr<edge::Texture> const opaque = renderer->create_texture(1, 1, edge::PixelFormat::X8R8G8B8);
 	write_bytes(*opaque, {1, 2, 3, 4});
 	BOOST_TEST((std::as_const(*opaque).pixels<bgra8>()(0, 0).r == 3));
 	// and as four bytes that are no colour
@@ -452,12 +452,12 @@ BOOST_AUTO_TEST_CASE(a_textures_pixels_are_its_cpu_copy)
 
 BOOST_AUTO_TEST_CASE(a_textures_floats_are_red_first)
 {
-	edge::RendererPtr const renderer = null_renderer();
+	std::shared_ptr<edge::Renderer> const renderer = null_renderer();
 	float const floats[] = {0.25f, 0.5f, 0.75f, 1.0f, 2, 3, 4, 5};
 	std::vector<uint8_t> bytes(sizeof(floats));
 	std::memcpy(bytes.data(), floats, sizeof(floats));
 
-	edge::TexturePtr const colour = renderer->create_texture(2, 1, edge::PixelFormat::R32G32B32A32F);
+	std::shared_ptr<edge::Texture> const colour = renderer->create_texture(2, 1, edge::PixelFormat::R32G32B32A32F);
 	write_bytes(*colour, bytes);
 	edge::ImageView<rove::rgba<float> const> const view = std::as_const(*colour).pixels<rove::rgba<float>>();
 	BOOST_CHECK_EQUAL(view.pitch(), 32);
@@ -465,7 +465,7 @@ BOOST_AUTO_TEST_CASE(a_textures_floats_are_red_first)
 	BOOST_TEST((view(1, 0) == rove::rgba<float>(2, 3, 4, 5)));
 	BOOST_TEST((std::as_const(*colour).pixels<rove::vec<4, float>>()(1, 0) == rove::vec<4, float>(2, 3, 4, 5)));
 
-	edge::TexturePtr const depth = renderer->create_texture(4, 2, edge::PixelFormat::R32F);
+	std::shared_ptr<edge::Texture> const depth = renderer->create_texture(4, 2, edge::PixelFormat::R32F);
 	write_bytes(*depth, bytes);
 	edge::ImageView<float const> const depths = std::as_const(*depth).pixels<float>();
 	BOOST_CHECK_EQUAL(depths.width(), 4);
@@ -476,7 +476,7 @@ BOOST_AUTO_TEST_CASE(a_textures_floats_are_red_first)
 	uint16_t const halves[] = {0x3400, 0x3800, 0x3A00, 0x3C00};     // 0.25, 0.5, 0.75, 1
 	std::vector<uint8_t> half_bytes(sizeof(halves));
 	std::memcpy(half_bytes.data(), halves, sizeof(halves));
-	edge::TexturePtr const half = renderer->create_texture(1, 1, edge::PixelFormat::R16G16B16A16F);
+	std::shared_ptr<edge::Texture> const half = renderer->create_texture(1, 1, edge::PixelFormat::R16G16B16A16F);
 	write_bytes(*half, half_bytes);
 	rove::rgba<uint16_t> const texel = std::as_const(*half).pixels<rove::rgba<uint16_t>>()(0, 0);
 	BOOST_TEST((texel.r == 0x3400 && texel.g == 0x3800 && texel.b == 0x3A00 && texel.a == 0x3C00));
@@ -487,11 +487,11 @@ BOOST_AUTO_TEST_CASE(a_textures_floats_are_red_first)
 // both four bytes).
 BOOST_AUTO_TEST_CASE(a_textures_pixels_are_refused_as_what_they_are_not)
 {
-	edge::RendererPtr const renderer = null_renderer();
-	edge::TexturePtr const bytes_texture = renderer->create_texture(4, 4, edge::PixelFormat::X8R8G8B8);
-	edge::TexturePtr const floats_texture = renderer->create_texture(4, 4, edge::PixelFormat::R32G32B32A32F);
-	edge::TexturePtr const depth_texture = renderer->create_texture(4, 4, edge::PixelFormat::R32F);
-	edge::TexturePtr const halves_texture = renderer->create_texture(4, 4, edge::PixelFormat::R16G16B16A16F);
+	std::shared_ptr<edge::Renderer> const renderer = null_renderer();
+	std::shared_ptr<edge::Texture> const bytes_texture = renderer->create_texture(4, 4, edge::PixelFormat::X8R8G8B8);
+	std::shared_ptr<edge::Texture> const floats_texture = renderer->create_texture(4, 4, edge::PixelFormat::R32G32B32A32F);
+	std::shared_ptr<edge::Texture> const depth_texture = renderer->create_texture(4, 4, edge::PixelFormat::R32F);
+	std::shared_ptr<edge::Texture> const halves_texture = renderer->create_texture(4, 4, edge::PixelFormat::R16G16B16A16F);
 	edge::Texture const &bytes = *bytes_texture, &floats = *floats_texture, &depth = *depth_texture, &halves = *halves_texture;
 
 	BOOST_CHECK_NO_THROW(bytes.pixels<bgra8>());
@@ -523,8 +523,8 @@ BOOST_AUTO_TEST_CASE(a_textures_pixels_are_refused_as_what_they_are_not)
 
 BOOST_AUTO_TEST_CASE(a_texture_without_a_cpu_copy_has_no_pixels)
 {
-	edge::RendererPtr const renderer = null_renderer();
-	edge::TexturePtr const compressed_texture = renderer->create_texture(8, 8, edge::PixelFormat::BC1);
+	std::shared_ptr<edge::Renderer> const renderer = null_renderer();
+	std::shared_ptr<edge::Texture> const compressed_texture = renderer->create_texture(8, 8, edge::PixelFormat::BC1);
 	edge::Texture const &compressed = *compressed_texture;
 	BOOST_CHECK_THROW(compressed.pixels<bgra8>(), std::logic_error);
 	BOOST_CHECK_THROW(compressed.pixels<bytes4>(), std::logic_error);
@@ -532,8 +532,8 @@ BOOST_AUTO_TEST_CASE(a_texture_without_a_cpu_copy_has_no_pixels)
 
 BOOST_AUTO_TEST_CASE(a_textures_pixels_are_written_where_it_is_not_const)
 {
-	edge::RendererPtr const renderer = null_renderer();
-	edge::TexturePtr const texture = renderer->create_texture(2, 2, edge::PixelFormat::X8R8G8B8);
+	std::shared_ptr<edge::Renderer> const renderer = null_renderer();
+	std::shared_ptr<edge::Texture> const texture = renderer->create_texture(2, 2, edge::PixelFormat::X8R8G8B8);
 	write_bytes(*texture, std::vector<uint8_t>(16, 0));
 
 	static_assert(std::is_same_v<decltype(texture->pixels<bgra8>()), edge::ImageView<bgra8>>);
@@ -668,10 +668,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(what_is_rendered_reads_back_under_its_names, F, ed
 	F fixture;
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, fixture.error);
-	edge::RenderTargetPtr const bytes = renderer->create_render_target(8, 4, edge::PixelFormat::X8R8G8B8);
-	edge::RenderTargetPtr const halves = renderer->create_render_target(8, 4, edge::PixelFormat::R16G16B16A16F);
-	edge::RenderTargetPtr const floats = renderer->create_render_target(8, 4, edge::PixelFormat::R32G32B32A32F);
-	edge::RenderTargetPtr const depth = renderer->create_render_target(8, 4, edge::PixelFormat::R32F);
+	std::shared_ptr<edge::RenderTarget> const bytes = renderer->create_render_target(8, 4, edge::PixelFormat::X8R8G8B8);
+	std::shared_ptr<edge::RenderTarget> const halves = renderer->create_render_target(8, 4, edge::PixelFormat::R16G16B16A16F);
+	std::shared_ptr<edge::RenderTarget> const floats = renderer->create_render_target(8, 4, edge::PixelFormat::R32G32B32A32F);
+	std::shared_ptr<edge::RenderTarget> const depth = renderer->create_render_target(8, 4, edge::PixelFormat::R32F);
 
 	renderer->begin_frame();
 	renderer->begin_pass(bytes, clear_to(1.0f, 0.4f, 0.2f, 1.0f));
@@ -718,7 +718,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(pixels_neither_upload_nor_download, F, edge::Backe
 	F fixture;
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, fixture.error);
-	edge::TexturePtr const texture = renderer->create_texture(2, 2, edge::PixelFormat::A8R8G8B8);
+	std::shared_ptr<edge::Texture> const texture = renderer->create_texture(2, 2, edge::PixelFormat::A8R8G8B8);
 	std::vector<uint8_t> uploaded(16);
 	for (size_t i = 0; i < 16; ++i)
 		uploaded[i] = uint8_t(10 + i);
@@ -763,12 +763,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_fonts_colours_are_red_first, F, edge::Backends)
 	edge::Font const font(font_path, 48);
 
 	// no text: a texel of the background
-	edge::TexturePtr const background = edge::make_text_texture(renderer, font, "", rove::vec<4>(1, 1, 1, 1), rove::vec<4>(0.2f, 0.4f, 0.6f, 0.8f));
+	std::shared_ptr<edge::Texture> const background = edge::make_text_texture(renderer, font, "", rove::vec<4>(1, 1, 1, 1), rove::vec<4>(0.2f, 0.4f, 0.6f, 0.8f));
 	bgra8 const texel = std::as_const(*background).pixels<bgra8>().at(0, 0);
 	BOOST_TEST((texel.r == 51 && texel.g == 102 && texel.b == 153 && texel.a == 204));
 
 	// text on nothing: where the ink is solid, the text's colour; the corner, the background's
-	edge::TexturePtr const text = edge::make_text_texture(renderer, font, "HHH", rove::vec<4>(0.2f, 0.4f, 0.6f, 0.8f), rove::vec<4>(0, 0, 0, 0));
+	std::shared_ptr<edge::Texture> const text = edge::make_text_texture(renderer, font, "HHH", rove::vec<4>(0.2f, 0.4f, 0.6f, 0.8f), rove::vec<4>(0, 0, 0, 0));
 	edge::ImageView<bgra8 const> const inked = std::as_const(*text).pixels<bgra8>();
 	size_t solid = 0;
 	for (int y = 0; y < inked.height(); ++y)

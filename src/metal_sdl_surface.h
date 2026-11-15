@@ -26,7 +26,7 @@ public:
 	/// The window's CAMetalLayer, as a void *.
 	void *layer() const { return layer_; }
 	/// A context on the system's GPU that shows frames in this window.
-	MetalContextPtr make_context() const;
+	std::shared_ptr<MetalContext> make_context() const;
 
 private:
 	void *view_ = nullptr;

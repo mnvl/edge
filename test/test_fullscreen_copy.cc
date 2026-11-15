@@ -29,9 +29,9 @@ namespace
 using Bgra = std::array<uint8_t, 4>;
 
 /// A texture of @p width x @p height whose texel (x, y) is @p texel(x, y), B, G, R, A.
-template <class F> TexturePtr texture_of(RendererPtr const &renderer, int width, int height, F texel)
+template <class F> std::shared_ptr<Texture> texture_of(std::shared_ptr<Renderer> const &renderer, int width, int height, F texel)
 {
-	TexturePtr const texture = renderer->create_texture(width, height, PixelFormat::A8R8G8B8);
+	std::shared_ptr<Texture> const texture = renderer->create_texture(width, height, PixelFormat::A8R8G8B8);
 	auto texture_mapping = texture->write(Contents::DISCARD);
 	auto *bytes = texture_mapping.as<uint8_t>().data();
 	for (int y = 0; y < height; ++y)
@@ -45,9 +45,9 @@ template <class F> TexturePtr texture_of(RendererPtr const &renderer, int width,
 }
 
 /// What the target holds, row 0 first.
-std::vector<Bgra> pixels_of(RenderTargetPtr const &target)
+std::vector<Bgra> pixels_of(std::shared_ptr<RenderTarget> const &target)
 {
-	TexturePtr const colour = target->color_texture();
+	std::shared_ptr<Texture> const colour = target->color_texture();
 	colour->download();
 	auto colour_mapping = colour->read();
 	auto const *bytes = colour_mapping.as<Bgra const>().data();
@@ -57,7 +57,7 @@ std::vector<Bgra> pixels_of(RenderTargetPtr const &target)
 }
 
 /// @p source copied into @p target, a frame of its own.
-void copy(RendererPtr const &renderer, FullscreenCopy &copier, TexturePtr const &source, RenderTargetPtr const &target)
+void copy(std::shared_ptr<Renderer> const &renderer, FullscreenCopy &copier, std::shared_ptr<Texture> const &source, std::shared_ptr<RenderTarget> const &target)
 {
 	renderer->begin_frame();
 	renderer->begin_pass(target);
@@ -88,9 +88,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_copy_of_the_target_s_size_is_the_texture_texel_f
 {
 	F fixture;
 	BOOST_REQUIRE_MESSAGE(fixture.renderer, "renderer unavailable: " << fixture.error);
-	RendererPtr const renderer = fixture.renderer;
+	std::shared_ptr<Renderer> const renderer = fixture.renderer;
 	FullscreenCopy copier(renderer);
-	RenderTargetPtr const target = renderer->create_render_target(4, 3, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(4, 3, PixelFormat::A8R8G8B8);
 	copy(renderer, copier, texture_of(renderer, 4, 3, pattern), target);
 	std::vector<Bgra> const got = pixels_of(target);
 	for (int y = 0; y < 3; ++y)
@@ -108,11 +108,11 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_copy_is_stretched_over_a_larger_target_and_its_e
 {
 	F fixture;
 	BOOST_REQUIRE_MESSAGE(fixture.renderer, "renderer unavailable: " << fixture.error);
-	RendererPtr const renderer = fixture.renderer;
+	std::shared_ptr<Renderer> const renderer = fixture.renderer;
 	FullscreenCopy copier(renderer);
 	// black but for a white last column: a copy that wrapped would bleed white into the first column of the target
-	TexturePtr const source = texture_of(renderer, 4, 2, [](int x, int) { return x == 3 ? Bgra{255, 255, 255, 255} : Bgra{0, 0, 0, 255}; });
-	RenderTargetPtr const target = renderer->create_render_target(16, 8, PixelFormat::A8R8G8B8);
+	std::shared_ptr<Texture> const source = texture_of(renderer, 4, 2, [](int x, int) { return x == 3 ? Bgra{255, 255, 255, 255} : Bgra{0, 0, 0, 255}; });
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(16, 8, PixelFormat::A8R8G8B8);
 	copy(renderer, copier, source, target);
 	std::vector<Bgra> const got = pixels_of(target);
 	for (int y = 0; y < 8; ++y)
@@ -127,10 +127,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(row_0_of_the_texture_is_the_top_of_the_target_what
 {
 	F fixture;
 	BOOST_REQUIRE_MESSAGE(fixture.renderer, "renderer unavailable: " << fixture.error);
-	RendererPtr const renderer = fixture.renderer;
+	std::shared_ptr<Renderer> const renderer = fixture.renderer;
 	FullscreenCopy copier(renderer);
-	TexturePtr const source = texture_of(renderer, 2, 2, [](int, int y) { return y == 0 ? Bgra{0, 0, 255, 255} : Bgra{255, 0, 0, 255}; });
-	RenderTargetPtr const target = renderer->create_render_target(6, 10, PixelFormat::A8R8G8B8);
+	std::shared_ptr<Texture> const source = texture_of(renderer, 2, 2, [](int, int y) { return y == 0 ? Bgra{0, 0, 255, 255} : Bgra{255, 0, 0, 255}; });
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(6, 10, PixelFormat::A8R8G8B8);
 	copy(renderer, copier, source, target);
 	std::vector<Bgra> const got = pixels_of(target);
 	BOOST_CHECK(near(got[0], Bgra{0, 0, 255, 255}));                // red at the top
@@ -141,12 +141,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(two_copies_in_one_frame_each_draw_their_own_textur
 {
 	F fixture;
 	BOOST_REQUIRE_MESSAGE(fixture.renderer, "renderer unavailable: " << fixture.error);
-	RendererPtr const renderer = fixture.renderer;
+	std::shared_ptr<Renderer> const renderer = fixture.renderer;
 	FullscreenCopy copier(renderer);
-	TexturePtr const red = texture_of(renderer, 2, 2, [](int, int) { return Bgra{0, 0, 255, 255}; });
-	TexturePtr const green = texture_of(renderer, 2, 2, [](int, int) { return Bgra{0, 255, 0, 255}; });
-	RenderTargetPtr const a = renderer->create_render_target(4, 4, PixelFormat::A8R8G8B8);
-	RenderTargetPtr const b = renderer->create_render_target(4, 4, PixelFormat::A8R8G8B8);
+	std::shared_ptr<Texture> const red = texture_of(renderer, 2, 2, [](int, int) { return Bgra{0, 0, 255, 255}; });
+	std::shared_ptr<Texture> const green = texture_of(renderer, 2, 2, [](int, int) { return Bgra{0, 255, 0, 255}; });
+	std::shared_ptr<RenderTarget> const a = renderer->create_render_target(4, 4, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const b = renderer->create_render_target(4, 4, PixelFormat::A8R8G8B8);
 	renderer->begin_frame();
 	renderer->begin_pass(a);
 	copier.draw(red);
@@ -163,10 +163,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_copy_is_drawn_in_a_pass_of_a_texture_and_by_a_re
 {
 	F fixture;
 	BOOST_REQUIRE_MESSAGE(fixture.renderer, "renderer unavailable: " << fixture.error);
-	RendererPtr const renderer = fixture.renderer;
+	std::shared_ptr<Renderer> const renderer = fixture.renderer;
 	BOOST_CHECK_THROW(FullscreenCopy(nullptr), std::invalid_argument);
 	FullscreenCopy copier(renderer);
-	TexturePtr const source = texture_of(renderer, 2, 2, [](int, int) { return Bgra{0, 0, 0, 255}; });
+	std::shared_ptr<Texture> const source = texture_of(renderer, 2, 2, [](int, int) { return Bgra{0, 0, 0, 255}; });
 	BOOST_CHECK_THROW(copier.draw(source), std::logic_error);
 	renderer->begin_frame();
 	BOOST_CHECK_THROW(copier.draw(source), std::logic_error);

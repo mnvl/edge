@@ -18,14 +18,14 @@
 namespace edge
 {
 
-DynamicMesh::DynamicMesh(RendererPtr const &renderer, MaterialPtr const &material, VertexTraits const *traits, bool uber):
+DynamicMesh::DynamicMesh(std::shared_ptr<Renderer> const &renderer, std::shared_ptr<Material> const &material, VertexTraits const *traits, bool uber):
 	renderer_(renderer),
 	traits_(traits)
 {
 	if (!renderer_ || !material || !traits_)
 		throw std::invalid_argument("DynamicMesh: a renderer, a material and the vertex's traits are needed");
 	vertex_size_ = traits_->size();
-	draw_call_ = uber ? DrawCallPtr(renderer_->create_uber_draw_call()) : renderer_->create_draw_call();
+	draw_call_ = uber ? std::shared_ptr<DrawCall>(renderer_->create_uber_draw_call()) : renderer_->create_draw_call();
 	draw_call_->set_material(material);
 	draw_call_->set_always_visible(true);
 }
@@ -59,7 +59,7 @@ void DynamicMesh::upload_indexed(void const *vertices, std::size_t count, std::s
 	{
 		index_capacity_ = std::max(index_bytes, format == index_format_ ? 2 * index_capacity_ : std::size_t(0));
 		index_format_ = format;
-		index_buffer_ = index_capacity_ ? renderer_->create_index_buffer(format, index_capacity_, BufferUsage::DYNAMIC) : IndexBufferPtr();
+		index_buffer_ = index_capacity_ ? renderer_->create_index_buffer(format, index_capacity_, BufferUsage::DYNAMIC) : std::shared_ptr<IndexBuffer>();
 		draw_call_->set_index_buffer(index_buffer_);
 	}
 	if (vertex_bytes)
@@ -78,7 +78,7 @@ void DynamicMesh::upload_indexed(void const *vertices, std::size_t count, std::s
 	draw_call_->set_triangles_count(triangles_);
 }
 
-void DynamicMesh::draw(Scheduler &scheduler, CameraPtr const &camera)
+void DynamicMesh::draw(Scheduler &scheduler, std::shared_ptr<Camera> const &camera)
 {
 	if (!triangles_)
 		return;

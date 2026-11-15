@@ -26,17 +26,17 @@ namespace
 
 std::shared_ptr<edge::ModelBuilder> make_model()
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
 
-	edge::SchedulerPtr scheduler(new edge::Scheduler(renderer));
+	std::shared_ptr<edge::Scheduler> scheduler(new edge::Scheduler(renderer));
 	return std::make_shared<edge::ModelBuilder>(renderer);
 }
 
 std::shared_ptr<edge::StaticModelPTBNT> make_static_model()
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
 
-	edge::SchedulerPtr scheduler(new edge::Scheduler(renderer));
+	std::shared_ptr<edge::Scheduler> scheduler(new edge::Scheduler(renderer));
 	return std::make_shared<edge::StaticModelPTBNT>(renderer);
 }
 
@@ -84,7 +84,7 @@ void check_mat4_close(rove::matrix<4,4> const &lhs, rove::matrix<4,4> const &rhs
 	}
 }
 
-void check_material_equal(edge::MaterialPtr const &lhs, edge::MaterialPtr const &rhs)
+void check_material_equal(std::shared_ptr<edge::Material> const &lhs, std::shared_ptr<edge::Material> const &rhs)
 {
 	BOOST_REQUIRE(lhs);
 	BOOST_REQUIRE(rhs);
@@ -106,7 +106,7 @@ void check_material_equal(edge::MaterialPtr const &lhs, edge::MaterialPtr const 
 	}
 }
 
-std::ptrdiff_t find_joint_index(edge::ModelBuilder const &model, edge::JointPtr const &joint_ptr)
+std::ptrdiff_t find_joint_index(edge::ModelBuilder const &model, std::shared_ptr<edge::Joint> const &joint_ptr)
 {
 	if (!joint_ptr)
 	{
@@ -123,7 +123,7 @@ std::ptrdiff_t find_joint_index(edge::ModelBuilder const &model, edge::JointPtr 
 	return -1;
 }
 
-std::ptrdiff_t find_mesh_index(edge::ModelBuilder const &model, edge::MeshPtr const &mesh_ptr)
+std::ptrdiff_t find_mesh_index(edge::ModelBuilder const &model, std::shared_ptr<edge::Mesh> const &mesh_ptr)
 {
 	if (!mesh_ptr)
 	{
@@ -192,7 +192,7 @@ void check_mesh_equal(edge::MeshBuilder const &lhs, edge::MeshBuilder const &rhs
 }
 
 void check_joint_equal(edge::ModelBuilder const &lhs_model, edge::ModelBuilder const &rhs_model,
-	edge::JointPtr const &lhs, edge::JointPtr const &rhs)
+	std::shared_ptr<edge::Joint> const &lhs, std::shared_ptr<edge::Joint> const &rhs)
 {
 	BOOST_REQUIRE(lhs);
 	BOOST_REQUIRE(rhs);
@@ -283,7 +283,7 @@ BOOST_AUTO_TEST_CASE(save_load_roundtrip_materials)
 BOOST_AUTO_TEST_CASE(a_morphed_mesh_comes_back_morphed_once)
 {
 	std::shared_ptr<edge::ModelBuilder> source = make_model();
-	edge::MeshBuilderPtr mesh = source->add_mesh_builder();
+	std::shared_ptr<edge::MeshBuilder> mesh = source->add_mesh_builder();
 	std::vector<edge::MeshBuilder::vertex_type> vertices(3);
 	std::memset(vertices.data(), 0, sizeof(vertices[0]) * vertices.size());
 	vertices[1].position.set(1.0f, 0.0f, 0.0f);

@@ -12,9 +12,9 @@ namespace edge
 namespace
 {
 
-std::vector<TexturePtr> textures(std::vector<std::shared_ptr<GLESTexture>> const &colors)
+std::vector<std::shared_ptr<Texture>> textures(std::vector<std::shared_ptr<GLESTexture>> const &colors)
 {
-	return std::vector<TexturePtr>(colors.begin(), colors.end());
+	return std::vector<std::shared_ptr<Texture>>(colors.begin(), colors.end());
 }
 
 /// Attaches layer @p layer of @p texture (-1: the texture as it is) at @p attachment of the bound framebuffer.
@@ -32,10 +32,10 @@ void attach(GLenum attachment, GLESTexture const &texture, int layer)
 
 struct GLESRenderTarget::DepthRenderbuffer
 {
-	GLESContextPtr context;
+	std::shared_ptr<GLESContext> context;
 	GLuint id = 0;
 
-	DepthRenderbuffer(GLESContextPtr const &gl, int width, int height):
+	DepthRenderbuffer(std::shared_ptr<GLESContext> const &gl, int width, int height):
 		context(gl)
 	{
 		context->make_current();
@@ -51,7 +51,7 @@ struct GLESRenderTarget::DepthRenderbuffer
 	}
 };
 
-GLESRenderTarget::GLESRenderTarget(GLESContextPtr const &context, int width, int height,
+GLESRenderTarget::GLESRenderTarget(std::shared_ptr<GLESContext> const &context, int width, int height,
 	std::vector<std::shared_ptr<GLESTexture>> const &colors, std::shared_ptr<GLESTexture> const &depth, int layer):
 	GLESRenderTarget(context, width, height, colors, depth, layer, nullptr)
 {
@@ -62,10 +62,10 @@ GLuint GLESRenderTarget::depth_renderbuffer() const
 	return depth_ ? depth_->id : 0;
 }
 
-GLESRenderTarget::GLESRenderTarget(GLESContextPtr const &context, int width, int height,
+GLESRenderTarget::GLESRenderTarget(std::shared_ptr<GLESContext> const &context, int width, int height,
 	std::vector<std::shared_ptr<GLESTexture>> const &colors, std::shared_ptr<GLESTexture> const &depth, int layer,
 	std::shared_ptr<DepthRenderbuffer> const &depth_renderbuffer):
-	RenderTarget(width, height, textures(colors), depth, TexturePtr(), layer),
+	RenderTarget(width, height, textures(colors), depth, std::shared_ptr<Texture>(), layer),
 	context_(context),
 	depth_(depth_renderbuffer)
 {
@@ -80,7 +80,7 @@ GLESRenderTarget::GLESRenderTarget(GLESContextPtr const &context, int width, int
 		// it first)
 		std::shared_ptr<DepthRenderbuffer> const shared = depth ? nullptr : std::make_shared<DepthRenderbuffer>(context, width, height);
 		for (int i = 0; i < layers(); ++i)
-			layer_targets_.push_back(RenderTargetPtr(new GLESRenderTarget(context, width, height, colors, depth, i, shared)));
+			layer_targets_.push_back(std::shared_ptr<RenderTarget>(new GLESRenderTarget(context, width, height, colors, depth, i, shared)));
 		return;
 	}
 	if (!depth && !depth_)

@@ -23,7 +23,7 @@ public:
     BasicAnimatedMesh(Model *model_ptr);
 	~BasicAnimatedMesh() override;
 
-	MeshPtr shallow_copy() const override;
+	std::shared_ptr<Mesh> shallow_copy() const override;
 
     BasicAnimatedModel<V> *model();
 
@@ -32,23 +32,23 @@ public:
 	/// What serialization_type() says of every mesh of this type.
 	static std::string class_serialization_type();
 
-    void draw(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod = 0) override;
+    void draw(Scheduler &scheduler, Joint *joint_ptr, std::shared_ptr<Camera> const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod = 0) override;
 	/// One instanced draw for each triangle group: every instance in the pose the model is in (a crowd in step, as a cached pose
 	/// shared by the instances of one prototype is).
-	void draw_instances(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
+	void draw_instances(Scheduler &scheduler, Joint *joint_ptr, std::shared_ptr<Camera> const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
 		unsigned lod = 0) override;
 	void set_vertices(GenericVertex *vertices, GenericVertex::format_type format, size_t count) override;
 
 	/// Every vertex skinned on the CPU as vertex_skin.glsl skins it, under
 	/// world_matrix; the owner joint does not move a skinned mesh.
-	rove::aabb<3> exact_bounds(std::vector<JointPtr> const &joints, Joint const &owner,
+	rove::aabb<3> exact_bounds(std::vector<std::shared_ptr<Joint>> const &joints, Joint const &owner,
 		rove::matrix<4,4> const &world_matrix) const override;
 
 	/// The box that holds the mesh in the pose its model was set to with Model::set_cached_pose() (posed_bounds()); in the pose its
 	/// model was posed in by hand (joints set and rebuilt, a clip's time set: Model::posed_by_hand()), AnimatedMeshCache::bounds_in its
 	/// palette (skin_matrices()), worked out once per pose; and otherwise in the bind pose and in every pose of its model's clips (see
 	/// pose_bounds()); through @p world_matrix.  For culling.
-	rove::obb<3> conservative_bounds(std::vector<JointPtr> const &joints, Joint const &owner,
+	rove::obb<3> conservative_bounds(std::vector<std::shared_ptr<Joint>> const &joints, Joint const &owner,
 		rove::matrix<4,4> const &world_matrix) const override;
 
 	/// The model-space box that holds the mesh in the bind pose and in every pose of its model's clips (any time from 0 to the last key):
@@ -76,10 +76,10 @@ public:
 	/// position, normal, tangent and binormal as vertex_skin.glsl blends them
 	/// (the normal-like ones renormalised); texcoords, joints and weights as
 	/// they are.  A vertex with no joint weight lands on the origin, as there.
-	std::vector<V> skinned_vertices(std::vector<JointPtr> const &joints) const;
+	std::vector<V> skinned_vertices(std::vector<std::shared_ptr<Joint>> const &joints) const;
 
 	/// The triangles of the skinned vertices: the pose draw() shows.
-	void insert_triangles(Mesh::octree_type &octree, int id, std::vector<JointPtr> const &joints,
+	void insert_triangles(Mesh::octree_type &octree, int id, std::vector<std::shared_ptr<Joint>> const &joints,
 		Joint const &owner, rove::matrix<4,4> const &world_matrix) const override;
 
 	/// The matrices draw() hands vertex_skin.glsl, one per skin joint.  For a model set to a cached pose (Model::set_cached_pose()) the
@@ -109,7 +109,7 @@ private:
 	/// The matrices draw() hands vertex_skin.glsl, one per skin joint:
 	/// joints[j]->matrix * inverted_bind_matrices[j] * bind_shape_matrix for
 	/// every j in joint_index_transform.
-	std::vector<rove::matrix<4,4>> skin_matrices(std::vector<JointPtr> const &joints) const;
+	std::vector<rove::matrix<4,4>> skin_matrices(std::vector<std::shared_ptr<Joint>> const &joints) const;
 
 	struct SkinnedVertex
 	{
@@ -118,7 +118,7 @@ private:
 
 	/// The base vertices where vertex_skin.glsl puts them (model space); a
 	/// vertex without any joint weight lands on the origin, as there.
-	std::vector<SkinnedVertex> skin(std::vector<JointPtr> const &joints) const;
+	std::vector<SkinnedVertex> skin(std::vector<std::shared_ptr<Joint>> const &joints) const;
 };
 
 using AnimatedMeshPNJWT = BasicAnimatedMesh<VERTEX_PNJWT>;

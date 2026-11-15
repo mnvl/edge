@@ -31,7 +31,7 @@ class Mesh: public std::enable_shared_from_this<Mesh> {
 public:
 	struct Triangles
 	{
-		MaterialPtr material_ptr;
+		std::shared_ptr<Material> material_ptr;
 		size_t minimal_vertex_index;
 		size_t vertices_count;
 		size_t first_index_offset;
@@ -111,19 +111,19 @@ public:
 	/// on that placement; `joints` are the model's joints.
 	///
 	/// The exact AABB of the placed vertices.  O(vertices).
-	virtual rove::aabb<3> exact_bounds(std::vector<JointPtr> const &joints, Joint const &owner,
+	virtual rove::aabb<3> exact_bounds(std::vector<std::shared_ptr<Joint>> const &joints, Joint const &owner,
 		rove::matrix<4,4> const &world_matrix) const = 0;
 
 	/// A box that encloses the placed mesh, cheap enough to cull with on every
 	/// draw; larger than the exact bounds, never smaller.
-	virtual rove::obb<3> conservative_bounds(std::vector<JointPtr> const &joints, Joint const &owner,
+	virtual rove::obb<3> conservative_bounds(std::vector<std::shared_ptr<Joint>> const &joints, Joint const &owner,
 		rove::matrix<4,4> const &world_matrix) const = 0;
 
 	/// Inserts the placed triangles into `octree` with payload `id`.
-	virtual void insert_triangles(octree_type &octree, int id, std::vector<JointPtr> const &joints,
+	virtual void insert_triangles(octree_type &octree, int id, std::vector<std::shared_ptr<Joint>> const &joints,
 		Joint const &owner, rove::matrix<4,4> const &world_matrix) const = 0;
 
-	virtual MeshPtr shallow_copy() const = 0;
+	virtual std::shared_ptr<Mesh> shallow_copy() const = 0;
 
 	void set_model(Model *model);
 	Model *model() const;
@@ -139,11 +139,11 @@ public:
 	virtual void check();
 
 	/// Submits the mesh's draw calls to @p scheduler for level of detail @p lod (a level past the last draws the last).
-	virtual void draw(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod = 0);
+	virtual void draw(Scheduler &scheduler, Joint *joint_ptr, std::shared_ptr<Camera> const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod = 0);
 	/// Submits the mesh's draw calls once for each of @p world_matrices, as draw() at each.  The static and skinned meshes make
 	/// instanced draws (DrawCall::instances); a mesh that does not (one of a game's own) is drawn by draw() at each, which is the
 	/// same picture.
-	virtual void draw_instances(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
+	virtual void draw_instances(Scheduler &scheduler, Joint *joint_ptr, std::shared_ptr<Camera> const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
 		unsigned lod = 0);
 
 	virtual std::string serialization_type() const;

@@ -30,10 +30,10 @@ class Scheduler;
 
 class Model: public std::enable_shared_from_this<Model> {
 public:
-	using joints_type = std::vector<JointPtr>;
-	using animations_type = std::vector<AnimationPtr>;
-	using meshes_type = std::vector<MeshPtr>;
-	using materials_type = std::vector<MaterialPtr>;
+	using joints_type = std::vector<std::shared_ptr<Joint>>;
+	using animations_type = std::vector<std::shared_ptr<Animation>>;
+	using meshes_type = std::vector<std::shared_ptr<Mesh>>;
+	using materials_type = std::vector<std::shared_ptr<Material>>;
 
 	/// What the model is made of, in the order it was loaded or built: joints (a joint's index is its place), meshes (each placed by a
 	/// joint), clips and materials.  The model changes them (load, add_joint, add_mesh, clear); the pointers give the parts to change.
@@ -44,7 +44,7 @@ public:
 
 	/// An empty model whose GPU buffers and textures live on @p renderer_ptr; it draws into any scheduler of that renderer (draw()).
 	/// Throws std::invalid_argument for a null @p renderer_ptr.
-	explicit Model(RendererPtr const &renderer_ptr);
+	explicit Model(std::shared_ptr<Renderer> const &renderer_ptr);
 
 	/// An instance of @p prototype: shallow copies of its meshes (sharing their GPU buffers), clones of its materials (sharing their
 	/// textures), deep copies of its joints, and copies of its animations that share their keyframes (Sampler).  Whatever a caller
@@ -60,7 +60,7 @@ public:
 	std::shared_ptr<Model const> const &prototype() const { return prototype_; }
 	virtual ~Model();
 
-	RendererPtr const &renderer() const { return renderer_; }
+	std::shared_ptr<Renderer> const &renderer() const { return renderer_; }
 
 	/// The exact world-space AABB of the meshes where draw(camera,
 	/// @p world_matrix) puts them under the joints' current matrices -- the
@@ -72,18 +72,18 @@ public:
 	virtual rove::aabb<3> bounds(rove::matrix<4,4> const &world_matrix) const;
 
 	/// (Both build the joints of a cached pose first: see ensure_joints().)
-	JointPtr joint_by_id(std::string const &name);
-	JointPtr joint_by_name(std::string const &name);
-	MeshPtr mesh_by_id(std::string const &id);
-	MeshPtr mesh_by_name(std::string const &name);
-	MaterialPtr material_by_name(std::string const &name);
+	std::shared_ptr<Joint> joint_by_id(std::string const &name);
+	std::shared_ptr<Joint> joint_by_name(std::string const &name);
+	std::shared_ptr<Mesh> mesh_by_id(std::string const &id);
+	std::shared_ptr<Mesh> mesh_by_name(std::string const &name);
+	std::shared_ptr<Material> material_by_name(std::string const &name);
 
 	/// Points every animation at this model, so Animation::pose()
 	/// rebuilds these joints.  Needs this model to be owned by a shared_ptr.
 	void bind_animations();
 
-	virtual JointPtr add_joint();
-	virtual MeshPtr add_mesh() = 0;
+	virtual std::shared_ptr<Joint> add_joint();
+	virtual std::shared_ptr<Mesh> add_mesh() = 0;
 	/// What serialization_type() says of the meshes add_mesh() makes: the type a .edge file's meshes must be of for this model.
 	virtual std::string mesh_serialization_type() const = 0;
 	virtual void clear();
@@ -177,7 +177,7 @@ public:
 	double animation_duration() const;
 
 	/// Sets @p program as the shader program on every material in the model.
-	void set_materials_shader_program(ShaderProgramPtr const &program);
+	void set_materials_shader_program(std::shared_ptr<ShaderProgram> const &program);
 
 	/// Resets the shader program to null on every material in the model.
 	void clear_materials_shader_program();
@@ -189,17 +189,17 @@ public:
 	/// draws its last, and a model with none draws itself).  The model keeps nothing of @p scheduler: it draws into as many as it is
 	/// given.  Throws std::invalid_argument for a scheduler of another renderer than the model's (or of one that is gone), and then
 	/// submits nothing.
-	virtual void draw(Scheduler &scheduler, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod = 0);
+	virtual void draw(Scheduler &scheduler, std::shared_ptr<Camera> const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod = 0);
 
 	/// The level of detail of a mesh given by whoever draws: asked for each mesh with the box that holds it placed by @p world_matrix, so that the
 	/// tiles of a ground are each drawn at the level their distance asks for.
 	using LodChooser = std::function<unsigned int (const Mesh &, const rove::obb<3> &)>;
-	virtual void draw(Scheduler &scheduler, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, LodChooser const &chooser);
+	virtual void draw(Scheduler &scheduler, std::shared_ptr<Camera> const &camera, rove::matrix<4,4> const &world_matrix, LodChooser const &chooser);
 
 	/// Submits the model once for each of @p world_matrices, as draw() at each but in one instanced draw for each triangle group (the
 	/// static and skinned meshes; Mesh::draw_instances), every instance in the model's pose and at level @p lod, each culled on its
 	/// own.  No world matrices draws nothing.  Refuses @p scheduler as draw() does.
-	virtual void draw_instances(Scheduler &scheduler, CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
+	virtual void draw_instances(Scheduler &scheduler, std::shared_ptr<Camera> const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
 		unsigned lod = 0);
 
 	/// The levels of detail the model has, level 0 included: the most any of its meshes has.
@@ -219,7 +219,7 @@ public:
 	octree_type build_octree(rove::matrix<4,4> const &world_matrix) const;
 
 protected:
-	RendererPtr const renderer_;
+	std::shared_ptr<Renderer> const renderer_;
 
 	joints_type joints_;
 	meshes_type meshes_;

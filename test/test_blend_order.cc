@@ -30,18 +30,18 @@ using namespace edge;
 namespace
 {
 
-CameraPtr view()
+std::shared_ptr<Camera> view()
 {
-	CameraPtr camera = std::make_shared<Camera>();
+	std::shared_ptr<Camera> camera = std::make_shared<Camera>();
 	camera->set_orthographic_projection(2.0f, 2.0f, 0.0f, 10.0f);
 	camera->look_at(rove::vec<3>(0, 0, 5), rove::vec<3>(0, 0, 0), rove::vec<3>(0, 1, 0));
 	return camera;
 }
 
 /// A square over the whole view at depth z, in `material`, its bounds where it is
-DrawCallPtr square(RendererPtr const &renderer, MaterialPtr const &material, CameraPtr const &camera, float z, int priority = 0)
+std::shared_ptr<DrawCall> square(std::shared_ptr<Renderer> const &renderer, std::shared_ptr<Material> const &material, std::shared_ptr<Camera> const &camera, float z, int priority = 0)
 {
-	VertexBufferPtr vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PTBNT>(), sizeof(VERTEX_PTBNT) * 4);
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PTBNT>(), sizeof(VERTEX_PTBNT) * 4);
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	VERTEX_PTBNT *v = vb_mapping.as<VERTEX_PTBNT>().data();
 	rove::vec<3> const corners[4] = {{-1, -1, z}, {1, -1, z}, {1, 1, z}, {-1, 1, z}};
@@ -54,13 +54,13 @@ DrawCallPtr square(RendererPtr const &renderer, MaterialPtr const &material, Cam
 		v[k].texcoords = rove::vec<2>(0, 0);
 	}
 	vb_mapping.unmap();
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
 	auto ib_mapping = ib->write(Contents::DISCARD);
 	INDEX_U16 *i = ib_mapping.as<INDEX_U16>().data();
 	INDEX_U16 const order[6] = {0, 1, 2, 0, 2, 3};
 	std::copy(order, order + 6, i);
 	ib_mapping.unmap();
-	DrawCallPtr dc = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> dc = renderer->create_draw_call();
 	dc->set_vertex_buffer(vb);
 	dc->set_index_buffer(ib);
 	dc->set_material(material);
@@ -72,9 +72,9 @@ DrawCallPtr square(RendererPtr const &renderer, MaterialPtr const &material, Cam
 	return dc;
 }
 
-MaterialPtr glass(RendererPtr const &renderer, rove::vec<4> const &colour)
+std::shared_ptr<Material> glass(std::shared_ptr<Renderer> const &renderer, rove::vec<4> const &colour)
 {
-	MaterialPtr m = renderer->create_material();
+	std::shared_ptr<Material> m = renderer->create_material();
 	m->set_cull_mode(Material::CullMode::NONE);
 	m->set_base_color_factor(colour);
 	m->set_alpha_blend_enabled(true);
@@ -84,9 +84,9 @@ MaterialPtr glass(RendererPtr const &renderer, rove::vec<4> const &colour)
 	return m;
 }
 
-MaterialPtr solid(RendererPtr const &renderer)
+std::shared_ptr<Material> solid(std::shared_ptr<Renderer> const &renderer)
 {
-	MaterialPtr m = renderer->create_material();
+	std::shared_ptr<Material> m = renderer->create_material();
 	m->set_cull_mode(Material::CullMode::NONE);
 	return m;
 }
@@ -111,9 +111,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(blended_squares_are_drawn_farthest_first_when_aske
 	F fixture;
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
-	CameraPtr const camera = view();
-	MaterialPtr const red = glass(renderer, rove::vec<4>(1, 0, 0, 0.5f)), green = glass(renderer, rove::vec<4>(0, 1, 0, 0.5f));
-	RenderTargetPtr const target = renderer->create_render_target(8, 8, PixelFormat::R32G32B32A32F);
+	std::shared_ptr<Camera> const camera = view();
+	std::shared_ptr<Material> const red = glass(renderer, rove::vec<4>(1, 0, 0, 0.5f)), green = glass(renderer, rove::vec<4>(0, 1, 0, 0.5f));
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(8, 8, PixelFormat::R32G32B32A32F);
 	auto const draw = [&](bool sort)
 	{
 		auto const scheduler = std::make_shared<Scheduler>(renderer);
@@ -143,9 +143,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(blended_squares_are_drawn_farthest_first_when_aske
 BOOST_AUTO_TEST_CASE(within_a_priority_the_opaque_go_first_in_their_order_then_the_blended_farthest_first)
 {
 	auto renderer = std::make_shared<OrderRenderer>();
-	CameraPtr const camera = view();
-	MaterialPtr const o1 = solid(renderer), o2 = solid(renderer), o3 = solid(renderer);
-	MaterialPtr const near = glass(renderer, rove::vec<4>(1, 1, 1, 0.5f)), middle = glass(renderer, rove::vec<4>(1, 1, 1, 0.5f)),
+	std::shared_ptr<Camera> const camera = view();
+	std::shared_ptr<Material> const o1 = solid(renderer), o2 = solid(renderer), o3 = solid(renderer);
+	std::shared_ptr<Material> const near = glass(renderer, rove::vec<4>(1, 1, 1, 0.5f)), middle = glass(renderer, rove::vec<4>(1, 1, 1, 0.5f)),
 		far = glass(renderer, rove::vec<4>(1, 1, 1, 0.5f)), later = glass(renderer, rove::vec<4>(1, 1, 1, 0.5f));
 	auto const scheduler = std::make_shared<Scheduler>(renderer);
 	scheduler->set_sort_blended(true);

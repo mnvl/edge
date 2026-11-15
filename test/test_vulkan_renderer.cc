@@ -44,7 +44,7 @@ BOOST_AUTO_TEST_CASE(vertex_buffer)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	VertexBufferPtr vb = renderer->create_vertex_buffer(
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(
 		VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 3);
 
 	BOOST_CHECK(vb);
@@ -72,7 +72,7 @@ BOOST_AUTO_TEST_CASE(index_buffer)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 3);
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 3);
 
 	BOOST_CHECK(ib);
 
@@ -95,7 +95,7 @@ BOOST_AUTO_TEST_CASE(texture)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	TexturePtr tex = renderer->create_texture(4, 4, PixelFormat::X8R8G8B8);
+	std::shared_ptr<Texture> tex = renderer->create_texture(4, 4, PixelFormat::X8R8G8B8);
 
 	BOOST_CHECK(tex);
 	BOOST_CHECK_EQUAL(tex->width(), 4);
@@ -117,7 +117,7 @@ BOOST_AUTO_TEST_CASE(material)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	MaterialPtr mat = renderer->create_material();
+	std::shared_ptr<Material> mat = renderer->create_material();
 
 	BOOST_CHECK(mat);
 
@@ -135,11 +135,11 @@ BOOST_AUTO_TEST_CASE(draw_call)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	VertexBufferPtr vb = renderer->create_vertex_buffer(
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(
 		VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 3);
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 3);
-	MaterialPtr mat = renderer->create_material();
-	TexturePtr tex = renderer->create_texture(2, 2, PixelFormat::X8R8G8B8);
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 3);
+	std::shared_ptr<Material> mat = renderer->create_material();
+	std::shared_ptr<Texture> tex = renderer->create_texture(2, 2, PixelFormat::X8R8G8B8);
 
 	{
 		auto vb_mapping = vb->write(Contents::DISCARD);
@@ -166,14 +166,14 @@ BOOST_AUTO_TEST_CASE(draw_call)
 
 	mat->set_diffuse_texture(tex);
 
-	CameraPtr camera(new Camera());
+	std::shared_ptr<Camera> camera(new Camera());
 	camera->set_perspective_projection(1.0f, 800.0f / 600.0f, 0.1f, 100.0f);
 	camera->look_at(
 		rove::vec<3>(0, 0, -5),
 		rove::vec<3>(0, 0, 0),
 		rove::vec<3>(0, 1, 0));
 
-	DrawCallPtr dc = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> dc = renderer->create_draw_call();
 	dc->set_vertex_buffer(vb);
 	dc->set_index_buffer(ib);
 	dc->set_material(mat);
@@ -193,11 +193,11 @@ BOOST_AUTO_TEST_CASE(uber_draw_call)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	VertexBufferPtr vb = renderer->create_vertex_buffer(
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(
 		VertexTraits::of<VERTEX_PNT>(), sizeof(VERTEX_PNT) * 3);
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 3);
-	MaterialPtr mat = renderer->create_material();
-	TexturePtr tex = renderer->create_texture(2, 2, PixelFormat::X8R8G8B8);
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 3);
+	std::shared_ptr<Material> mat = renderer->create_material();
+	std::shared_ptr<Texture> tex = renderer->create_texture(2, 2, PixelFormat::X8R8G8B8);
 
 	{
 		auto vb_mapping = vb->write(Contents::DISCARD);
@@ -224,14 +224,14 @@ BOOST_AUTO_TEST_CASE(uber_draw_call)
 
 	mat->set_diffuse_texture(tex);
 
-	CameraPtr camera(new Camera());
+	std::shared_ptr<Camera> camera(new Camera());
 	camera->set_perspective_projection(1.0f, 800.0f / 600.0f, 0.1f, 100.0f);
 	camera->look_at(
 		rove::vec<3>(0, 0, -5),
 		rove::vec<3>(0, 0, 0),
 		rove::vec<3>(0, 1, 0));
 
-	UberDrawCallPtr dc = renderer->create_uber_draw_call();
+	std::shared_ptr<UberDrawCall> dc = renderer->create_uber_draw_call();
 	BOOST_CHECK(dc);
 	dc->set_vertex_buffer(vb);
 	dc->set_index_buffer(ib);
@@ -252,17 +252,17 @@ BOOST_AUTO_TEST_CASE(offscreen_render_target)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	RenderTargetPtr offscreen = renderer->create_render_target(256, 256, PixelFormat::X8R8G8B8);
+	std::shared_ptr<RenderTarget> offscreen = renderer->create_render_target(256, 256, PixelFormat::X8R8G8B8);
 	BOOST_REQUIRE(offscreen);
-	TexturePtr offscreen_texture = offscreen->color_texture();
+	std::shared_ptr<Texture> offscreen_texture = offscreen->color_texture();
 	BOOST_REQUIRE(offscreen_texture);
 
-	VertexBufferPtr vb = renderer->create_vertex_buffer(
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(
 		VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 3);
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 3);
-	MaterialPtr write_material = renderer->create_material();
-	MaterialPtr sample_material = renderer->create_material();
-	TexturePtr source_texture = renderer->create_texture(2, 2, PixelFormat::X8R8G8B8);
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 3);
+	std::shared_ptr<Material> write_material = renderer->create_material();
+	std::shared_ptr<Material> sample_material = renderer->create_material();
+	std::shared_ptr<Texture> source_texture = renderer->create_texture(2, 2, PixelFormat::X8R8G8B8);
 
 	{
 		auto vb_mapping = vb->write(Contents::DISCARD);
@@ -290,14 +290,14 @@ BOOST_AUTO_TEST_CASE(offscreen_render_target)
 	write_material->set_diffuse_texture(source_texture);
 	sample_material->set_diffuse_texture(offscreen_texture);
 
-	CameraPtr camera(new Camera());
+	std::shared_ptr<Camera> camera(new Camera());
 	camera->set_perspective_projection(1.0f, 800.0f / 600.0f, 0.1f, 100.0f);
 	camera->look_at(
 		rove::vec<3>(0, 0, -5),
 		rove::vec<3>(0, 0, 0),
 		rove::vec<3>(0, 1, 0));
 
-	DrawCallPtr draw_to_offscreen = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> draw_to_offscreen = renderer->create_draw_call();
 	draw_to_offscreen->set_vertex_buffer(vb);
 	draw_to_offscreen->set_index_buffer(ib);
 	draw_to_offscreen->set_material(write_material);
@@ -306,7 +306,7 @@ BOOST_AUTO_TEST_CASE(offscreen_render_target)
 	draw_to_offscreen->set_always_visible(true);
 	draw_to_offscreen->commit();
 
-	DrawCallPtr draw_to_backbuffer = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> draw_to_backbuffer = renderer->create_draw_call();
 	draw_to_backbuffer->set_vertex_buffer(vb);
 	draw_to_backbuffer->set_index_buffer(ib);
 	draw_to_backbuffer->set_material(sample_material);
@@ -329,9 +329,9 @@ BOOST_AUTO_TEST_CASE(offscreen_render_target_readback)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	RenderTargetPtr offscreen = renderer->create_render_target(64, 64, PixelFormat::X8R8G8B8);
+	std::shared_ptr<RenderTarget> offscreen = renderer->create_render_target(64, 64, PixelFormat::X8R8G8B8);
 	BOOST_REQUIRE(offscreen);
-	TexturePtr offscreen_texture = offscreen->color_texture();
+	std::shared_ptr<Texture> offscreen_texture = offscreen->color_texture();
 	BOOST_REQUIRE(offscreen_texture);
 
 	RenderPassClearState clear_state;
@@ -369,13 +369,13 @@ BOOST_AUTO_TEST_CASE(offscreen_float_render_target_readback)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	RenderTargetPtr offscreen16 = renderer->create_render_target(32, 32, PixelFormat::R16G16B16A16F);
-	RenderTargetPtr offscreen32 = renderer->create_render_target(32, 32, PixelFormat::R32G32B32A32F);
+	std::shared_ptr<RenderTarget> offscreen16 = renderer->create_render_target(32, 32, PixelFormat::R16G16B16A16F);
+	std::shared_ptr<RenderTarget> offscreen32 = renderer->create_render_target(32, 32, PixelFormat::R32G32B32A32F);
 	BOOST_REQUIRE(offscreen16);
 	BOOST_REQUIRE(offscreen32);
 
-	TexturePtr offscreen_texture16 = offscreen16->color_texture();
-	TexturePtr offscreen_texture32 = offscreen32->color_texture();
+	std::shared_ptr<Texture> offscreen_texture16 = offscreen16->color_texture();
+	std::shared_ptr<Texture> offscreen_texture32 = offscreen32->color_texture();
 	BOOST_REQUIRE(offscreen_texture16);
 	BOOST_REQUIRE(offscreen_texture32);
 
@@ -434,24 +434,24 @@ BOOST_AUTO_TEST_CASE(multi_target_reuse_geometry)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 
-	RenderTargetPtr offscreen_a = renderer->create_render_target(256, 256, PixelFormat::X8R8G8B8);
-	RenderTargetPtr offscreen_b = renderer->create_render_target(256, 256, PixelFormat::X8R8G8B8);
+	std::shared_ptr<RenderTarget> offscreen_a = renderer->create_render_target(256, 256, PixelFormat::X8R8G8B8);
+	std::shared_ptr<RenderTarget> offscreen_b = renderer->create_render_target(256, 256, PixelFormat::X8R8G8B8);
 	BOOST_REQUIRE(offscreen_a);
 	BOOST_REQUIRE(offscreen_b);
-	TexturePtr offscreen_texture_a = offscreen_a->color_texture();
-	TexturePtr offscreen_texture_b = offscreen_b->color_texture();
+	std::shared_ptr<Texture> offscreen_texture_a = offscreen_a->color_texture();
+	std::shared_ptr<Texture> offscreen_texture_b = offscreen_b->color_texture();
 	BOOST_REQUIRE(offscreen_texture_a);
 	BOOST_REQUIRE(offscreen_texture_b);
 
-	VertexBufferPtr vb = renderer->create_vertex_buffer(
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(
 		VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 3);
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 3);
-	TexturePtr src_tex_a = renderer->create_texture(2, 2, PixelFormat::X8R8G8B8);
-	TexturePtr src_tex_b = renderer->create_texture(2, 2, PixelFormat::X8R8G8B8);
-	MaterialPtr write_mat_a = renderer->create_material();
-	MaterialPtr write_mat_b = renderer->create_material();
-	MaterialPtr sample_mat_a = renderer->create_material();
-	MaterialPtr sample_mat_b = renderer->create_material();
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 3);
+	std::shared_ptr<Texture> src_tex_a = renderer->create_texture(2, 2, PixelFormat::X8R8G8B8);
+	std::shared_ptr<Texture> src_tex_b = renderer->create_texture(2, 2, PixelFormat::X8R8G8B8);
+	std::shared_ptr<Material> write_mat_a = renderer->create_material();
+	std::shared_ptr<Material> write_mat_b = renderer->create_material();
+	std::shared_ptr<Material> sample_mat_a = renderer->create_material();
+	std::shared_ptr<Material> sample_mat_b = renderer->create_material();
 
 	{
 		auto vb_mapping = vb->write(Contents::DISCARD);
@@ -490,14 +490,14 @@ BOOST_AUTO_TEST_CASE(multi_target_reuse_geometry)
 	sample_mat_a->set_diffuse_texture(offscreen_texture_a);
 	sample_mat_b->set_diffuse_texture(offscreen_texture_b);
 
-	CameraPtr camera(new Camera());
+	std::shared_ptr<Camera> camera(new Camera());
 	camera->set_perspective_projection(1.0f, 800.0f / 600.0f, 0.1f, 100.0f);
 	camera->look_at(
 		rove::vec<3>(0, 0, -5),
 		rove::vec<3>(0, 0, 0),
 		rove::vec<3>(0, 1, 0));
 
-	DrawCallPtr write_a = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> write_a = renderer->create_draw_call();
 	write_a->set_vertex_buffer(vb);
 	write_a->set_index_buffer(ib);
 	write_a->set_material(write_mat_a);
@@ -506,7 +506,7 @@ BOOST_AUTO_TEST_CASE(multi_target_reuse_geometry)
 	write_a->set_always_visible(true);
 	write_a->commit();
 
-	DrawCallPtr write_b = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> write_b = renderer->create_draw_call();
 	write_b->set_vertex_buffer(vb);
 	write_b->set_index_buffer(ib);
 	write_b->set_material(write_mat_b);
@@ -515,7 +515,7 @@ BOOST_AUTO_TEST_CASE(multi_target_reuse_geometry)
 	write_b->set_always_visible(true);
 	write_b->commit();
 
-	DrawCallPtr sample_a = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> sample_a = renderer->create_draw_call();
 	sample_a->set_vertex_buffer(vb);
 	sample_a->set_index_buffer(ib);
 	sample_a->set_material(sample_mat_a);
@@ -524,7 +524,7 @@ BOOST_AUTO_TEST_CASE(multi_target_reuse_geometry)
 	sample_a->set_always_visible(true);
 	sample_a->commit();
 
-	DrawCallPtr sample_b = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> sample_b = renderer->create_draw_call();
 	sample_b->set_vertex_buffer(vb);
 	sample_b->set_index_buffer(ib);
 	sample_b->set_material(sample_mat_b);
@@ -589,7 +589,7 @@ BOOST_AUTO_TEST_CASE(the_default_target_has_the_renderers_size)
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 	BOOST_CHECK_EQUAL(renderer->default_render_target()->width(), 800);
 	renderer->resize(320, 200);
-	RenderTargetPtr const target = renderer->default_render_target();
+	std::shared_ptr<RenderTarget> const target = renderer->default_render_target();
 	BOOST_CHECK_EQUAL(target->width(), 320);
 	BOOST_CHECK_EQUAL(target->height(), 200);
 	BOOST_CHECK(renderer->default_render_target() == target);

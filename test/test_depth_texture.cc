@@ -41,10 +41,10 @@ struct Rgba
 
 /// A quad across the whole width of an orthographic view (eye at z = 1 looking down -z, near 0, far 2: the depth is half the distance from
 /// the eye), `half_height` clip units above and below the middle, its z going from `z_left` at the left edge to `z_right` at the right.
-DrawCallPtr quad(RendererPtr const &renderer, MaterialPtr const &material, CameraPtr const &camera, float half_height, float z_left,
+std::shared_ptr<DrawCall> quad(std::shared_ptr<Renderer> const &renderer, std::shared_ptr<Material> const &material, std::shared_ptr<Camera> const &camera, float half_height, float z_left,
 	float z_right)
 {
-	VertexBufferPtr vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	VERTEX_PT *v = vb_mapping.as<VERTEX_PT>().data();
 	BOOST_REQUIRE(v);
@@ -55,13 +55,13 @@ DrawCallPtr quad(RendererPtr const &renderer, MaterialPtr const &material, Camer
 	for (int k = 0; k < 4; ++k)
 		v[k].texcoords = rove::vec<2>(0.5f, 0.5f);
 	vb_mapping.unmap();
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
 	auto ib_mapping = ib->write(Contents::DISCARD);
 	INDEX_U16 *idx = ib_mapping.as<INDEX_U16>().data();
 	BOOST_REQUIRE(idx);
 	idx[0] = 0; idx[1] = 1; idx[2] = 2; idx[3] = 0; idx[4] = 2; idx[5] = 3;
 	ib_mapping.unmap();
-	DrawCallPtr draw_call = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> draw_call = renderer->create_draw_call();
 	draw_call->set_vertex_buffer(vb);
 	draw_call->set_index_buffer(ib);
 	draw_call->set_material(material);
@@ -72,17 +72,17 @@ DrawCallPtr quad(RendererPtr const &renderer, MaterialPtr const &material, Camer
 	return draw_call;
 }
 
-CameraPtr view()
+std::shared_ptr<Camera> view()
 {
-	CameraPtr camera(new Camera());
+	std::shared_ptr<Camera> camera(new Camera());
 	camera->set_orthographic_projection(2.0f, 2.0f, 0.0f, 2.0f);
 	camera->look_at(rove::vec<3>(0, 0, 1), rove::vec<3>(0, 0, 0), rove::vec<3>(0, 1, 0));
 	return camera;
 }
 
-MaterialPtr material(RendererPtr const &renderer, std::string const &fragment)
+std::shared_ptr<Material> material(std::shared_ptr<Renderer> const &renderer, std::string const &fragment)
 {
-	MaterialPtr m = renderer->create_material();
+	std::shared_ptr<Material> m = renderer->create_material();
 	m->set_cull_mode(Material::CullMode::NONE);
 	m->set_shader_program(renderer->create_shader_program(edge::test_shader("test_frame.vert"), fragment));
 	return m;
@@ -92,13 +92,13 @@ MaterialPtr material(RendererPtr const &renderer, std::string const &fragment)
 /// `copy` (a pass that covers it all); returns what the copy holds after the last frame.
 struct DepthReader
 {
-	RendererPtr renderer;
-	CameraPtr camera = view();
-	RenderTargetPtr scene, copy;
-	MaterialPtr flat, reader;
-	DrawCallPtr cover;
+	std::shared_ptr<Renderer> renderer;
+	std::shared_ptr<Camera> camera = view();
+	std::shared_ptr<RenderTarget> scene, copy;
+	std::shared_ptr<Material> flat, reader;
+	std::shared_ptr<DrawCall> cover;
 
-	explicit DepthReader(RendererPtr const &r):
+	explicit DepthReader(std::shared_ptr<Renderer> const &r):
 		renderer(r),
 		scene(r->create_render_target(SIZE, SIZE, PixelFormat::R32G32B32A32F, true)),
 		copy(r->create_render_target(SIZE, SIZE, PixelFormat::R32G32B32A32F)),
@@ -110,7 +110,7 @@ struct DepthReader
 		cover = quad(r, reader, camera, 1.0f, 0.0f, 0.0f);
 	}
 
-	std::vector<float> frame(DrawCallPtr const &drawn, float clear_depth = 1.0f)
+	std::vector<float> frame(std::shared_ptr<DrawCall> const &drawn, float clear_depth = 1.0f)
 	{
 		RenderPassClearState clear;
 		clear.clear_depth_value = clear_depth;
@@ -125,7 +125,7 @@ struct DepthReader
 		renderer->end_pass();
 		renderer->finish_frame();
 
-		TexturePtr color = copy->color_texture();
+		std::shared_ptr<Texture> color = copy->color_texture();
 		color->download();
 		auto color_mapping = color->read();
 		Rgba const *pixels = color_mapping.as<Rgba const>().data();
@@ -155,10 +155,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(only_a_target_asked_for_one_has_a_depth_texture_of
 	F fixture;
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
-	RenderTargetPtr const plain = renderer->create_render_target(40, 24, PixelFormat::R16G16B16A16F);
+	std::shared_ptr<RenderTarget> const plain = renderer->create_render_target(40, 24, PixelFormat::R16G16B16A16F);
 	BOOST_CHECK(!plain->depth_texture());
-	RenderTargetPtr const readable = renderer->create_render_target(40, 24, PixelFormat::R16G16B16A16F, true);
-	TexturePtr const depth = readable->depth_texture();
+	std::shared_ptr<RenderTarget> const readable = renderer->create_render_target(40, 24, PixelFormat::R16G16B16A16F, true);
+	std::shared_ptr<Texture> const depth = readable->depth_texture();
 	BOOST_REQUIRE(depth);
 	BOOST_CHECK_EQUAL(depth->width(), 40);
 	BOOST_CHECK_EQUAL(depth->height(), 24);
@@ -233,13 +233,13 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_shadow_texture_compares_a_depth_with_the_one_sto
 	F fixture;
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
-	CameraPtr const camera = view();
-	RenderTargetPtr const scene = renderer->create_render_target(SIZE, SIZE, PixelFormat::R32G32B32A32F, true);
-	RenderTargetPtr const copy = renderer->create_render_target(SIZE, SIZE, PixelFormat::R32G32B32A32F);
-	MaterialPtr const flat = material(renderer, edge::test_shader("test_sample.frag"));
-	MaterialPtr const compare = material(renderer, edge::test_shader("test_shadow_compare.frag"));
-	DrawCallPtr const drawn = quad(renderer, flat, camera, 0.5f, 0.2f, 0.2f);
-	DrawCallPtr const cover = quad(renderer, compare, camera, 1.0f, 0.0f, 0.0f);
+	std::shared_ptr<Camera> const camera = view();
+	std::shared_ptr<RenderTarget> const scene = renderer->create_render_target(SIZE, SIZE, PixelFormat::R32G32B32A32F, true);
+	std::shared_ptr<RenderTarget> const copy = renderer->create_render_target(SIZE, SIZE, PixelFormat::R32G32B32A32F);
+	std::shared_ptr<Material> const flat = material(renderer, edge::test_shader("test_sample.frag"));
+	std::shared_ptr<Material> const compare = material(renderer, edge::test_shader("test_shadow_compare.frag"));
+	std::shared_ptr<DrawCall> const drawn = quad(renderer, flat, camera, 0.5f, 0.2f, 0.2f);
+	std::shared_ptr<DrawCall> const cover = quad(renderer, compare, camera, 1.0f, 0.0f, 0.0f);
 	renderer->set_global_shadow_texture(0, scene->depth_texture());
 
 	auto const lit = [&](float reference)
@@ -273,19 +273,19 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_shadow_texture_is_a_readable_depth_set_between_f
 	F fixture;
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
-	RenderTargetPtr const target = renderer->create_render_target(16, 16, PixelFormat::R32G32B32A32F, true);
-	TexturePtr const depth = target->depth_texture();
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(16, 16, PixelFormat::R32G32B32A32F, true);
+	std::shared_ptr<Texture> const depth = target->depth_texture();
 	BOOST_REQUIRE(depth);
 	BOOST_CHECK(depth->is_depth());
 	BOOST_CHECK(!target->color_texture()->is_depth());
 	BOOST_CHECK_THROW(renderer->set_global_shadow_texture(0, target->color_texture()), std::invalid_argument);
-	BOOST_CHECK_THROW(renderer->set_global_shadow_texture(0, TexturePtr()), std::invalid_argument);
+	BOOST_CHECK_THROW(renderer->set_global_shadow_texture(0, std::shared_ptr<Texture>()), std::invalid_argument);
 	BOOST_CHECK_THROW(renderer->set_global_shadow_texture(Renderer::GLOBAL_TEXTURES_COUNT, depth), std::out_of_range);
 	renderer->set_global_shadow_texture(Renderer::GLOBAL_TEXTURES_COUNT - 1, depth);
 	renderer->begin_frame();
 	BOOST_CHECK_THROW(renderer->set_global_shadow_texture(0, depth), std::logic_error);
 	renderer->finish_frame();
-	renderer->set_global_texture(Renderer::GLOBAL_TEXTURES_COUNT - 1, TexturePtr());       // and plain again
+	renderer->set_global_texture(Renderer::GLOBAL_TEXTURES_COUNT - 1, std::shared_ptr<Texture>());       // and plain again
 }
 
 BOOST_AUTO_TEST_SUITE_END()

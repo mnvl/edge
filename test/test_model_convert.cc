@@ -40,8 +40,8 @@ std::string asset(std::string const &name)
 
 struct Fixture
 {
-	edge::RendererPtr renderer = [] { edge::RendererPtr r(new edge::NullRenderer(320, 200)); return r; }();
-	edge::SchedulerPtr scheduler = std::make_shared<edge::Scheduler>(renderer);
+	std::shared_ptr<edge::Renderer> renderer = [] { std::shared_ptr<edge::Renderer> r(new edge::NullRenderer(320, 200)); return r; }();
+	std::shared_ptr<edge::Scheduler> scheduler = std::make_shared<edge::Scheduler>(renderer);
 	std::filesystem::path const dir = edge::unique_temp_directory("edge_model_convert_");
 
 
@@ -168,7 +168,7 @@ BOOST_AUTO_TEST_CASE(the_options_decide_how_the_textures_are_made)
 	model->load_from_file(out("pbr.edge"));
 	// colour is sRGB, data (normals, metallic-roughness) linear, and every one has its mip chain: each texture, not some
 	size_t colour = 0, data = 0;
-	auto check = [](edge::TexturePtr const &t, bool srgb, std::string const &what) {
+	auto check = [](std::shared_ptr<edge::Texture> const &t, bool srgb, std::string const &what) {
 		BOOST_CHECK_MESSAGE(t->is_srgb() == srgb, what << (srgb ? " is not sRGB" : " is sRGB"));
 		BOOST_CHECK_MESSAGE(t->usage().mipmaps && t->mip_levels() > 1, what << " has no mip chain");
 	};
@@ -196,7 +196,7 @@ BOOST_AUTO_TEST_CASE(the_textures_are_BC7_with_their_whole_mip_chain_unless_aske
 	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	model->load_from_file(out("pbr.edge"));
 	size_t colour = 0, data = 0;
-	auto check = [](edge::TexturePtr const &t, bool srgb, std::string const &what) {
+	auto check = [](std::shared_ptr<edge::Texture> const &t, bool srgb, std::string const &what) {
 		BOOST_CHECK_MESSAGE(t->pixel_format() == edge::PixelFormat::BC7, what << " is not BC7");
 		int full = 1;
 		for (int side = std::max(t->width(), t->height()); side > 1; side /= 2)
@@ -267,7 +267,7 @@ BOOST_AUTO_TEST_CASE(with_astc_the_textures_are_astc_of_their_use_s_block_with_t
 	edge::convert_gltf_to_edge(asset("test_gltf_loader_pbr.glb"), out("pbr_astc.edge"), game, edge::LodOptions(), 0, phone);
 	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	model->load_from_file(out("pbr_astc.edge"));
-	auto check = [](edge::TexturePtr const &t, std::set<edge::PixelFormat> const &blocks, std::string const &what) {
+	auto check = [](std::shared_ptr<edge::Texture> const &t, std::set<edge::PixelFormat> const &blocks, std::string const &what) {
 		BOOST_CHECK_MESSAGE(blocks.count(t->pixel_format()), what << " is of pixel format " << t->pixel_format());
 		int full = 1;
 		for (int side = std::max(t->width(), t->height()); side > 1; side /= 2)
@@ -366,7 +366,7 @@ BOOST_AUTO_TEST_CASE(an_atlas_puts_the_textures_of_the_materials_in_one_set_and_
 	auto distinct_diffuse = [&](std::string const &file) {
 		auto model = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer);
 		model->load_from_file(file);
-		std::set<edge::TexturePtr> diffuse;
+		std::set<std::shared_ptr<edge::Texture>> diffuse;
 		for (auto const &m : model->materials())
 			for (size_t i = 0; i < m->diffuse_textures_count(); ++i)
 				if (auto const t = m->diffuse_texture(i))
@@ -381,7 +381,7 @@ BOOST_AUTO_TEST_CASE(an_atlas_puts_the_textures_of_the_materials_in_one_set_and_
 	// the shoes tile their texture, and keep it; the other eight textured materials have the atlas
 	BOOST_CHECK_EQUAL(atlas.size(), 2u);
 	size_t big = 0;
-	for (edge::TexturePtr const &t : atlas)
+	for (std::shared_ptr<edge::Texture> const &t : atlas)
 		big += t->width() == 1024 || t->width() == 512;
 	BOOST_CHECK_GE(big, 1u);
 }

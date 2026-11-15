@@ -107,15 +107,15 @@ public:
 	std::string const &filename() const { return filename_; }
 	void set_filename(std::string const &filename) { filename_ = filename; }
 
-	static TexturePtr load_from_file(RendererPtr const &renderer, std::string const &filename,
+	static std::shared_ptr<Texture> load_from_file(std::shared_ptr<Renderer> const &renderer, std::string const &filename,
 		bool compress = true, TextureUsage const &usage = TextureUsage());
-	static TexturePtr load_from_memory(RendererPtr const &renderer, void const *data, size_t size,
+	static std::shared_ptr<Texture> load_from_memory(std::shared_ptr<Renderer> const &renderer, void const *data, size_t size,
 		bool compress = true, TextureUsage const &usage = TextureUsage());
 	/// A DDS file's texture as it is: BC1, BC3, BC5 or BC7 (DXGI or FourCC
 	/// header) with every mip level it holds.  sRGB when the file says so or
 	/// @p usage asks for it (never for BC5).  std::runtime_error for any other
 	/// format, a cube, or a size that does not add up.
-	static TexturePtr load_dds(RendererPtr const &renderer, void const *data, size_t size,
+	static std::shared_ptr<Texture> load_dds(std::shared_ptr<Renderer> const &renderer, void const *data, size_t size,
 		TextureUsage const &usage = TextureUsage());
 	/// A DDS file with an array of N > 1 layers loads as an array texture
 	/// (TextureUsage::array_layers N) of every layer and level it holds.
@@ -124,7 +124,7 @@ public:
 	/// with the first in size, format, sRGB and levels; std::runtime_error
 	/// naming the first that does not ("file 2: ..."), or one that is an
 	/// array, short, or not a DDS file; and for no files at all.
-	static TexturePtr load_dds_array(RendererPtr const &renderer, std::vector<std::span<std::byte const>> const &files,
+	static std::shared_ptr<Texture> load_dds_array(std::shared_ptr<Renderer> const &renderer, std::vector<std::span<std::byte const>> const &files,
 		TextureUsage const &usage = TextureUsage());
 	/// Whether these bytes start like a DDS file.
 	static bool is_dds(void const *data, size_t size);
@@ -134,7 +134,7 @@ public:
 	static size_t levels_size(int width, int height, PixelFormat pixel_format, int levels);
 
 	// Supports BMP and PNG formats (extension-based).
-	static void save_to_file(TexturePtr const &texture, std::string const &filename);
+	static void save_to_file(Texture const &texture, std::string const &filename);
 
 	/// The renderer the texture was made by, where the backend says (null where not), to tell whether a draw may use it: only compared.
 	void const *owner() const { return owner_; }

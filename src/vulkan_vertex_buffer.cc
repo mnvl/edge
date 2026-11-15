@@ -18,7 +18,7 @@ namespace
 
 }
 
-VulkanVertexBuffer::VulkanVertexBuffer(VulkanRendererPtr const &renderer, size_t size, VertexTraits const *traits):
+VulkanVertexBuffer::VulkanVertexBuffer(std::shared_ptr<VulkanRenderer> const &renderer, size_t size, VertexTraits const *traits):
 	context_(renderer->device_context()),
 	buffer_(VK_NULL_HANDLE),
 	memory_(VK_NULL_HANDLE),

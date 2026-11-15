@@ -23,9 +23,9 @@ namespace
 
 std::shared_ptr<edge::AnimatedModelPTBNJWT> make_model()
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
 
-	edge::SchedulerPtr scheduler(new edge::Scheduler(renderer));
+	std::shared_ptr<edge::Scheduler> scheduler(new edge::Scheduler(renderer));
 	return std::make_shared<edge::AnimatedModelPTBNJWT>(renderer);
 }
 
@@ -125,7 +125,7 @@ BOOST_AUTO_TEST_CASE(figure_load_and_inspect)
 	// --- Print some joint info ---
 	for (std::size_t i = 0; i < std::min(model->joints().size(), (std::size_t)10); ++i)
 	{
-		edge::JointPtr const &j = model->joints()[i];
+		std::shared_ptr<edge::Joint> const &j = model->joints()[i];
 		std::string parent_info = j->parent.lock() ? j->parent.lock()->name : "(root)";
 		bool has_mesh = !j->mesh.expired();
 		BOOST_TEST_MESSAGE("joint[" << i << "] '" << j->name << "' parent='" << parent_info

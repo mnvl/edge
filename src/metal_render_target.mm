@@ -12,23 +12,23 @@ namespace edge
 namespace
 {
 
-std::vector<TexturePtr> textures(std::vector<std::shared_ptr<MetalTexture>> const &colors)
+std::vector<std::shared_ptr<Texture>> textures(std::vector<std::shared_ptr<MetalTexture>> const &colors)
 {
-	return std::vector<TexturePtr>(colors.begin(), colors.end());
+	return std::vector<std::shared_ptr<Texture>>(colors.begin(), colors.end());
 }
 
 }
 
-MetalRenderTarget::MetalRenderTarget(MetalContextPtr const &context, int width, int height,
+MetalRenderTarget::MetalRenderTarget(std::shared_ptr<MetalContext> const &context, int width, int height,
 	std::vector<std::shared_ptr<MetalTexture>> const &colors, std::shared_ptr<MetalTexture> const &depth, int layer):
 	MetalRenderTarget(context, width, height, colors, depth, layer, nullptr)
 {
 }
 
-MetalRenderTarget::MetalRenderTarget(MetalContextPtr const &context, int width, int height,
+MetalRenderTarget::MetalRenderTarget(std::shared_ptr<MetalContext> const &context, int width, int height,
 	std::vector<std::shared_ptr<MetalTexture>> const &colors, std::shared_ptr<MetalTexture> const &depth, int layer,
 	std::shared_ptr<MetalTexture> const &own_depth):
-	RenderTarget(width, height, textures(colors), depth, TexturePtr(), layer),
+	RenderTarget(width, height, textures(colors), depth, std::shared_ptr<Texture>(), layer),
 	context_(context),
 	colors_(colors),
 	pass_depth_(depth ? depth : own_depth)
@@ -44,7 +44,7 @@ MetalRenderTarget::MetalRenderTarget(MetalContextPtr const &context, int width, 
 		std::shared_ptr<MetalTexture> const shared = depth ? nullptr
 			: std::make_shared<MetalTexture>(context, width, height, MetalTexture::Depth(), MetalTexture::Layers(), false);
 		for (int i = 0; i < layers(); ++i)
-			layer_targets_.push_back(RenderTargetPtr(new MetalRenderTarget(context, width, height, colors, depth, i, shared)));
+			layer_targets_.push_back(std::shared_ptr<RenderTarget>(new MetalRenderTarget(context, width, height, colors, depth, i, shared)));
 		pass_depth_ = depth ? depth : shared;
 		return;
 	}

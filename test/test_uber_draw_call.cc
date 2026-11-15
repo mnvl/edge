@@ -33,9 +33,9 @@ struct Rgba
 	float r, g, b, a;
 };
 
-TexturePtr white_texture(RendererPtr const &renderer)
+std::shared_ptr<Texture> white_texture(std::shared_ptr<Renderer> const &renderer)
 {
-	TexturePtr texture = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8);
+	std::shared_ptr<Texture> texture = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8);
 	auto texture_mapping = texture->write(Contents::DISCARD);
 	void *texels = texture_mapping.data();
 	BOOST_REQUIRE(texels);
@@ -47,9 +47,9 @@ TexturePtr white_texture(RendererPtr const &renderer)
 /// A quad of vertex type V over the whole orthographic view, drawn through the uber draw call into a target cleared to -1: the pixel
 /// in the middle, which is the quad's wherever the draw put its colour.
 template <class V>
-Rgba drawn_middle(RendererPtr const &renderer, MaterialPtr const &material)
+Rgba drawn_middle(std::shared_ptr<Renderer> const &renderer, std::shared_ptr<Material> const &material)
 {
-	VertexBufferPtr vb = renderer->create_vertex_buffer(VertexTraits::of<V>(), sizeof(V) * 4);
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(VertexTraits::of<V>(), sizeof(V) * 4);
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	V *v = vb_mapping.as<V>().data();
 	BOOST_REQUIRE(v);
@@ -70,18 +70,18 @@ Rgba drawn_middle(RendererPtr const &renderer, MaterialPtr const &material)
 		v[k] = g;
 	}
 	vb_mapping.unmap();
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
 	auto ib_mapping = ib->write(Contents::DISCARD);
 	INDEX_U16 *idx = ib_mapping.as<INDEX_U16>().data();
 	BOOST_REQUIRE(idx);
 	idx[0] = 0; idx[1] = 1; idx[2] = 2; idx[3] = 0; idx[4] = 2; idx[5] = 3;
 	ib_mapping.unmap();
-	CameraPtr camera(new Camera());
+	std::shared_ptr<Camera> camera(new Camera());
 	camera->set_orthographic_projection(2.0f, 2.0f, 0.0f, 2.0f);
 	camera->look_at(rove::vec<3>(0, 0, 1), rove::vec<3>(0, 0, 0), rove::vec<3>(0, 1, 0));
-	RenderTargetPtr target = renderer->create_render_target(TARGET_SIZE, TARGET_SIZE, PixelFormat::R32G32B32A32F);
+	std::shared_ptr<RenderTarget> target = renderer->create_render_target(TARGET_SIZE, TARGET_SIZE, PixelFormat::R32G32B32A32F);
 
-	UberDrawCallPtr draw_call = renderer->create_uber_draw_call();
+	std::shared_ptr<UberDrawCall> draw_call = renderer->create_uber_draw_call();
 	draw_call->set_vertex_buffer(vb);
 	draw_call->set_index_buffer(ib);
 	draw_call->set_material(material);
@@ -103,7 +103,7 @@ Rgba drawn_middle(RendererPtr const &renderer, MaterialPtr const &material)
 	renderer->end_pass();
 	renderer->finish_frame();
 
-	TexturePtr color = target->color_texture();
+	std::shared_ptr<Texture> color = target->color_texture();
 	color->download();
 	auto color_mapping = color->read();
 	Rgba const *pixels = color_mapping.as<Rgba const>().data();
@@ -117,11 +117,11 @@ template <class Backend>
 struct Fixture: Backend
 {
 	using Backend::renderer;
-	MaterialPtr material(bool weights_texture)
+	std::shared_ptr<Material> material(bool weights_texture)
 	{
-		MaterialPtr m = this->renderer->create_material();
+		std::shared_ptr<Material> m = this->renderer->create_material();
 		m->set_cull_mode(Material::CullMode::NONE);
-		TexturePtr const white = white_texture(this->renderer);
+		std::shared_ptr<Texture> const white = white_texture(this->renderer);
 		for (size_t i = 0; i < 4; ++i)        // the four of texture blending
 			m->set_diffuse_texture(white, i);
 		m->set_normal_map_texture(white);

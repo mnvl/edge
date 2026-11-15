@@ -54,7 +54,7 @@ struct Fixture
 
 	/// A renderer that can make this window's surface, the surface attached: on the first device whose queue can present to it (not every
 	/// driver can to the offscreen driver's surface: NVIDIA's cannot, lavapipe's can).  None that can is an error.
-	VulkanRendererPtr attached(bool vsync = false)
+	std::shared_ptr<VulkanRenderer> attached(bool vsync = false)
 	{
 		std::string refused;
 		for (PhysicalDeviceInfo const &device : enumerate_vulkan_physical_devices())
@@ -76,7 +76,7 @@ struct Fixture
 	}
 };
 
-std::vector<Bgra> pixels_of(TexturePtr const &texture)
+std::vector<Bgra> pixels_of(std::shared_ptr<Texture> const &texture)
 {
 	texture->download();
 	auto texture_mapping = texture->read();
@@ -142,19 +142,19 @@ BOOST_AUTO_TEST_CASE(the_instance_extensions_need_sdl_s_video)
 
 BOOST_AUTO_TEST_CASE(a_window_s_surface_is_attached_and_a_rendered_frame_presented_in_it)
 {
-	VulkanRendererPtr const renderer = attached();
-	RenderTargetPtr const target = renderer->create_render_target(64, 48, PixelFormat::A8R8G8B8);
+	std::shared_ptr<VulkanRenderer> const renderer = attached();
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(64, 48, PixelFormat::A8R8G8B8);
 	renderer->begin_frame();
 	renderer->begin_pass(target);
 	renderer->end_pass();
 	renderer->finish_frame();
-	BOOST_CHECK(renderer->present(target->color_texture(), 64, 48));
+	BOOST_CHECK(renderer->present(*target->color_texture(), 64, 48));
 	renderer->wait_frames();
 }
 
 BOOST_AUTO_TEST_CASE(a_second_surface_or_no_window_is_refused)
 {
-	VulkanRendererPtr const renderer = attached();
+	std::shared_ptr<VulkanRenderer> const renderer = attached();
 	BOOST_CHECK_THROW(attach_sdl_window(*renderer, window, false), std::logic_error);
 	BOOST_CHECK_THROW(attach_sdl_window(*renderer, nullptr, false), std::invalid_argument);
 	// detached, the window's surface can be had again
@@ -172,12 +172,12 @@ BOOST_AUTO_TEST_CASE(a_renderer_without_sdl_s_extensions_cannot_take_its_surface
 
 BOOST_AUTO_TEST_CASE(bytes_presented_are_the_picture_shown_stretched_to_the_window_and_opaque)
 {
-	VulkanRendererPtr const renderer = attached();
+	std::shared_ptr<VulkanRenderer> const renderer = attached();
 	FramePresenter presenter(renderer);
 	std::vector<uint8_t> const bytes = frame_bytes(4, 3);
 	BOOST_REQUIRE(presenter.present(bytes.data(), 4, 3, 64, 48));
 	renderer->wait_frames();
-	TexturePtr const picture = presenter.picture();
+	std::shared_ptr<Texture> const picture = presenter.picture();
 	BOOST_REQUIRE_EQUAL(picture->width(), 64);
 	BOOST_REQUIRE_EQUAL(picture->height(), 48);
 	std::vector<Bgra> const shown = pixels_of(picture);
@@ -190,7 +190,7 @@ BOOST_AUTO_TEST_CASE(bytes_presented_are_the_picture_shown_stretched_to_the_wind
 
 BOOST_AUTO_TEST_CASE(a_frame_of_the_window_s_size_is_shown_as_it_is)
 {
-	VulkanRendererPtr const renderer = attached();
+	std::shared_ptr<VulkanRenderer> const renderer = attached();
 	FramePresenter presenter(renderer);
 	std::vector<uint8_t> const bytes = frame_bytes(5, 4);
 	BOOST_REQUIRE(presenter.present(bytes.data(), 5, 4, 5, 4));
@@ -207,9 +207,9 @@ BOOST_AUTO_TEST_CASE(a_frame_of_the_window_s_size_is_shown_as_it_is)
 
 BOOST_AUTO_TEST_CASE(a_texture_is_shown_with_what_is_drawn_over_it_in_the_window_s_pass)
 {
-	VulkanRendererPtr const renderer = attached();
+	std::shared_ptr<VulkanRenderer> const renderer = attached();
 	FramePresenter presenter(renderer);
-	TexturePtr const frame = renderer->create_render_target(8, 8, PixelFormat::A8R8G8B8)->color_texture();
+	std::shared_ptr<Texture> const frame = renderer->create_render_target(8, 8, PixelFormat::A8R8G8B8)->color_texture();
 	bool drawn_over = false;
 	BOOST_REQUIRE(presenter.present(frame, 32, 16, [&] {
 		BOOST_CHECK(renderer->in_pass());
@@ -228,9 +228,9 @@ BOOST_AUTO_TEST_CASE(a_texture_is_shown_with_what_is_drawn_over_it_in_the_window
 
 BOOST_AUTO_TEST_CASE(what_goes_wrong_drawing_over_the_frame_is_the_caller_s_and_the_renderer_is_left_out_of_a_frame)
 {
-	VulkanRendererPtr const renderer = attached();
+	std::shared_ptr<VulkanRenderer> const renderer = attached();
 	FramePresenter presenter(renderer);
-	TexturePtr const frame = renderer->create_render_target(8, 8, PixelFormat::A8R8G8B8)->color_texture();
+	std::shared_ptr<Texture> const frame = renderer->create_render_target(8, 8, PixelFormat::A8R8G8B8)->color_texture();
 	BOOST_CHECK_THROW(presenter.present(frame, 32, 16, [] { throw std::out_of_range("the UI's"); }), std::out_of_range);
 	BOOST_CHECK(!renderer->in_frame());
 	BOOST_CHECK(presenter.present(frame, 32, 16));           // and it goes on
@@ -239,14 +239,14 @@ BOOST_AUTO_TEST_CASE(what_goes_wrong_drawing_over_the_frame_is_the_caller_s_and_
 
 BOOST_AUTO_TEST_CASE(what_cannot_be_shown_is_refused)
 {
-	VulkanRendererPtr const renderer = attached();
+	std::shared_ptr<VulkanRenderer> const renderer = attached();
 	FramePresenter presenter(renderer);
 	BOOST_CHECK_THROW(presenter.picture(), std::logic_error);           // nothing presented yet
 	std::vector<uint8_t> const bytes = frame_bytes(4, 3);
 	BOOST_CHECK_THROW(presenter.present(nullptr, 4, 3, 64, 48), std::invalid_argument);
 	for (auto const &[w, h, ww, wh] : std::vector<std::array<int, 4>>{{0, 3, 64, 48}, {4, -1, 64, 48}, {4, 3, 0, 48}, {4, 3, 64, -2}})
 		BOOST_CHECK_THROW(presenter.present(bytes.data(), w, h, ww, wh), std::invalid_argument);
-	BOOST_CHECK_THROW(presenter.present(TexturePtr(), 64, 48), std::invalid_argument);
+	BOOST_CHECK_THROW(presenter.present(std::shared_ptr<Texture>(), 64, 48), std::invalid_argument);
 	BOOST_CHECK_THROW(FramePresenter(nullptr), std::invalid_argument);
 	BOOST_CHECK(!renderer->in_frame());
 }

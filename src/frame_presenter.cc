@@ -18,7 +18,7 @@ namespace edge
 namespace
 {
 
-VulkanRendererPtr const &not_null(VulkanRendererPtr const &renderer)
+std::shared_ptr<VulkanRenderer> const &not_null(std::shared_ptr<VulkanRenderer> const &renderer)
 {
 	if (!renderer)
 		throw std::invalid_argument("FramePresenter: no renderer");
@@ -27,13 +27,13 @@ VulkanRendererPtr const &not_null(VulkanRendererPtr const &renderer)
 
 }
 
-FramePresenter::FramePresenter(VulkanRendererPtr const &renderer):
+FramePresenter::FramePresenter(std::shared_ptr<VulkanRenderer> const &renderer):
 	renderer_(not_null(renderer)),
 	copy_(renderer)
 {
 }
 
-bool FramePresenter::present(TexturePtr const &frame, int window_width, int window_height, std::function<void()> const &over)
+bool FramePresenter::present(std::shared_ptr<Texture> const &frame, int window_width, int window_height, std::function<void()> const &over)
 {
 	if (!frame)
 		throw std::invalid_argument("FramePresenter::present: no frame");
@@ -59,7 +59,7 @@ bool FramePresenter::present(TexturePtr const &frame, int window_width, int wind
 		throw;
 	}
 	renderer_->finish_frame();          // (the copy into the window comes after it on the GPU: neither is waited for)
-	return renderer_->present(target_->color_texture(), window_width, window_height);
+	return renderer_->present(*target_->color_texture(), window_width, window_height);
 }
 
 bool FramePresenter::present(void const *bgrx, int width, int height, int window_width, int window_height)
@@ -79,7 +79,7 @@ bool FramePresenter::present(void const *bgrx, int width, int height, int window
 	return present(uploaded_, window_width, window_height);
 }
 
-TexturePtr FramePresenter::picture() const
+std::shared_ptr<Texture> FramePresenter::picture() const
 {
 	if (!target_)
 		throw std::logic_error("FramePresenter::picture: nothing was presented");

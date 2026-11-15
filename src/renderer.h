@@ -51,7 +51,7 @@ public:
 	/// material's shader program for it.  A target of layers is drawn a layer at a time: @p target is RenderTarget::layer(i).
 	/// std::logic_error outside a frame or inside a pass, std::invalid_argument for no target, one of another renderer, or a target of
 	/// layers itself.
-	void begin_pass(RenderTargetPtr const &target,
+	void begin_pass(std::shared_ptr<RenderTarget> const &target,
 		RenderPassClearState const &clear_state = RenderPassClearState(),
 		uint32_t pass_type = 0);
 	/// std::logic_error outside a pass.
@@ -94,12 +94,12 @@ public:
 	bool in_pass() const { return state_ == State::PASS; }
 	/// The active pass's type and target (none outside a pass).
 	uint32_t pass_type() const { return pass_type_; }
-	RenderTargetPtr const &pass_target() const { return pass_target_; }
+	std::shared_ptr<RenderTarget> const &pass_target() const { return pass_target_; }
 
 	/// A vertex buffer of @p size bytes of vertices of @p vertex_traits, written once or often (@p usage).
-	virtual VertexBufferPtr create_vertex_buffer(VertexTraits const *vertex_traits, size_t size,
+	virtual std::shared_ptr<VertexBuffer> create_vertex_buffer(VertexTraits const *vertex_traits, size_t size,
 		BufferUsage usage = BufferUsage::STATIC) = 0;
-	virtual IndexBufferPtr create_index_buffer(IndexFormat index_format, size_t size, BufferUsage usage = BufferUsage::STATIC) = 0;
+	virtual std::shared_ptr<IndexBuffer> create_index_buffer(IndexFormat index_format, size_t size, BufferUsage usage = BufferUsage::STATIC) = 0;
 
 	template <vertex_layout V> std::shared_ptr<VertexArray<V>>
 	create_vertex_array(size_t count, BufferUsage usage = BufferUsage::STATIC)
@@ -115,7 +115,7 @@ public:
 	}
 
 	/// A texture of @p pixel_format made as @p usage says (sRGB, mipmaps, CPU copy, layers).
-	virtual TexturePtr create_texture(int width, int height, PixelFormat pixel_format, TextureUsage const &usage = TextureUsage()) = 0;
+	virtual std::shared_ptr<Texture> create_texture(int width, int height, PixelFormat pixel_format, TextureUsage const &usage = TextureUsage()) = 0;
 
 	/// Bytes the frame constants block (binding 9 in every shader) holds at most: 16 KB, the uniform block Vulkan, OpenGL ES 3.0 and
 	/// WebGL 2 all promise (it was 4 KB).
@@ -139,37 +139,37 @@ public:
 	/// std::out_of_range for a slot >= GLOBAL_TEXTURES_COUNT.  A render
 	/// target's colour texture may be set: it can be sampled in passes after
 	/// the one that drew into it.
-	void set_global_texture(unsigned slot, TexturePtr const &texture);
+	void set_global_texture(unsigned slot, std::shared_ptr<Texture> const &texture);
 	/// Sets global texture @p slot to a render target's readable depth (RenderTarget::depth_texture) sampled with a comparison: a
 	/// shader declares it a sampler2DShadow, and texture(shadow, vec3(uv, reference)) is 1 where the reference is at most the depth
 	/// stored and 0 where it is past it, filtered linearly between texels where the device can (four lookups, compared and blended).
 	/// A reference outside 0 to 1 means nothing (OpenGL ES clamps it for its 24-bit depth).
 	/// The rules of set_global_texture(), and std::invalid_argument for anything but a readable depth of this renderer.
-	void set_global_shadow_texture(unsigned slot, TexturePtr const &depth);
-	virtual RenderTargetPtr default_render_target() = 0;
+	void set_global_shadow_texture(unsigned slot, std::shared_ptr<Texture> const &depth);
+	virtual std::shared_ptr<RenderTarget> default_render_target() = 0;
 	/// A target of @p pixel_format colour and a depth buffer.  With @p readable_depth its depth is kept after each pass and is a texture
 	/// (RenderTarget::depth_texture) that passes after it sample, as they do its colour: the depth the depth test saw, 0 near to 1 far
 	/// as the projection put it, one value in red; without, the depth is thrown away when the pass ends.  The target of format
 	/// {{pixel_format}, readable_depth}.
-	RenderTargetPtr create_render_target(int width, int height, PixelFormat pixel_format, bool readable_depth = false);
+	std::shared_ptr<RenderTarget> create_render_target(int width, int height, PixelFormat pixel_format, bool readable_depth = false);
 	/// A target of @p format: colour attachments of their own formats, a depth thrown away or kept, layers or a cube (RenderTargetFormat).
 	/// std::invalid_argument for what cannot be made, saying why: a size that is not positive, layers below 0, a cube that is not square
 	/// or has layers, no colour and no readable depth, a block-compressed colour format, more colour attachments than
 	/// max_color_attachments(), and on a device: a format it cannot draw into, more layers or a larger cube than it has.
-	RenderTargetPtr create_render_target(int width, int height, RenderTargetFormat const &format);
+	std::shared_ptr<RenderTarget> create_render_target(int width, int height, RenderTargetFormat const &format);
 	/// The colour attachments a target can have on this renderer: the device's (Vulkan maxColorAttachments, OpenGL ES GL_MAX_DRAW_BUFFERS,
 	/// the smaller of them and of what a fragment shader writes), at least 4 everywhere; the null renderer's are those 4, so that what a
 	/// test makes on it the phones make too.
 	virtual unsigned max_color_attachments() const = 0;
-	virtual MaterialPtr create_material() = 0;
+	virtual std::shared_ptr<Material> create_material() = 0;
 	/// The shaders (their .spv names; each renderer finds its translation) a material draws with instead of the built-in ones.
-	ShaderProgramPtr create_shader_program(std::string const &vertex_shader_filename, std::string const &fragment_shader_filename);
+	std::shared_ptr<ShaderProgram> create_shader_program(std::string const &vertex_shader_filename, std::string const &fragment_shader_filename);
 	/// The program of <dir>/<name>.vert.spv and <dir>/<name>.frag.spv, as edge_add_shaders makes them; std::runtime_error naming a file
 	/// that is not there.
-	ShaderProgramPtr load_shader_program(std::filesystem::path const &dir, std::string const &name);
+	std::shared_ptr<ShaderProgram> load_shader_program(std::filesystem::path const &dir, std::string const &name);
 
-	DrawCallPtr create_draw_call();
-	UberDrawCallPtr create_uber_draw_call();
+	std::shared_ptr<DrawCall> create_draw_call();
+	std::shared_ptr<UberDrawCall> create_uber_draw_call();
 
 	/// Download multiple textures' contents from GPU to CPU in a single
 	/// command-buffer submission.
@@ -187,7 +187,7 @@ public:
 	/// Default implementation in the base class falls back to a per-
 	/// texture download loop; VulkanRenderer overrides for the batched
 	/// path.
-	void batch_download_textures(std::vector<TexturePtr> const &textures);
+	void batch_download_textures(std::vector<std::shared_ptr<Texture>> const &textures);
 
 	/// Uploads multiple textures to the GPU in a single command-buffer submission: those written through
 	/// @ref Texture::write() and not sent (Mapping::release()), each as the end of its mapping would send it.
@@ -198,7 +198,7 @@ public:
 	/// them into a single submit + wait.  An empty batch does nothing.
 	///
 	/// Default implementation in the base class falls back to sending each in turn; VulkanRenderer overrides it.
-	void batch_upload_textures(std::vector<TexturePtr> const &textures);
+	void batch_upload_textures(std::vector<std::shared_ptr<Texture>> const &textures);
 
 	/// Uploads textures written through @ref Texture::write() and released without waiting for the GPU: inside a frame (and not in
 	/// a pass) the new texels ride in the frame's own command buffer, copied before anything the frame draws, so the frame
@@ -209,7 +209,7 @@ public:
 	/// levels (mipmaps) or layers (an array), or any in a pass: all refused before anything is sent.
 	///
 	/// Default implementation in the base class falls back to batch_upload_textures(); VulkanRenderer overrides it.
-	void stream_textures(std::vector<TexturePtr> const &textures);
+	void stream_textures(std::vector<std::shared_ptr<Texture>> const &textures);
 
 protected:
 	// What a renderer does at each step, called when the step is in order (the state is the one before the step; the renderer's
@@ -218,25 +218,25 @@ protected:
 	virtual void do_finish_frame() = 0;
 	virtual void do_submit_frame() { do_finish_frame(); }
 	/// @p target is not null.
-	virtual void do_begin_pass(RenderTargetPtr const &target, RenderPassClearState const &clear_state, uint32_t pass_type) = 0;
+	virtual void do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state, uint32_t pass_type) = 0;
 	virtual void do_end_pass() = 0;
 	/// The rectangle is inside the pass's target.
 	virtual void do_set_viewport(int x, int y, int width, int height) = 0;
 	/// Outside a frame, @p size bytes at most FRAME_CONSTANTS_SIZE.
 	virtual void do_set_frame_constants(void const *data, size_t size) = 0;
 	/// Outside a frame, @p slot below GLOBAL_TEXTURES_COUNT; @p compare: a readable depth, sampled with a comparison.
-	virtual void do_set_global_texture(unsigned slot, TexturePtr const &texture, bool compare) = 0;
+	virtual void do_set_global_texture(unsigned slot, std::shared_ptr<Texture> const &texture, bool compare) = 0;
 	/// In a pass, @p call committed.
 	virtual void do_draw(DrawCall const &call) = 0;
 	/// A target of @p format as create_render_target() has checked it (the size positive, layers 0 or more, a cube square and of no
 	/// layers, something to draw into, no block-compressed colour, no more colours than max_color_attachments()); the backend
 	/// refuses what its device cannot make (std::invalid_argument naming the limit) and makes the layers' targets.
-	virtual RenderTargetPtr do_create_render_target(int width, int height, RenderTargetFormat const &format) = 0;
+	virtual std::shared_ptr<RenderTarget> do_create_render_target(int width, int height, RenderTargetFormat const &format) = 0;
 	/// No entry null (downloads: outside a frame; uploads: none twice).  The defaults download, unlock, one texture at a time.
-	virtual void do_batch_download_textures(std::vector<TexturePtr> const &textures);
-	virtual void do_batch_upload_textures(std::vector<TexturePtr> const &textures);
+	virtual void do_batch_download_textures(std::vector<std::shared_ptr<Texture>> const &textures);
+	virtual void do_batch_upload_textures(std::vector<std::shared_ptr<Texture>> const &textures);
 	/// Not in a pass, no entry null or twice.  The default uploads them as batch_upload_textures(), outside a frame or not.
-	virtual void do_stream_textures(std::vector<TexturePtr> const &textures);
+	virtual void do_stream_textures(std::vector<std::shared_ptr<Texture>> const &textures);
 	/// The renderer's timer: one that is not available() where it cannot time.
 	virtual GpuTimer &gpu_timer() const = 0;
 
@@ -251,7 +251,7 @@ private:
 	enum class State { IDLE, FRAME, PASS };
 	State state_ = State::IDLE;
 	uint32_t pass_type_ = 0;
-	RenderTargetPtr pass_target_;
+	std::shared_ptr<RenderTarget> pass_target_;
 	/// What the open frame draws with or into (targets, materials and their textures, buffers, streamed textures): held until the
 	/// frame is submitted, from when a resource's destructor waits for the GPU to be done with it.  Its last owner may let it go
 	/// inside the frame.

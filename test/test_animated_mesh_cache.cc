@@ -32,8 +32,8 @@ using palette = std::vector<rove::matrix<4, 4>>;
 
 struct Rig
 {
-	edge::RendererPtr renderer;
-	edge::SchedulerPtr scheduler;
+	std::shared_ptr<edge::Renderer> renderer;
+	std::shared_ptr<edge::Scheduler> scheduler;
 	std::shared_ptr<model_type> model;
 
 	Rig()
@@ -56,7 +56,7 @@ struct Rig
 std::vector<mesh_type *> skinned(model_type &model)
 {
 	std::vector<mesh_type *> out;
-	for (edge::MeshPtr const &m : model.meshes())
+	for (std::shared_ptr<edge::Mesh> const &m : model.meshes())
 		if (mesh_type *s = dynamic_cast<mesh_type *>(m.get()); s && !s->joint_index_transform().empty())
 			out.push_back(s);
 	BOOST_REQUIRE(!out.empty());

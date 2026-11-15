@@ -23,7 +23,7 @@ using namespace edge;
 namespace
 {
 
-void write(VertexBufferPtr const &vb)
+void write(std::shared_ptr<VertexBuffer> const &vb)
 {
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	void *data = vb_mapping.data();
@@ -39,7 +39,7 @@ BOOST_AUTO_TEST_CASE(an_upload_while_idle_is_deferred_into_the_next_frame)
 {
 	VulkanFixture f;
 	BOOST_REQUIRE_MESSAGE(f.renderer, f.error);
-	VertexBufferPtr const vb = f.renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
+	std::shared_ptr<VertexBuffer> const vb = f.renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
 	uint64_t const before = f.renderer->single_time_submit_count();
 	write(vb);
 	write(vb);
@@ -53,8 +53,8 @@ BOOST_AUTO_TEST_CASE(an_upload_inside_a_frame_between_passes_costs_no_submit)
 {
 	VulkanFixture f;
 	BOOST_REQUIRE_MESSAGE(f.renderer, f.error);
-	VertexBufferPtr const vb = f.renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
-	RenderTargetPtr const target = f.renderer->create_render_target(32, 32, PixelFormat::A8R8G8B8);
+	std::shared_ptr<VertexBuffer> const vb = f.renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
+	std::shared_ptr<RenderTarget> const target = f.renderer->create_render_target(32, 32, PixelFormat::A8R8G8B8);
 	uint64_t const before = f.renderer->single_time_submit_count();
 	f.renderer->begin_frame();
 	write(vb);
@@ -69,8 +69,8 @@ BOOST_AUTO_TEST_CASE(an_upload_inside_a_pass_is_refused)
 {
 	VulkanFixture f;
 	BOOST_REQUIRE_MESSAGE(f.renderer, f.error);
-	VertexBufferPtr const vb = f.renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
-	RenderTargetPtr const target = f.renderer->create_render_target(32, 32, PixelFormat::A8R8G8B8);
+	std::shared_ptr<VertexBuffer> const vb = f.renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
+	std::shared_ptr<RenderTarget> const target = f.renderer->create_render_target(32, 32, PixelFormat::A8R8G8B8);
 	f.renderer->begin_frame();
 	f.renderer->begin_pass(target);
 	uint64_t const before = f.renderer->single_time_submit_count();
@@ -86,7 +86,7 @@ BOOST_AUTO_TEST_CASE(oversized_uploads_work_across_many_frames)
 	BOOST_REQUIRE_MESSAGE(f.renderer, f.error);
 	// bigger than the staging blocks of 1 MiB, and several of them in one frame
 	size_t const size = sizeof(VERTEX_PT) * 100000;
-	std::vector<VertexBufferPtr> buffers;
+	std::vector<std::shared_ptr<VertexBuffer>> buffers;
 	for (int i = 0; i < 3; ++i)
 	{
 		buffers.push_back(f.renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), size));
@@ -113,14 +113,14 @@ BOOST_AUTO_TEST_CASE(the_staging_space_a_load_took_is_given_back_once_no_frame_n
 	VulkanFixture f;
 	BOOST_REQUIRE_MESSAGE(f.renderer, f.error);
 	size_t const size = sizeof(VERTEX_PT) * 100000;              // past the 1 MiB of a block
-	std::vector<VertexBufferPtr> loaded;
+	std::vector<std::shared_ptr<VertexBuffer>> loaded;
 	for (int i = 0; i < 4; ++i)
 	{
 		loaded.push_back(f.renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), size));
 		write(loaded.back());
 	}
 	BOOST_CHECK_GE(f.renderer->staging_arena_size(), 4 * size);
-	VertexBufferPtr const every_frame = f.renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
+	std::shared_ptr<VertexBuffer> const every_frame = f.renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
 	for (int frame = 0; frame < 3; ++frame)
 	{
 		f.renderer->begin_frame();
@@ -134,15 +134,15 @@ BOOST_AUTO_TEST_CASE(buffers_destroyed_in_every_state_are_released_cleanly)
 {
 	VulkanFixture f;
 	BOOST_REQUIRE_MESSAGE(f.renderer, f.error);
-	RenderTargetPtr const target = f.renderer->create_render_target(32, 32, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const target = f.renderer->create_render_target(32, 32, PixelFormat::A8R8G8B8);
 	auto make = [&]() { return f.renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4); };
-	{ VertexBufferPtr vb = make(); write(vb); }            // idle, upload still deferred
+	{ std::shared_ptr<VertexBuffer> vb = make(); write(vb); }            // idle, upload still deferred
 	f.renderer->begin_frame();
-	{ VertexBufferPtr vb = make(); write(vb); }            // inside a frame
-	VertexBufferPtr written_in_the_frame = make();
+	{ std::shared_ptr<VertexBuffer> vb = make(); write(vb); }            // inside a frame
+	std::shared_ptr<VertexBuffer> written_in_the_frame = make();
 	write(written_in_the_frame);
 	f.renderer->begin_pass(target);
-	{ VertexBufferPtr vb = make(); }                        // inside a pass
+	{ std::shared_ptr<VertexBuffer> vb = make(); }                        // inside a pass
 	written_in_the_frame.reset();                           // with its upload in the frame's command buffer
 	f.renderer->end_pass();
 	f.renderer->finish_frame();

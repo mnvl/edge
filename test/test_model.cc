@@ -21,7 +21,7 @@ namespace
 
 std::shared_ptr<edge::ModelBuilder> make_model()
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
 	return std::make_shared<edge::ModelBuilder>(renderer);
 }
 
@@ -47,7 +47,7 @@ BOOST_AUTO_TEST_CASE(joint_by_id)
 	BOOST_REQUIRE(!model->joints().empty());
 
 	std::string const &id = model->joints()[0]->id;
-	edge::JointPtr found = model->joint_by_id(id);
+	std::shared_ptr<edge::Joint> found = model->joint_by_id(id);
 	BOOST_CHECK_EQUAL(found.get(), model->joints()[0].get());
 }
 
@@ -59,7 +59,7 @@ BOOST_AUTO_TEST_CASE(joint_by_name)
 	std::string const &name = model->joints()[0]->name;
 	if (!name.empty())
 	{
-		edge::JointPtr found = model->joint_by_name(name);
+		std::shared_ptr<edge::Joint> found = model->joint_by_name(name);
 		BOOST_CHECK_EQUAL(found.get(), model->joints()[0].get());
 	}
 }
@@ -76,7 +76,7 @@ BOOST_AUTO_TEST_CASE(mesh_by_id)
 	BOOST_REQUIRE(!model->meshes().empty());
 
 	std::string const &id = model->meshes()[0]->id();
-	edge::MeshPtr found = model->mesh_by_id(id);
+	std::shared_ptr<edge::Mesh> found = model->mesh_by_id(id);
 	BOOST_CHECK_EQUAL(found.get(), model->meshes()[0].get());
 }
 
@@ -88,7 +88,7 @@ BOOST_AUTO_TEST_CASE(mesh_by_name)
 	std::string const &name = model->meshes()[0]->name();
 	if (!name.empty())
 	{
-		edge::MeshPtr found = model->mesh_by_name(name);
+		std::shared_ptr<edge::Mesh> found = model->mesh_by_name(name);
 		BOOST_CHECK_EQUAL(found.get(), model->meshes()[0].get());
 	}
 }
@@ -98,7 +98,7 @@ BOOST_AUTO_TEST_CASE(material_by_name)
 	auto model = load_model("test_gltf_loder_materials.glb");
 	BOOST_REQUIRE(!model->materials().empty());
 
-	edge::MaterialPtr found = model->material_by_name("lambert1");
+	std::shared_ptr<edge::Material> found = model->material_by_name("lambert1");
 	BOOST_CHECK_EQUAL(found->name(), "lambert1");
 }
 
@@ -143,7 +143,7 @@ BOOST_AUTO_TEST_CASE(add_joint)
 	auto model = make_model();
 	BOOST_CHECK(model->joints().empty());
 
-	edge::JointPtr j = model->add_joint();
+	std::shared_ptr<edge::Joint> j = model->add_joint();
 	BOOST_REQUIRE(j);
 	BOOST_CHECK_EQUAL(model->joints().size(), 1u);
 	BOOST_CHECK_EQUAL(j->index, 0u);
@@ -263,7 +263,7 @@ BOOST_AUTO_TEST_CASE(bounds_after_reload_following_clear)
 /// vertices, a non-degenerate box.
 BOOST_AUTO_TEST_CASE(bounds_valid_for_a_skinned_model)
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
 	auto model = std::make_shared<edge::AnimatedModelPTBNJWT>(renderer);
 	model->load_from_gltf(make_asset_path("test_gltf_loder_joint.glb"));
 	model->pose(0.0f);
@@ -274,7 +274,7 @@ BOOST_AUTO_TEST_CASE(bounds_valid_for_a_skinned_model)
 /// the source's.
 BOOST_AUTO_TEST_CASE(instance_has_the_bounds_of_its_source)
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
 	auto source = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	source->load_from_gltf(make_asset_path("test_gltf_loder_plane.glb"));
 
@@ -294,9 +294,9 @@ BOOST_AUTO_TEST_CASE(bounds_cover_every_mesh_of_the_materials_asset)
 
 BOOST_AUTO_TEST_CASE(a_model_needs_a_renderer)
 {
-	BOOST_CHECK_THROW(std::make_shared<edge::ModelBuilder>(edge::RendererPtr()), std::invalid_argument);
-	BOOST_CHECK_THROW(std::make_shared<edge::StaticModelPTBNT>(edge::RendererPtr()), std::invalid_argument);
-	BOOST_CHECK_THROW(std::make_shared<edge::AnimatedModelPTBNJWT>(edge::RendererPtr()), std::invalid_argument);
+	BOOST_CHECK_THROW(std::make_shared<edge::ModelBuilder>(std::shared_ptr<edge::Renderer>()), std::invalid_argument);
+	BOOST_CHECK_THROW(std::make_shared<edge::StaticModelPTBNT>(std::shared_ptr<edge::Renderer>()), std::invalid_argument);
+	BOOST_CHECK_THROW(std::make_shared<edge::AnimatedModelPTBNJWT>(std::shared_ptr<edge::Renderer>()), std::invalid_argument);
 }
 
 // The scheduler is the draw's, not the model's: one model draws into whichever scheduler of its renderer it is given, and each
@@ -305,7 +305,7 @@ BOOST_AUTO_TEST_CASE(a_model_needs_a_renderer)
 namespace
 {
 
-edge::CameraPtr camera_at_the_origin()
+std::shared_ptr<edge::Camera> camera_at_the_origin()
 {
 	auto camera = std::make_shared<edge::Camera>();
 	camera->set_perspective_projection(1.5f, 1.0f, 0.01f, 1000.0f);
@@ -314,7 +314,7 @@ edge::CameraPtr camera_at_the_origin()
 }
 
 /// What a flush of @p scheduler is given, culled or not.
-std::uint64_t offered(edge::SchedulerPtr const &scheduler)
+std::uint64_t offered(std::shared_ptr<edge::Scheduler> const &scheduler)
 {
 	std::uint64_t const before = scheduler->offered_calls_count();
 	edge::flush_in_a_pass(scheduler);
@@ -324,7 +324,7 @@ std::uint64_t offered(edge::SchedulerPtr const &scheduler)
 template <class M>
 void check_draws_go_to_the_scheduler_given(std::string const &asset_name)
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
 	auto model = std::make_shared<M>(renderer);
 	model->load_from_gltf(make_asset_path(asset_name));
 	model->pose(0.0f);
@@ -367,8 +367,8 @@ BOOST_AUTO_TEST_CASE(a_skinned_model_draws_into_the_scheduler_it_is_given)
 
 BOOST_AUTO_TEST_CASE(a_scheduler_of_another_renderer_is_refused_and_given_nothing)
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
-	edge::RendererPtr other(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Renderer> other(new edge::NullRenderer(320, 200));
 	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	model->load_from_gltf(make_asset_path("test_gltf_loder_plane.glb"));
 	auto foreign = std::make_shared<edge::Scheduler>(other);
@@ -383,12 +383,12 @@ BOOST_AUTO_TEST_CASE(a_scheduler_of_another_renderer_is_refused_and_given_nothin
 
 BOOST_AUTO_TEST_CASE(a_scheduler_whose_renderer_is_gone_is_refused)
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
 	auto model = std::make_shared<edge::StaticModelPTBNT>(renderer);
 	model->load_from_gltf(make_asset_path("test_gltf_loder_plane.glb"));
-	edge::SchedulerPtr orphan;
+	std::shared_ptr<edge::Scheduler> orphan;
 	{
-		edge::RendererPtr gone(new edge::NullRenderer(320, 200));
+		std::shared_ptr<edge::Renderer> gone(new edge::NullRenderer(320, 200));
 		orphan = std::make_shared<edge::Scheduler>(gone);
 	}
 	BOOST_REQUIRE(!orphan->renderer());
@@ -412,8 +412,8 @@ namespace
 /// for frustum cull testing.
 struct FrustumCullFixture
 {
-	edge::RendererPtr renderer;
-	edge::SchedulerPtr scheduler;
+	std::shared_ptr<edge::Renderer> renderer;
+	std::shared_ptr<edge::Scheduler> scheduler;
 
 	FrustumCullFixture()
 	{
@@ -433,9 +433,9 @@ struct FrustumCullFixture
 
 	/// Camera at (0,0,5) looking toward the origin with a wide FOV and large
 	/// far plane — a model at the origin is solidly inside this frustum.
-	edge::CameraPtr camera_facing_model() const
+	std::shared_ptr<edge::Camera> camera_facing_model() const
 	{
-		edge::CameraPtr cam(new edge::Camera());
+		std::shared_ptr<edge::Camera> cam(new edge::Camera());
 		cam->set_perspective_projection(1.5f, 1.0f, 0.01f, 1000.0f);
 		cam->look_at(
 			rove::vec<3>(0.0f, 0.0f, 5.0f),
@@ -447,9 +447,9 @@ struct FrustumCullFixture
 	/// Camera at (0,0,5000) looking further along +Z with a short far plane
 	/// (100 units).  The frustum spans z ≈ [4999.9, 5100] — the origin is
 	/// far outside.
-	edge::CameraPtr camera_facing_away() const
+	std::shared_ptr<edge::Camera> camera_facing_away() const
 	{
-		edge::CameraPtr cam(new edge::Camera());
+		std::shared_ptr<edge::Camera> cam(new edge::Camera());
 		cam->set_perspective_projection(1.0f, 1.0f, 0.1f, 100.0f);
 		cam->look_at(
 			rove::vec<3>(0.0f, 0.0f, 5000.0f),

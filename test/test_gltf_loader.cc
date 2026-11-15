@@ -26,18 +26,18 @@ namespace
 
 std::shared_ptr<edge::ModelBuilder> make_model()
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
 
-	edge::SchedulerPtr scheduler(new edge::Scheduler(renderer));
+	std::shared_ptr<edge::Scheduler> scheduler(new edge::Scheduler(renderer));
 	return std::make_shared<edge::ModelBuilder>(renderer);
 }
 
 /// The model of a skinned file: the one that holds its skin.
 std::shared_ptr<edge::AnimatedModelPTBNJWT> make_skinned_model()
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
 
-	edge::SchedulerPtr scheduler(new edge::Scheduler(renderer));
+	std::shared_ptr<edge::Scheduler> scheduler(new edge::Scheduler(renderer));
 	return std::make_shared<edge::AnimatedModelPTBNJWT>(renderer);
 }
 
@@ -147,7 +147,7 @@ void check_loaded_model(edge::Model const &model)
 
 	for (std::size_t i = 0; i < model.joints().size(); ++i)
 	{
-		edge::JointPtr const &joint = model.joints()[i];
+		std::shared_ptr<edge::Joint> const &joint = model.joints()[i];
 		BOOST_REQUIRE(joint);
 
 		if (!joint->parent.lock())
@@ -157,12 +157,12 @@ void check_loaded_model(edge::Model const &model)
 
 		for (std::size_t child_index = 0; child_index < joint->children.size(); ++child_index)
 		{
-			edge::JointPtr child = joint->children[child_index].lock();
+			std::shared_ptr<edge::Joint> child = joint->children[child_index].lock();
 			BOOST_REQUIRE(child);
 			BOOST_CHECK_EQUAL(child->parent.lock().get(), joint.get());
 		}
 
-		if (edge::MeshPtr mesh = joint->mesh.lock())
+		if (std::shared_ptr<edge::Mesh> mesh = joint->mesh.lock())
 		{
 			joints_with_mesh++;
 			BOOST_CHECK(std::find(model.meshes().begin(), model.meshes().end(), mesh) != model.meshes().end());
@@ -323,7 +323,7 @@ BOOST_AUTO_TEST_CASE(plane)
 	BOOST_CHECK(plane_indices.count(2) == 1u);
 	BOOST_CHECK(plane_indices.count(3) == 1u);
 
-	edge::JointPtr const &joint_ptr = model->joints()[0];
+	std::shared_ptr<edge::Joint> const &joint_ptr = model->joints()[0];
 	BOOST_REQUIRE(joint_ptr);
 	BOOST_REQUIRE_EQUAL(joint_ptr->transforms.size(), 1u);
 	BOOST_CHECK_EQUAL(joint_ptr->transforms[0].sid, "gltf_node_transform");

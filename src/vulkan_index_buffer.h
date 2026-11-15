@@ -38,7 +38,7 @@ protected:
 	void do_unlock() override;
 
 private:
-	VulkanDeviceContextPtr context_;     // the device, not the renderer: a buffer kept after it can still be let go
+	std::shared_ptr<VulkanDeviceContext> context_;     // the device, not the renderer: a buffer kept after it can still be let go
 	IndexFormat index_format_;
 	VkIndexType index_type_;
 	VkBuffer buffer_;
@@ -46,7 +46,7 @@ private:
 	VkMemoryPropertyFlags memory_properties_;
 	std::vector<char> clone_;
 
-	VulkanIndexBuffer(VulkanRendererPtr const &renderer, IndexFormat index_format, size_t size);
+	VulkanIndexBuffer(std::shared_ptr<VulkanRenderer> const &renderer, IndexFormat index_format, size_t size);
 };
 
 }

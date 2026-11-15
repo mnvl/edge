@@ -37,8 +37,8 @@ using Mesh = edge::BasicAnimatedMesh<edge::VERTEX_PTBNJWT>;
 
 struct Fixture
 {
-	edge::RendererPtr renderer = [] { edge::RendererPtr r(new edge::NullRenderer(320, 200)); return r; }();
-	edge::SchedulerPtr scheduler = std::make_shared<edge::Scheduler>(renderer);
+	std::shared_ptr<edge::Renderer> renderer = [] { std::shared_ptr<edge::Renderer> r(new edge::NullRenderer(320, 200)); return r; }();
+	std::shared_ptr<edge::Scheduler> scheduler = std::make_shared<edge::Scheduler>(renderer);
 	std::mt19937 random{12345};
 
 	std::shared_ptr<Model> load(std::string const &name, float pose_margin = 0)
@@ -53,7 +53,7 @@ struct Fixture
 	static std::vector<Mesh const *> skinned(Model const &model)
 	{
 		std::vector<Mesh const *> result;
-		for (edge::MeshPtr const &m : model.meshes())
+		for (std::shared_ptr<edge::Mesh> const &m : model.meshes())
 			if (auto const *mesh = dynamic_cast<Mesh const *>(m.get()))
 				result.push_back(mesh);
 		BOOST_REQUIRE(!result.empty());
@@ -228,7 +228,7 @@ BOOST_AUTO_TEST_CASE(the_culling_box_is_the_model_space_box_through_the_world_ma
 BOOST_AUTO_TEST_CASE(a_mesh_without_a_computed_box_refuses_to_give_one)
 {
 	auto model = std::make_shared<Model>(renderer);
-	edge::MeshPtr const mesh = model->add_mesh();
+	std::shared_ptr<edge::Mesh> const mesh = model->add_mesh();
 	auto const *skinned_mesh = dynamic_cast<Mesh const *>(mesh.get());
 	BOOST_REQUIRE(skinned_mesh);
 	BOOST_CHECK_THROW(skinned_mesh->pose_bounds(), std::logic_error);

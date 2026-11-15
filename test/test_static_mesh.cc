@@ -15,8 +15,8 @@ namespace
 
 std::shared_ptr<edge::ModelBuilder> make_model()
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
-	edge::SchedulerPtr scheduler(new edge::Scheduler(renderer));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Scheduler> scheduler(new edge::Scheduler(renderer));
 	return std::make_shared<edge::ModelBuilder>(renderer);
 }
 
@@ -32,7 +32,7 @@ BOOST_AUTO_TEST_SUITE(static_mesh)
 BOOST_AUTO_TEST_CASE(set_vertices_and_indices)
 {
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = model->add_mesh_builder();
+	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
 
 	std::vector<edge::MeshBuilder::vertex_type> verts(3);
 	std::memset(verts.data(), 0, sizeof(verts[0]) * verts.size());
@@ -50,7 +50,7 @@ BOOST_AUTO_TEST_CASE(set_vertices_and_indices)
 BOOST_AUTO_TEST_CASE(append_geometry)
 {
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = model->add_mesh_builder();
+	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
 
 	std::vector<edge::MeshBuilder::vertex_type> verts(3);
 	std::memset(verts.data(), 0, sizeof(verts[0]) * verts.size());
@@ -75,13 +75,13 @@ BOOST_AUTO_TEST_CASE(append_geometry)
 BOOST_AUTO_TEST_CASE(clear_geometry)
 {
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = model->add_mesh_builder();
+	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
 
 	std::vector<edge::MeshBuilder::vertex_type> verts(3);
 	std::memset(verts.data(), 0, sizeof(verts[0]) * verts.size());
 	std::vector<edge::MeshBuilder::index_type> indices = {0, 1, 2};
 	mesh->set_geometry(verts, indices);
-	mesh->add_triangles(edge::MaterialPtr(), 0, 1);
+	mesh->add_triangles(std::shared_ptr<edge::Material>(), 0, 1);
 
 	mesh->clear_geometry();
 	BOOST_CHECK(mesh->vertex_buffer().empty());
@@ -92,7 +92,7 @@ BOOST_AUTO_TEST_CASE(clear_geometry)
 BOOST_AUTO_TEST_CASE(add_triangles)
 {
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = model->add_mesh_builder();
+	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
 
 	std::vector<edge::MeshBuilder::vertex_type> verts(6);
 	std::memset(verts.data(), 0, sizeof(verts[0]) * verts.size());
@@ -106,7 +106,7 @@ BOOST_AUTO_TEST_CASE(add_triangles)
 	std::vector<edge::MeshBuilder::index_type> indices = {0, 1, 2, 3, 4, 5};
 	mesh->set_geometry(verts, indices);
 
-	edge::MaterialPtr mat = model->renderer()->create_material();
+	std::shared_ptr<edge::Material> mat = model->renderer()->create_material();
 	mesh->add_triangles(mat, 0, 1);
 	mesh->add_triangles(mat, 3, 1);
 
@@ -119,7 +119,7 @@ BOOST_AUTO_TEST_CASE(add_triangles)
 BOOST_AUTO_TEST_CASE(morph_targets)
 {
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = model->add_mesh_builder();
+	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
 
 	std::vector<edge::MeshBuilder::vertex_type> verts(3);
 	std::memset(verts.data(), 0, sizeof(verts[0]) * verts.size());
@@ -152,7 +152,7 @@ BOOST_AUTO_TEST_CASE(morph_targets)
 BOOST_AUTO_TEST_CASE(morph_targets_weight_zero_keeps_base)
 {
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = model->add_mesh_builder();
+	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
 
 	std::vector<edge::MeshBuilder::vertex_type> verts(3);
 	std::memset(verts.data(), 0, sizeof(verts[0]) * verts.size());
@@ -180,7 +180,7 @@ BOOST_AUTO_TEST_CASE(morph_targets_weight_zero_keeps_base)
 BOOST_AUTO_TEST_CASE(serialization_type_contains_format)
 {
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = model->add_mesh_builder();
+	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
 	std::string type = mesh->serialization_type();
 	// Should contain the vertex format number
 	BOOST_CHECK(type.find("static_mesh:") == 0);

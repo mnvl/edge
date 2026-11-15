@@ -25,7 +25,7 @@ class DynamicMesh
 public:
 	/// Vertices of @p traits drawn with @p material, by an uber draw call (texture blending, a skin) where @p uber.
 	/// std::invalid_argument for no renderer, material or traits.
-	DynamicMesh(RendererPtr const &renderer, MaterialPtr const &material, VertexTraits const *traits, bool uber = false);
+	DynamicMesh(std::shared_ptr<Renderer> const &renderer, std::shared_ptr<Material> const &material, VertexTraits const *traits, bool uber = false);
 
 	/// Replaces what the mesh holds with @p count vertices of the traits' size at @p vertices and the triangles of @p indices
 	/// (16 or 32 bits).  std::invalid_argument, the mesh left as it was, for indices that are not whole triangles or name a vertex
@@ -43,18 +43,18 @@ public:
 	}
 
 	/// Queues the draw call in @p scheduler, seen by @p camera, if the mesh holds a triangle.
-	void draw(Scheduler &scheduler, CameraPtr const &camera);
+	void draw(Scheduler &scheduler, std::shared_ptr<Camera> const &camera);
 
 	std::size_t triangles() const { return triangles_; }
-	DrawCallPtr const &draw_call() const { return draw_call_; }
+	std::shared_ptr<DrawCall> const &draw_call() const { return draw_call_; }
 
 private:
-	RendererPtr renderer_;
+	std::shared_ptr<Renderer> renderer_;
 	VertexTraits const *traits_;
 	std::size_t vertex_size_;
-	DrawCallPtr draw_call_;
-	VertexBufferPtr vertex_buffer_;
-	IndexBufferPtr index_buffer_;
+	std::shared_ptr<DrawCall> draw_call_;
+	std::shared_ptr<VertexBuffer> vertex_buffer_;
+	std::shared_ptr<IndexBuffer> index_buffer_;
 	IndexFormat index_format_{};
 	std::size_t vertex_capacity_ = 0, index_capacity_ = 0, triangles_ = 0;
 

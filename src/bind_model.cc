@@ -32,7 +32,7 @@ using namespace nb::literals;
 namespace {
 
 template <typename ModelType>
-std::shared_ptr<ModelType> create_render_model(edge::RendererPtr const &renderer, std::string const &model_name)
+std::shared_ptr<ModelType> create_render_model(std::shared_ptr<edge::Renderer> const &renderer, std::string const &model_name)
 {
     if (!renderer)
     {
@@ -57,7 +57,7 @@ template <typename ModelType>
 void bind_render_model(nb::module_ &m, char const *model_name)
 {
     nb::class_<ModelType>(m, model_name)
-        .def(nb::new_([model_name](edge::RendererPtr const &renderer) {
+        .def(nb::new_([model_name](std::shared_ptr<edge::Renderer> const &renderer) {
                 return create_render_model<ModelType>(renderer, model_name);
             }),
             "renderer"_a)
@@ -72,11 +72,11 @@ void bind_render_model(nb::module_ &m, char const *model_name)
         .def_prop_rw("always_visible", &ModelType::always_visible, &ModelType::set_always_visible,
             "Whether the model and its meshes are drawn whatever the camera sees")
         .def("set_always_visible", &ModelType::set_always_visible, "always_visible"_a)
-        .def("draw", [](ModelType &model, edge::Scheduler &scheduler, edge::CameraPtr const &camera, rove::matrix<4,4> const &world_matrix,
+        .def("draw", [](ModelType &model, edge::Scheduler &scheduler, std::shared_ptr<edge::Camera> const &camera, rove::matrix<4,4> const &world_matrix,
                 unsigned lod) { model.draw(scheduler, camera, world_matrix, lod); },
             "scheduler"_a, "camera"_a, "world_matrix"_a, "lod"_a = 0u,
             "Queues the model's draw calls in scheduler (one of the model's renderer: ValueError otherwise).")
-        .def("draw_instances", [](ModelType &model, edge::Scheduler &scheduler, edge::CameraPtr const &camera,
+        .def("draw_instances", [](ModelType &model, edge::Scheduler &scheduler, std::shared_ptr<edge::Camera> const &camera,
                 std::vector<rove::matrix<4,4>> const &world_matrices, unsigned lod) { model.draw_instances(scheduler, camera, world_matrices, lod); },
             "scheduler"_a, "camera"_a, "world_matrices"_a, "lod"_a = 0u,
             "The model once for each world matrix, in one instanced draw for each triangle group, each instance culled on its own.")
@@ -165,7 +165,7 @@ void bind_model(nb::module_ &m)
         .def_prop_ro("id", [](edge::Mesh const &self) { return self.id(); })
         .def_prop_ro("name", [](edge::Mesh const &self) { return self.name(); })
         .def_prop_ro("materials", [](edge::Mesh const &self) {
-            std::vector<edge::MaterialPtr> result;
+            std::vector<std::shared_ptr<edge::Material>> result;
             for (auto const &tri : self.triangles())
                 if (tri.material_ptr)
                     result.push_back(tri.material_ptr);
@@ -174,7 +174,7 @@ void bind_model(nb::module_ &m)
 
 
     nb::class_<edge::ModelBuilder>(m, "ModelBuilder")
-        .def(nb::new_([](edge::RendererPtr const &renderer) {
+        .def(nb::new_([](std::shared_ptr<edge::Renderer> const &renderer) {
                 return create_render_model<edge::ModelBuilder>(renderer, "ModelBuilder");
             }),
             "renderer"_a)
@@ -187,7 +187,7 @@ void bind_model(nb::module_ &m)
         .def("clear", &edge::ModelBuilder::clear)
         .def("add_mesh_builder", &edge::ModelBuilder::add_mesh_builder,
             "id"_a = std::string(), "name"_a = std::string())
-        .def("attach_mesh_to_joint", [](edge::ModelBuilder &self, edge::MeshBuilderPtr const &mesh,
+        .def("attach_mesh_to_joint", [](edge::ModelBuilder &self, std::shared_ptr<edge::MeshBuilder> const &mesh,
             std::string const &joint_name) {
             self.attach_mesh_to_joint(mesh, joint_name);
         }, "mesh"_a, "joint_name"_a = std::string())
@@ -202,7 +202,7 @@ void bind_model(nb::module_ &m)
         .def_prop_rw("always_visible", &edge::ModelBuilder::always_visible, &edge::ModelBuilder::set_always_visible,
             "Whether the model and its meshes are drawn whatever the camera sees")
         .def("set_always_visible", &edge::ModelBuilder::set_always_visible, "always_visible"_a)
-        .def("draw", [](edge::ModelBuilder &model, edge::Scheduler &scheduler, edge::CameraPtr const &camera,
+        .def("draw", [](edge::ModelBuilder &model, edge::Scheduler &scheduler, std::shared_ptr<edge::Camera> const &camera,
                 rove::matrix<4,4> const &world_matrix, unsigned lod) { model.draw(scheduler, camera, world_matrix, lod); },
             "scheduler"_a, "camera"_a, "world_matrix"_a, "lod"_a = 0u)
         .def("build_octree", &edge::ModelBuilder::build_octree, "world_matrix"_a, nb::call_guard<nb::gil_scoped_release>())
@@ -263,10 +263,10 @@ void bind_model(nb::module_ &m)
     bind_render_model<edge::StaticModelPTBNTC>(m, "StaticModelPTBNTC");
     bind_render_model<edge::AnimatedModelPTBNJWTC>(m, "AnimatedModelPTBNJWTC");
 
-    m.def("load_model", [](edge::RendererPtr const &renderer, std::string const &filename, bool keep_cpu_copy) -> nb::object {
+    m.def("load_model", [](std::shared_ptr<edge::Renderer> const &renderer, std::string const &filename, bool keep_cpu_copy) -> nb::object {
             edge::GltfOptions options;
             options.keep_cpu_copy = keep_cpu_copy;
-            edge::ModelPtr const model = edge::load_model(renderer, filename, options);
+            std::shared_ptr<edge::Model> const model = edge::load_model(renderer, filename, options);
             // (each its class: nanobind hands a model out by the type it is bound as)
             if (auto typed = std::dynamic_pointer_cast<edge::StaticModelPTBNT>(model))
                 return nb::cast(typed);
@@ -305,7 +305,7 @@ void bind_model(nb::module_ &m)
         "Reads each model file once per renderer; every load() is a new model\n"
         "sharing the file's GPU buffers and textures, with its own joints,\n"
         "animations and materials.  See edge/src/model_cache.h.")
-        .def(nb::init<edge::RendererPtr const &>(), "renderer"_a)
+        .def(nb::init<std::shared_ptr<edge::Renderer> const &>(), "renderer"_a)
         .def("sweep", &edge::ModelCache::sweep,
             "Forget the models no instance holds any more (their memory went with their last instance); returns how many.")
         .def("load", [](edge::ModelCache &self, nb::handle cls, std::string const &filename) -> nb::object {

@@ -51,13 +51,13 @@ std::vector<uint16_t> const QUAD_INDICES = {0, 1, 2, 0, 2, 3};
 
 struct Scene
 {
-	RendererPtr renderer;
-	SchedulerPtr scheduler;
-	CameraPtr camera = std::make_shared<Camera>();
-	MaterialPtr material;
-	RenderTargetPtr target;
+	std::shared_ptr<Renderer> renderer;
+	std::shared_ptr<Scheduler> scheduler;
+	std::shared_ptr<Camera> camera = std::make_shared<Camera>();
+	std::shared_ptr<Material> material;
+	std::shared_ptr<RenderTarget> target;
 
-	explicit Scene(RendererPtr const &r):
+	explicit Scene(std::shared_ptr<Renderer> const &r):
 		renderer(r),
 		scheduler(std::make_shared<Scheduler>(r)),
 		material(r->create_material()),
@@ -78,7 +78,7 @@ struct Scene
 		scheduler->flush();
 		renderer->end_pass();
 		renderer->finish_frame();
-		TexturePtr const colour = target->color_texture();
+		std::shared_ptr<Texture> const colour = target->color_texture();
 		colour->download();
 		auto colour_mapping = colour->read();
 		auto const *px = colour_mapping.as<std::array<uint8_t, 4> const>().data();
@@ -193,8 +193,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_mesh_is_made_of_a_renderer_a_material_and_a_vert
 {
 	F fixture;
 	BOOST_REQUIRE_MESSAGE(fixture.renderer, "renderer unavailable: " << fixture.error);
-	RendererPtr const renderer = fixture.renderer;
-	MaterialPtr const material = renderer->create_material();
+	std::shared_ptr<Renderer> const renderer = fixture.renderer;
+	std::shared_ptr<Material> const material = renderer->create_material();
 	VertexTraits const *traits = VertexTraits::of<VERTEX_PT>();
 	BOOST_CHECK_THROW(DynamicMesh(nullptr, material, traits), std::invalid_argument);
 	BOOST_CHECK_THROW(DynamicMesh(renderer, nullptr, traits), std::invalid_argument);

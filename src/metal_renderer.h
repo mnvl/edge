@@ -14,7 +14,6 @@ namespace edge
 
 class MetalGpuTimer;
 class MetalRenderer;
-using MetalRendererPtr = std::shared_ptr<MetalRenderer>;
 
 /// edge's Renderer on Metal (Apple silicon: macOS 13 and iOS 15 on).  Offscreen as VulkanRenderer and GLESRenderer
 /// are: it draws into render targets, which the host shows (show_frame).  What is not implemented is a std::logic_error saying so, as on
@@ -30,29 +29,29 @@ using MetalRendererPtr = std::shared_ptr<MetalRenderer>;
 /// finish_frame() waits for it.
 class MetalRenderer: public Renderer {
 public:
-	MetalRendererPtr shared_from_this()
+	std::shared_ptr<MetalRenderer> shared_from_this()
 	{
 		return std::static_pointer_cast<MetalRenderer>(Renderer::shared_from_this());
 	}
 
 	/// In @p context, which the host made and keeps (hosted(): show_frame() shows frames in its window layer; otherwise it is a
 	/// std::logic_error).  std::invalid_argument for no context or a size that is not positive.
-	MetalRenderer(int width, int height, std::string const &shader_dir, MetalContextPtr const &context);
+	MetalRenderer(int width, int height, std::string const &shader_dir, std::shared_ptr<MetalContext> const &context);
 	~MetalRenderer() override;
 
 	int screen_width() const override;
 	int screen_height() const override;
 	void resize(int width, int height) override;
 
-	VertexBufferPtr create_vertex_buffer(VertexTraits const *vertex_traits, size_t size,
+	std::shared_ptr<VertexBuffer> create_vertex_buffer(VertexTraits const *vertex_traits, size_t size,
 		BufferUsage usage = BufferUsage::STATIC) override;
-	IndexBufferPtr create_index_buffer(IndexFormat index_format, size_t size, BufferUsage usage = BufferUsage::STATIC) override;
-	TexturePtr create_texture(int width, int height, PixelFormat pixel_format, TextureUsage const &usage = TextureUsage()) override;
+	std::shared_ptr<IndexBuffer> create_index_buffer(IndexFormat index_format, size_t size, BufferUsage usage = BufferUsage::STATIC) override;
+	std::shared_ptr<Texture> create_texture(int width, int height, PixelFormat pixel_format, TextureUsage const &usage = TextureUsage()) override;
 
-	RenderTargetPtr default_render_target() override;
+	std::shared_ptr<RenderTarget> default_render_target() override;
 	/// Eight, what an Apple GPU of family 7 draws into.
 	unsigned max_color_attachments() const override { return 8; }
-	MaterialPtr create_material() override;
+	std::shared_ptr<Material> create_material() override;
 
 	/// Draws a frame of the host (B, G, R, X bytes, rows tight, row 0 the top, width x height) into the window layer's next drawable,
 	/// stretched to window_width x window_height pixels, the window's size; swap_window() shows it.  std::logic_error inside a frame or
@@ -60,11 +59,11 @@ public:
 	void show_frame(void const *frame, int width, int height, int window_width, int window_height);
 	/// The same of a texture of this renderer's (a render target's colour texture: the frame drawn stays on the GPU).
 	/// std::invalid_argument for no texture, one of another renderer, or a size that is not positive; std::logic_error as above.
-	void show_frame(TexturePtr const &frame, int window_width, int window_height);
+	void show_frame(Texture &frame, int window_width, int window_height);
 	/// Presents what show_frame() drew, no sooner than `min_interval` seconds after the last present (0: at the next refresh).  std::logic_error without a host window or without a frame shown since the last.
 	void swap_window(double min_interval = 0);
 
-	MetalContextPtr const &context() const;
+	std::shared_ptr<MetalContext> const &context() const;
 	uint64_t frame_serial() const override;
 	/// Joint matrices of the skeleton a draw is skinned by, at most this many (std::length_error for more).
 	static constexpr size_t MAX_JOINT_MATRICES = 256;
@@ -81,21 +80,21 @@ protected:
 	/// Commits the frame and waits until the GPU has drawn it.
 	void do_finish_frame() override;
 	void do_submit_frame() override;
-	void do_begin_pass(RenderTargetPtr const &target, RenderPassClearState const &clear_state, uint32_t pass_type) override;
+	void do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state, uint32_t pass_type) override;
 	void do_end_pass() override;
 	void do_set_viewport(int x, int y, int width, int height) override;
 	void do_set_frame_constants(void const *data, size_t size) override;
-	void do_set_global_texture(unsigned slot, TexturePtr const &texture, bool compare) override;
+	void do_set_global_texture(unsigned slot, std::shared_ptr<Texture> const &texture, bool compare) override;
 	/// std::invalid_argument for a vertex or index buffer that is not this renderer's.
 	void do_draw(DrawCall const &call) override;
 	/// std::invalid_argument for more layers or a larger cube than the device has.
-	RenderTargetPtr do_create_render_target(int width, int height, RenderTargetFormat const &format) override;
+	std::shared_ptr<RenderTarget> do_create_render_target(int width, int height, RenderTargetFormat const &format) override;
 	GpuTimer &gpu_timer() const override;
 
 private:
 	std::unique_ptr<Impl> impl_;
 	int width_, height_;
-	RenderTargetPtr default_render_target_;
+	std::shared_ptr<RenderTarget> default_render_target_;
 };
 
 }

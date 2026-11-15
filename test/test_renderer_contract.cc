@@ -32,7 +32,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_frame_and_its_passes_are_begun_and_ended_in_orde
 	F fixture;
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
-	RenderTargetPtr const target = renderer->create_render_target(16, 8, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(16, 8, PixelFormat::A8R8G8B8);
 
 	BOOST_CHECK(!renderer->in_frame());
 	BOOST_CHECK_THROW(renderer->finish_frame(), std::logic_error);
@@ -44,7 +44,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_frame_and_its_passes_are_begun_and_ended_in_orde
 	BOOST_CHECK(renderer->in_frame() && !renderer->in_pass());
 	BOOST_CHECK_THROW(renderer->begin_frame(), std::logic_error);
 	BOOST_CHECK_THROW(renderer->end_pass(), std::logic_error);
-	BOOST_CHECK_THROW(renderer->begin_pass(RenderTargetPtr()), std::invalid_argument);
+	BOOST_CHECK_THROW(renderer->begin_pass(std::shared_ptr<RenderTarget>()), std::invalid_argument);
 	BOOST_CHECK(renderer->in_frame() && !renderer->in_pass());       // as it was
 
 	renderer->begin_pass(target, RenderPassClearState(), 3);
@@ -75,7 +75,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(what_is_set_between_frames_is_refused_inside_one, 
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
 	std::vector<unsigned char> const constants(64, 1);
-	TexturePtr const texture = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8);
+	std::shared_ptr<Texture> const texture = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8);
 
 	renderer->set_frame_constants(constants.data(), constants.size());
 	BOOST_CHECK_THROW(renderer->set_frame_constants(constants.data(), Renderer::FRAME_CONSTANTS_SIZE + 1), std::invalid_argument);
@@ -83,7 +83,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(what_is_set_between_frames_is_refused_inside_one, 
 	renderer->set_global_texture(0, texture);
 	BOOST_CHECK_THROW(renderer->set_global_texture(Renderer::GLOBAL_TEXTURES_COUNT, texture), std::out_of_range);
 	renderer->batch_download_textures({texture});
-	BOOST_CHECK_THROW(renderer->batch_download_textures({texture, TexturePtr()}), std::invalid_argument);
+	BOOST_CHECK_THROW(renderer->batch_download_textures({texture, std::shared_ptr<Texture>()}), std::invalid_argument);
 	BOOST_CHECK_THROW(renderer->batch_upload_textures({texture, texture}), std::invalid_argument);
 
 	renderer->begin_frame();
@@ -120,11 +120,11 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_draw_is_in_a_pass, F, AllBackends)
 	F fixture;
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
-	VertexBufferPtr const vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 3);
+	std::shared_ptr<VertexBuffer> const vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 3);
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	std::memset(vb_mapping.data(), 0, sizeof(VERTEX_PT) * 3);
 	vb_mapping.unmap();
-	DrawCallPtr const draw = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> const draw = renderer->create_draw_call();
 	draw->set_vertex_buffer(vb);
 	draw->set_material(renderer->create_material());
 	draw->set_camera(std::make_shared<Camera>());
@@ -146,17 +146,17 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(what_a_frame_draws_with_lives_until_the_frame_is_s
 	F fixture;
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
-	VertexBufferPtr vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 3);
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 3);
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	std::memset(vb_mapping.data(), 0, sizeof(VERTEX_PT) * 3);
 	vb_mapping.unmap();
-	MaterialPtr material = renderer->create_material();
-	TexturePtr texture = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8);
+	std::shared_ptr<Material> material = renderer->create_material();
+	std::shared_ptr<Texture> texture = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8);
 	auto texture_mapping = texture->write(Contents::DISCARD);
 	std::memset(texture_mapping.data(), 255, 4 * 4 * 4);
 	texture_mapping.unmap();
 	material->set_diffuse_texture(texture);
-	DrawCallPtr draw = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> draw = renderer->create_draw_call();
 	draw->set_vertex_buffer(vb);
 	draw->set_material(material);
 	draw->set_camera(std::make_shared<Camera>());
@@ -183,7 +183,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_texture_without_its_cpu_copy_is_written_once, F,
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
 	TextureUsage usage;
 	usage.keep_cpu_copy = false;
-	TexturePtr const texture = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, usage);
+	std::shared_ptr<Texture> const texture = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, usage);
 	auto texture_mapping = texture->write(Contents::DISCARD);
 	std::memset(texture_mapping.data(), 255, 4 * 4 * 4);
 	texture_mapping.unmap();
@@ -191,7 +191,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_texture_without_its_cpu_copy_is_written_once, F,
 	BOOST_CHECK_THROW((void)texture->read(), std::logic_error);
 	BOOST_CHECK_THROW(texture->download(), std::logic_error);
 	// and one that keeps it is written and read again
-	TexturePtr const kept = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, TextureUsage());
+	std::shared_ptr<Texture> const kept = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, TextureUsage());
 	auto kept_mapping = kept->write(Contents::DISCARD);
 	std::memset(kept_mapping.data(), 7, 4 * 4 * 4);
 	kept_mapping.unmap();
@@ -203,7 +203,7 @@ BOOST_AUTO_TEST_CASE(a_shader_program_is_loaded_by_its_name_from_a_directory)
 	// <dir>/<name>.vert.spv and <name>.frag.spv, as edge_add_shaders makes them: there, or an error naming what is not
 	NullFixture fixture;
 	std::filesystem::path const dir = std::filesystem::path(EDGE_TEST_SHADER_DIR);
-	ShaderProgramPtr const program = fixture.renderer->load_shader_program(dir, "test_vertex_color");
+	std::shared_ptr<ShaderProgram> const program = fixture.renderer->load_shader_program(dir, "test_vertex_color");
 	BOOST_CHECK_EQUAL(program->vertex_shader_filename(), (dir / "test_vertex_color.vert.spv").string());
 	BOOST_CHECK_EQUAL(program->fragment_shader_filename(), (dir / "test_vertex_color.frag.spv").string());
 	try
@@ -229,7 +229,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_pass_into_another_renderer_s_target_is_refused, 
 	RenderTargetFormat layered;
 	layered.color_formats = {PixelFormat::A8R8G8B8};
 	layered.layers = 2;
-	std::vector<RenderTargetPtr> const theirs = {other.renderer->create_render_target(8, 8, PixelFormat::A8R8G8B8),
+	std::vector<std::shared_ptr<RenderTarget>> const theirs = {other.renderer->create_render_target(8, 8, PixelFormat::A8R8G8B8),
 		other.renderer->create_render_target(8, 8, layered)->layer(1), other.renderer->default_render_target(),
 		std::make_shared<NullRenderer>(16, 16)->create_render_target(8, 8, PixelFormat::A8R8G8B8)};
 	renderer->begin_frame();

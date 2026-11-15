@@ -46,34 +46,34 @@ float const PI = 3.14159265f;
 using Rgba = rove::rgba<float>;
 
 /// Eye at z = 1 looking down -z, orthographic over [-1, 1]^2, near 0, far 2: a point's depth is half its distance from the eye.
-CameraPtr flat_view()
+std::shared_ptr<Camera> flat_view()
 {
-	CameraPtr camera(new Camera());
+	std::shared_ptr<Camera> camera(new Camera());
 	camera->set_orthographic_projection(2.0f, 2.0f, 0.0f, 2.0f);
 	camera->look_at(rove::vec<3>(0, 0, 1), rove::vec<3>(0, 0, 0), rove::vec<3>(0, 1, 0));
 	return camera;
 }
 
-MaterialPtr material(RendererPtr const &renderer, std::string const &vertex, std::string const &fragment)
+std::shared_ptr<Material> material(std::shared_ptr<Renderer> const &renderer, std::string const &vertex, std::string const &fragment)
 {
-	MaterialPtr m = renderer->create_material();
+	std::shared_ptr<Material> m = renderer->create_material();
 	m->set_cull_mode(Material::CullMode::NONE);
 	m->set_shader_program(renderer->create_shader_program(test_shader(vertex), test_shader(fragment)));
 	return m;
 }
 
-DrawCallPtr call(RendererPtr const &renderer, MaterialPtr const &material, CameraPtr const &camera, std::vector<VERTEX_PT> const &vertices,
+std::shared_ptr<DrawCall> call(std::shared_ptr<Renderer> const &renderer, std::shared_ptr<Material> const &material, std::shared_ptr<Camera> const &camera, std::vector<VERTEX_PT> const &vertices,
 	std::vector<INDEX_U16> const &indices)
 {
-	VertexBufferPtr vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * vertices.size());
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * vertices.size());
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	std::copy(vertices.begin(), vertices.end(), vb_mapping.as<VERTEX_PT>().data());
 	vb_mapping.unmap();
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * indices.size());
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * indices.size());
 	auto ib_mapping = ib->write(Contents::DISCARD);
 	std::copy(indices.begin(), indices.end(), ib_mapping.as<INDEX_U16>().data());
 	ib_mapping.unmap();
-	DrawCallPtr draw_call = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> draw_call = renderer->create_draw_call();
 	draw_call->set_vertex_buffer(vb);
 	draw_call->set_index_buffer(ib);
 	draw_call->set_material(material);
@@ -85,7 +85,7 @@ DrawCallPtr call(RendererPtr const &renderer, MaterialPtr const &material, Camer
 }
 
 /// A quad across the whole width of flat_view(), `half_height` clip units above and below the middle, at z (depth (1 - z) / 2).
-DrawCallPtr quad(RendererPtr const &renderer, MaterialPtr const &material, CameraPtr const &camera, float half_height, float z)
+std::shared_ptr<DrawCall> quad(std::shared_ptr<Renderer> const &renderer, std::shared_ptr<Material> const &material, std::shared_ptr<Camera> const &camera, float half_height, float z)
 {
 	std::vector<VERTEX_PT> v(4);
 	float const xy[4][2] = {{-1, -half_height}, {1, -half_height}, {1, half_height}, {-1, half_height}};
@@ -98,7 +98,7 @@ DrawCallPtr quad(RendererPtr const &renderer, MaterialPtr const &material, Camer
 }
 
 /// The six faces of the box of half side `half` about the origin.
-DrawCallPtr box(RendererPtr const &renderer, MaterialPtr const &material, CameraPtr const &camera, float half)
+std::shared_ptr<DrawCall> box(std::shared_ptr<Renderer> const &renderer, std::shared_ptr<Material> const &material, std::shared_ptr<Camera> const &camera, float half)
 {
 	std::vector<VERTEX_PT> v(8);
 	for (int i = 0; i < 8; ++i)
@@ -112,7 +112,7 @@ DrawCallPtr box(RendererPtr const &renderer, MaterialPtr const &material, Camera
 }
 
 /// A pass into `target`, cleared as `clear` says, that draws `drawn`.
-void pass(RendererPtr const &renderer, RenderTargetPtr const &target, DrawCallPtr const &drawn,
+void pass(std::shared_ptr<Renderer> const &renderer, std::shared_ptr<RenderTarget> const &target, std::shared_ptr<DrawCall> const &drawn,
 	RenderPassClearState const &clear = RenderPassClearState())
 {
 	renderer->begin_pass(target, clear);
@@ -145,9 +145,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_target_of_one_colour_format_is_what_it_always_wa
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
 	for (bool readable : {false, true})
 	{
-		RenderTargetPtr const target = renderer->create_render_target(24, 16, PixelFormat::R32G32B32A32F, readable);
+		std::shared_ptr<RenderTarget> const target = renderer->create_render_target(24, 16, PixelFormat::R32G32B32A32F, readable);
 		BOOST_REQUIRE_EQUAL(target->color_textures_count(), 1u);
-		TexturePtr const color = target->color_texture();
+		std::shared_ptr<Texture> const color = target->color_texture();
 		BOOST_REQUIRE(color);
 		BOOST_CHECK(target->color_texture(0) == color);
 		BOOST_CHECK_EQUAL(color->pixel_format(), PixelFormat::R32G32B32A32F);
@@ -173,10 +173,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(each_colour_attachment_holds_what_its_own_output_w
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
 	RenderTargetFormat format;
 	format.color_formats = {PixelFormat::R32G32B32A32F, PixelFormat::A8R8G8B8, PixelFormat::R32F};
-	RenderTargetPtr const target = renderer->create_render_target(SIZE, SIZE, format);
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(SIZE, SIZE, format);
 	BOOST_REQUIRE_EQUAL(target->color_textures_count(), 3u);
-	CameraPtr const camera = flat_view();
-	MaterialPtr const m = material(renderer, "test_frame.vert", "test_mrt.frag");
+	std::shared_ptr<Camera> const camera = flat_view();
+	std::shared_ptr<Material> const m = material(renderer, "test_frame.vert", "test_mrt.frag");
 	m->set_extra_parameter(0, rove::vec<4>(0.75f, float(SIZE), float(SIZE), 0.25f));
 	RenderPassClearState clear;
 	clear.clear_color_r = 0.2f;
@@ -226,16 +226,16 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_later_pass_samples_each_attachment, F, Backends)
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
 	RenderTargetFormat format;
 	format.color_formats = {PixelFormat::R32G32B32A32F, PixelFormat::A8R8G8B8, PixelFormat::R32F};
-	RenderTargetPtr const target = renderer->create_render_target(SIZE, SIZE, format);
-	CameraPtr const camera = flat_view();
-	MaterialPtr const m = material(renderer, "test_frame.vert", "test_mrt.frag");
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(SIZE, SIZE, format);
+	std::shared_ptr<Camera> const camera = flat_view();
+	std::shared_ptr<Material> const m = material(renderer, "test_frame.vert", "test_mrt.frag");
 	m->set_extra_parameter(0, rove::vec<4>(0.75f, float(SIZE), float(SIZE), 0.25f));
-	std::vector<RenderTargetPtr> copies;
-	std::vector<DrawCallPtr> covers;
+	std::vector<std::shared_ptr<RenderTarget>> copies;
+	std::vector<std::shared_ptr<DrawCall>> covers;
 	for (int i = 0; i < 3; ++i)
 	{
 		copies.push_back(renderer->create_render_target(SIZE, SIZE, PixelFormat::R32G32B32A32F));
-		MaterialPtr const reader = material(renderer, "test_frame.vert", "test_depth.frag");
+		std::shared_ptr<Material> const reader = material(renderer, "test_frame.vert", "test_depth.frag");
 		reader->set_diffuse_texture(target->color_texture(i));
 		covers.push_back(quad(renderer, reader, camera, 1.0f, 0.0f));
 	}
@@ -271,13 +271,13 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(the_attachments_are_made_as_asked_or_refused, F, A
 	RenderTargetFormat format;
 	format.color_formats = {PixelFormat::R16G16B16A16F, PixelFormat::A8R8G8B8};
 	format.readable_depth = true;
-	RenderTargetPtr const two = renderer->create_render_target(20, 12, format);
+	std::shared_ptr<RenderTarget> const two = renderer->create_render_target(20, 12, format);
 	BOOST_REQUIRE_EQUAL(two->color_textures_count(), 2u);
 	BOOST_CHECK_EQUAL(two->color_texture(0)->pixel_format(), PixelFormat::R16G16B16A16F);
 	BOOST_CHECK_EQUAL(two->color_texture(1)->pixel_format(), PixelFormat::A8R8G8B8);
 	BOOST_CHECK(two->color_texture(0) != two->color_texture(1));
 	BOOST_CHECK(two->color_texture() == two->color_texture(0));
-	for (TexturePtr const &t : two->color_textures())
+	for (std::shared_ptr<Texture> const &t : two->color_textures())
 	{
 		BOOST_CHECK_EQUAL(t->width(), 20);
 		BOOST_CHECK_EQUAL(t->height(), 12);
@@ -318,14 +318,14 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_target_of_depth_alone_keeps_the_depth_its_pass_d
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
 	RenderTargetFormat format;
 	format.readable_depth = true;
-	RenderTargetPtr const shadow = renderer->create_render_target(SIZE, SIZE, format);
+	std::shared_ptr<RenderTarget> const shadow = renderer->create_render_target(SIZE, SIZE, format);
 	BOOST_CHECK_EQUAL(shadow->color_textures_count(), 0u);
 	BOOST_CHECK(!shadow->color_texture());
 	BOOST_REQUIRE(shadow->depth_texture());
-	CameraPtr const camera = flat_view();
-	DrawCallPtr const drawn = quad(renderer, material(renderer, "test_frame.vert", "test_no_output.frag"), camera, 0.5f, 0.2f);
-	RenderTargetPtr const copy = renderer->create_render_target(SIZE, SIZE, PixelFormat::R32G32B32A32F);
-	MaterialPtr const reader = material(renderer, "test_frame.vert", "test_depth.frag");
+	std::shared_ptr<Camera> const camera = flat_view();
+	std::shared_ptr<DrawCall> const drawn = quad(renderer, material(renderer, "test_frame.vert", "test_no_output.frag"), camera, 0.5f, 0.2f);
+	std::shared_ptr<RenderTarget> const copy = renderer->create_render_target(SIZE, SIZE, PixelFormat::R32G32B32A32F);
+	std::shared_ptr<Material> const reader = material(renderer, "test_frame.vert", "test_depth.frag");
 	reader->set_diffuse_texture(shadow->depth_texture());
 	RenderPassClearState clear;
 	clear.clear_depth_value = 0.9f;
@@ -338,8 +338,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_target_of_depth_alone_keeps_the_depth_its_pass_d
 	BOOST_CHECK_CLOSE(depth.at(5, 2).r, 0.9f, 1e-3);                 // the clear above it
 
 	// and compared, as global_shadow_texture samples it
-	MaterialPtr const compare = material(renderer, "test_frame.vert", "test_shadow_compare.frag");
-	DrawCallPtr const cover = quad(renderer, compare, camera, 1.0f, 0.0f);
+	std::shared_ptr<Material> const compare = material(renderer, "test_frame.vert", "test_shadow_compare.frag");
+	std::shared_ptr<DrawCall> const cover = quad(renderer, compare, camera, 1.0f, 0.0f);
 	renderer->set_global_shadow_texture(0, shadow->depth_texture());
 	for (float reference : {0.3f, 0.5f})
 	{
@@ -352,7 +352,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_target_of_depth_alone_keeps_the_depth_its_pass_d
 		BOOST_CHECK_EQUAL(lit.at(5, SIZE / 2).r, reference <= 0.4f ? 1.0f : 0.0f);
 		BOOST_CHECK_EQUAL(lit.at(5, 2).r, 1.0f);
 	}
-	renderer->set_global_texture(0, TexturePtr());
+	renderer->set_global_texture(0, std::shared_ptr<Texture>());
 }
 
 #ifdef EDGE_USE_VULKAN
@@ -362,17 +362,17 @@ BOOST_AUTO_TEST_CASE(a_vulkan_pass_leaves_every_attachment_to_be_sampled)
 {
 	VulkanFixture fixture;
 	BOOST_REQUIRE_MESSAGE(fixture.renderer, "renderer unavailable: " << fixture.error);
-	RendererPtr const renderer = fixture.renderer;
-	CameraPtr const camera = flat_view();
-	DrawCallPtr const drawn = quad(renderer, material(renderer, "test_frame.vert", "test_mrt.frag"), camera, 1.0f, 0.0f);
+	std::shared_ptr<Renderer> const renderer = fixture.renderer;
+	std::shared_ptr<Camera> const camera = flat_view();
+	std::shared_ptr<DrawCall> const drawn = quad(renderer, material(renderer, "test_frame.vert", "test_mrt.frag"), camera, 1.0f, 0.0f);
 	for (int layers : {0, 2})
 	{
 		RenderTargetFormat format;
 		format.color_formats = {PixelFormat::R32G32B32A32F, PixelFormat::A8R8G8B8, PixelFormat::R32F};
 		format.readable_depth = true;
 		format.layers = layers;
-		RenderTargetPtr const target = renderer->create_render_target(SIZE, SIZE, format);
-		std::vector<TexturePtr> textures = target->color_textures();
+		std::shared_ptr<RenderTarget> const target = renderer->create_render_target(SIZE, SIZE, format);
+		std::vector<std::shared_ptr<Texture>> textures = target->color_textures();
 		textures.push_back(target->depth_texture());
 		renderer->begin_frame();
 		pass(renderer, layers ? target->layer(1) : target, drawn);
@@ -400,13 +400,13 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_target_of_layers_is_drawn_a_layer_at_a_time, F, 
 	format.color_formats = {PixelFormat::R32G32B32A32F, PixelFormat::R32F};
 	format.readable_depth = true;
 	format.layers = 3;
-	RenderTargetPtr const target = renderer->create_render_target(16, 8, format);
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(16, 8, format);
 	BOOST_CHECK_EQUAL(target->layers(), 3);
 	BOOST_CHECK(!target->is_cube());
 	BOOST_CHECK_EQUAL(target->layer_index(), -1);
-	std::vector<TexturePtr> textures = target->color_textures();
+	std::vector<std::shared_ptr<Texture>> textures = target->color_textures();
 	textures.push_back(target->depth_texture());
-	for (TexturePtr const &t : textures)
+	for (std::shared_ptr<Texture> const &t : textures)
 	{
 		BOOST_REQUIRE(t);
 		BOOST_CHECK_EQUAL(t->array_layers(), 3);
@@ -416,7 +416,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_target_of_layers_is_drawn_a_layer_at_a_time, F, 
 	BOOST_CHECK(!target->stencil_texture());
 	for (int i = 0; i < 3; ++i)
 	{
-		RenderTargetPtr const layer = target->layer(i);
+		std::shared_ptr<RenderTarget> const layer = target->layer(i);
 		BOOST_REQUIRE(layer);
 		BOOST_CHECK(layer == target->layer(i));
 		BOOST_CHECK_EQUAL(layer->layer_index(), i);
@@ -444,7 +444,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_target_of_layers_is_drawn_a_layer_at_a_time, F, 
 	format.layers = -1;
 	BOOST_CHECK_THROW(renderer->create_render_target(16, 8, format), std::invalid_argument);
 	format.layers = 1;          // an array of one layer is an array still
-	RenderTargetPtr const one = renderer->create_render_target(16, 8, format);
+	std::shared_ptr<RenderTarget> const one = renderer->create_render_target(16, 8, format);
 	BOOST_CHECK_EQUAL(one->color_texture()->array_layers(), 1);
 	BOOST_CHECK_THROW(one->layer(1), std::out_of_range);
 	format.layers = 1 << 20;
@@ -471,33 +471,33 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(each_layer_keeps_what_its_own_pass_drew, F, Backen
 	format.color_formats = {PixelFormat::R32G32B32A32F, PixelFormat::R32F};
 	format.readable_depth = true;
 	format.layers = 3;
-	std::vector<RenderTargetPtr> layers;
-	TexturePtr colors, values, depths;
+	std::vector<std::shared_ptr<RenderTarget>> layers;
+	std::shared_ptr<Texture> colors, values, depths;
 	{
-		RenderTargetPtr const target = renderer->create_render_target(SIZE, SIZE, format);
+		std::shared_ptr<RenderTarget> const target = renderer->create_render_target(SIZE, SIZE, format);
 		for (int i = 0; i < 3; ++i)
 			layers.push_back(target->layer(i));
 		colors = target->color_texture(0);
 		values = target->color_texture(1);
 		depths = target->depth_texture();
 	}
-	CameraPtr const camera = flat_view();
+	std::shared_ptr<Camera> const camera = flat_view();
 	auto const painter = [&](int i, float shade)
 	{
-		MaterialPtr const m = material(renderer, "test_frame.vert", "test_two_constants.frag");
+		std::shared_ptr<Material> const m = material(renderer, "test_frame.vert", "test_two_constants.frag");
 		m->set_extra_parameter(0, rove::vec<4>(float(i), shade, 0.5f + i, 1.0f));
 		m->set_extra_parameter(1, rove::vec<4>(10.0f * i + shade, 0, 0, 0));
 		return quad(renderer, m, camera, 1.0f, 0.25f * i);          // depth 0.5, 0.375, 0.25
 	};
-	RenderTargetPtr const copy = renderer->create_render_target(SIZE, SIZE, PixelFormat::R32G32B32A32F);
-	auto const fetch = [&](TexturePtr const &array, int layer)
+	std::shared_ptr<RenderTarget> const copy = renderer->create_render_target(SIZE, SIZE, PixelFormat::R32G32B32A32F);
+	auto const fetch = [&](std::shared_ptr<Texture> const &array, int layer)
 	{
-		MaterialPtr const reader = material(renderer, "test_frame.vert", "test_fetch_array.frag");
+		std::shared_ptr<Material> const reader = material(renderer, "test_frame.vert", "test_fetch_array.frag");
 		reader->set_diffuse_texture(array);
 		reader->set_extra_parameter(0, rove::vec<4>(float(layer), 0, 0, 0));
 		return quad(renderer, reader, camera, 1.0f, 0.0f);
 	};
-	auto const read = [&](TexturePtr const &array, int layer)
+	auto const read = [&](std::shared_ptr<Texture> const &array, int layer)
 	{
 		renderer->begin_frame();
 		pass(renderer, copy, fetch(array, layer));
@@ -545,14 +545,14 @@ BOOST_AUTO_TEST_CASE(a_vulkan_target_of_layers_draws_every_layer_with_one_depth_
 		format.color_formats = {PixelFormat::R32G32B32A32F};
 		format.layers = cube ? 0 : 4;
 		format.cube = cube;
-		RenderTargetPtr const target = fixture.renderer->create_render_target(SIZE, SIZE, format);
+		std::shared_ptr<RenderTarget> const target = fixture.renderer->create_render_target(SIZE, SIZE, format);
 		VkImage const depth = static_cast<VulkanRenderTarget &>(*target->layer(0)).depth_image();
 		BOOST_REQUIRE(depth != VK_NULL_HANDLE);
 		for (int i = 1; i < target->layers(); ++i)
 			BOOST_CHECK_MESSAGE(static_cast<VulkanRenderTarget &>(*target->layer(i)).depth_image() == depth,
 				"layer " << i << " of a " << (cube ? "cube" : "target of 4 layers") << " has a depth image of its own");
 		// another target's is its own
-		RenderTargetPtr const other = fixture.renderer->create_render_target(SIZE, SIZE, format);
+		std::shared_ptr<RenderTarget> const other = fixture.renderer->create_render_target(SIZE, SIZE, format);
 		BOOST_CHECK(static_cast<VulkanRenderTarget &>(*other->layer(0)).depth_image() != depth);
 	}
 }
@@ -569,13 +569,13 @@ BOOST_AUTO_TEST_CASE(a_gles_target_of_layers_draws_every_layer_with_one_depth_re
 		format.color_formats = {PixelFormat::R32G32B32A32F};
 		format.layers = cube ? 0 : 4;
 		format.cube = cube;
-		RenderTargetPtr const target = fixture.renderer->create_render_target(SIZE, SIZE, format);
+		std::shared_ptr<RenderTarget> const target = fixture.renderer->create_render_target(SIZE, SIZE, format);
 		GLuint const depth = static_cast<GLESRenderTarget &>(*target->layer(0)).depth_renderbuffer();
 		BOOST_REQUIRE(depth != 0);
 		for (int i = 1; i < target->layers(); ++i)
 			BOOST_CHECK_MESSAGE(static_cast<GLESRenderTarget &>(*target->layer(i)).depth_renderbuffer() == depth,
 				"layer " << i << " of a " << (cube ? "cube" : "target of 4 layers") << " has a depth renderbuffer of its own");
-		RenderTargetPtr const other = fixture.renderer->create_render_target(SIZE, SIZE, format);
+		std::shared_ptr<RenderTarget> const other = fixture.renderer->create_render_target(SIZE, SIZE, format);
 		BOOST_CHECK(static_cast<GLESRenderTarget &>(*other->layer(0)).depth_renderbuffer() != depth);
 	}
 }
@@ -591,16 +591,16 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_layer_is_not_hidden_by_what_another_layer_drew, 
 	RenderTargetFormat format;
 	format.color_formats = {PixelFormat::R32G32B32A32F, PixelFormat::R32F};
 	format.layers = 3;
-	RenderTargetPtr const target = renderer->create_render_target(SIZE, SIZE, format);
-	CameraPtr const camera = flat_view();
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(SIZE, SIZE, format);
+	std::shared_ptr<Camera> const camera = flat_view();
 	auto const painter = [&](int i, float z)
 	{
-		MaterialPtr const m = material(renderer, "test_frame.vert", "test_two_constants.frag");
+		std::shared_ptr<Material> const m = material(renderer, "test_frame.vert", "test_two_constants.frag");
 		m->set_extra_parameter(0, rove::vec<4>(float(i + 1), 0, 0, 1));
 		m->set_extra_parameter(1, rove::vec<4>(float(i + 1), 0, 0, 0));
 		return quad(renderer, m, camera, 1.0f, z);
 	};
-	RenderTargetPtr const copy = renderer->create_render_target(SIZE, SIZE, PixelFormat::R32G32B32A32F);
+	std::shared_ptr<RenderTarget> const copy = renderer->create_render_target(SIZE, SIZE, PixelFormat::R32G32B32A32F);
 	// the nearest first, then farther ones (depth 0.1, 0.5, 0.9), and the other way round
 	for (bool nearest_first : {true, false})
 	{
@@ -613,7 +613,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_layer_is_not_hidden_by_what_another_layer_drew, 
 		renderer->finish_frame();
 		for (int i = 0; i < 3; ++i)
 		{
-			MaterialPtr const reader = material(renderer, "test_frame.vert", "test_fetch_array.frag");
+			std::shared_ptr<Material> const reader = material(renderer, "test_frame.vert", "test_fetch_array.frag");
 			reader->set_diffuse_texture(target->color_texture());
 			reader->set_extra_parameter(0, rove::vec<4>(float(i), 0, 0, 0));
 			renderer->begin_frame();
@@ -636,16 +636,16 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_depth_array_is_compared_layer_by_layer, F, Backe
 	RenderTargetFormat format;
 	format.readable_depth = true;
 	format.layers = 3;
-	RenderTargetPtr const cascades = renderer->create_render_target(SIZE, SIZE, format);
-	CameraPtr const camera = flat_view();
-	MaterialPtr const depth_only = material(renderer, "test_frame.vert", "test_no_output.frag");
+	std::shared_ptr<RenderTarget> const cascades = renderer->create_render_target(SIZE, SIZE, format);
+	std::shared_ptr<Camera> const camera = flat_view();
+	std::shared_ptr<Material> const depth_only = material(renderer, "test_frame.vert", "test_no_output.frag");
 	float const depth[3] = {0.2f, 0.4f, 0.6f};
-	std::vector<DrawCallPtr> drawn;
+	std::vector<std::shared_ptr<DrawCall>> drawn;
 	for (float d : depth)
 		drawn.push_back(quad(renderer, depth_only, camera, 1.0f, 1.0f - 2.0f * d));
-	RenderTargetPtr const copy = renderer->create_render_target(SIZE, SIZE, PixelFormat::R32G32B32A32F);
-	MaterialPtr const compare = material(renderer, "test_frame.vert", "test_shadow_array.frag");
-	DrawCallPtr const cover = quad(renderer, compare, camera, 1.0f, 0.0f);
+	std::shared_ptr<RenderTarget> const copy = renderer->create_render_target(SIZE, SIZE, PixelFormat::R32G32B32A32F);
+	std::shared_ptr<Material> const compare = material(renderer, "test_frame.vert", "test_shadow_array.frag");
+	std::shared_ptr<DrawCall> const cover = quad(renderer, compare, camera, 1.0f, 0.0f);
 	renderer->set_global_shadow_texture(0, cascades->depth_texture());
 	renderer->begin_frame();
 	for (int i = 0; i < 3; ++i)
@@ -662,7 +662,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_depth_array_is_compared_layer_by_layer, F, Backe
 			BOOST_CHECK_MESSAGE(lit == (reference <= depth[i] ? 1.0f : 0.0f),
 				"layer " << i << " (depth " << depth[i] << ") against " << reference << ": " << lit);
 		}
-	renderer->set_global_texture(0, TexturePtr());
+	renderer->set_global_texture(0, std::shared_ptr<Texture>());
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -679,10 +679,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_cube_is_six_square_faces, F, AllBackends)
 	format.color_formats = {PixelFormat::R16G16B16A16F};
 	format.readable_depth = true;
 	format.cube = true;
-	RenderTargetPtr const cube = renderer->create_render_target(16, 16, format);
+	std::shared_ptr<RenderTarget> const cube = renderer->create_render_target(16, 16, format);
 	BOOST_CHECK(cube->is_cube());
 	BOOST_CHECK_EQUAL(cube->layers(), 6);
-	for (TexturePtr const &t : {cube->color_texture(), cube->depth_texture()})
+	for (std::shared_ptr<Texture> const &t : {cube->color_texture(), cube->depth_texture()})
 	{
 		BOOST_REQUIRE(t);
 		BOOST_CHECK(t->is_cube());
@@ -754,18 +754,18 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_cube_drawn_face_by_face_samples_as_the_world_see
 	RenderTargetFormat format;
 	format.color_formats = {PixelFormat::R16G16B16A16F};
 	format.cube = true;
-	RenderTargetPtr const cube = renderer->create_render_target(SIZE, SIZE, format);
+	std::shared_ptr<RenderTarget> const cube = renderer->create_render_target(SIZE, SIZE, format);
 	rove::vec<3> const eye(0.25f, -0.5f, 0.125f);
-	MaterialPtr const direction = material(renderer, "test_world_position.vert", "test_world_direction.frag");
+	std::shared_ptr<Material> const direction = material(renderer, "test_world_position.vert", "test_world_direction.frag");
 	direction->set_extra_parameter(0, rove::vec<4>(eye.x, eye.y, eye.z, 0));
-	CameraPtr const camera(new Camera());
+	std::shared_ptr<Camera> const camera(new Camera());
 	int const W = 64, H = 32;
-	RenderTargetPtr const map = renderer->create_render_target(W, H, PixelFormat::R32G32B32A32F);
-	MaterialPtr const sampler = material(renderer, "test_frame.vert", "test_sample_cube.frag");
+	std::shared_ptr<RenderTarget> const map = renderer->create_render_target(W, H, PixelFormat::R32G32B32A32F);
+	std::shared_ptr<Material> const sampler = material(renderer, "test_frame.vert", "test_sample_cube.frag");
 	sampler->set_diffuse_texture(cube->color_texture());
 	sampler->set_extra_parameter(0, rove::vec<4>(float(W), float(H), 0, 0));
-	CameraPtr const flat = flat_view();
-	DrawCallPtr const cover = quad(renderer, sampler, flat, 1.0f, 0.0f);
+	std::shared_ptr<Camera> const flat = flat_view();
+	std::shared_ptr<DrawCall> const cover = quad(renderer, sampler, flat, 1.0f, 0.0f);
 
 	renderer->begin_frame();
 	for (int face = 0; face < 6; ++face)
@@ -805,14 +805,14 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_depth_cube_compares_a_point_with_what_its_face_s
 	RenderTargetFormat format;
 	format.readable_depth = true;
 	format.cube = true;
-	RenderTargetPtr const cube = renderer->create_render_target(SIZE, SIZE, format);
+	std::shared_ptr<RenderTarget> const cube = renderer->create_render_target(SIZE, SIZE, format);
 	float const near = 0.1f, far = 10.0f;
-	CameraPtr const camera(new Camera());
-	MaterialPtr const depth_only = material(renderer, "test_frame.vert", "test_no_output.frag");
+	std::shared_ptr<Camera> const camera(new Camera());
+	std::shared_ptr<Material> const depth_only = material(renderer, "test_frame.vert", "test_no_output.frag");
 	int const W = 64, H = 32;
-	RenderTargetPtr const map = renderer->create_render_target(W, H, PixelFormat::R32G32B32A32F);
-	MaterialPtr const compare = material(renderer, "test_frame.vert", "test_shadow_cube.frag");
-	DrawCallPtr const cover = quad(renderer, compare, flat_view(), 1.0f, 0.0f);
+	std::shared_ptr<RenderTarget> const map = renderer->create_render_target(W, H, PixelFormat::R32G32B32A32F);
+	std::shared_ptr<Material> const compare = material(renderer, "test_frame.vert", "test_shadow_cube.frag");
+	std::shared_ptr<DrawCall> const cover = quad(renderer, compare, flat_view(), 1.0f, 0.0f);
 	renderer->set_global_shadow_texture(0, cube->depth_texture());
 	renderer->begin_frame();
 	for (int face = 0; face < 6; ++face)
@@ -836,7 +836,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_depth_cube_compares_a_point_with_what_its_face_s
 					BOOST_ERROR("at " << distance << " in direction of pixel (" << x << ", " << y << "): " << lit.at(x, y).r);
 		BOOST_CHECK_EQUAL(wrong, 0);
 	}
-	renderer->set_global_texture(0, TexturePtr());
+	renderer->set_global_texture(0, std::shared_ptr<Texture>());
 }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -26,14 +26,14 @@ std::string asset(std::string const &name)
 	return edge::TestFixture::graphic_sources_path() + "test/data/" + name;
 }
 
-edge::RendererPtr make_renderer()
+std::shared_ptr<edge::Renderer> make_renderer()
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
 	return renderer;
 }
 
 template <class V>
-edge::BasicStaticMesh<V> const &static_mesh(edge::MeshPtr const &mesh)
+edge::BasicStaticMesh<V> const &static_mesh(std::shared_ptr<edge::Mesh> const &mesh)
 {
 	auto const *result = dynamic_cast<edge::BasicStaticMesh<V> const *>(mesh.get());
 	BOOST_REQUIRE(result);
@@ -41,9 +41,9 @@ edge::BasicStaticMesh<V> const &static_mesh(edge::MeshPtr const &mesh)
 }
 
 template <class V>
-std::vector<char> vertex_bytes(edge::MeshPtr const &mesh)
+std::vector<char> vertex_bytes(std::shared_ptr<edge::Mesh> const &mesh)
 {
-	edge::VertexBufferPtr const &buffer = static_mesh<V>(mesh).vertex_buffer();
+	std::shared_ptr<edge::VertexBuffer> const &buffer = static_mesh<V>(mesh).vertex_buffer();
 	auto buffer_mapping = buffer->read();
 	char const *begin = buffer_mapping.as<char const>().data();
 	std::vector<char> bytes(begin, begin + buffer->size());
@@ -68,7 +68,7 @@ bool same_matrices(std::vector<rove::matrix<4,4>> const &a, std::vector<rove::ma
 
 struct CacheFixture
 {
-	edge::RendererPtr renderer = make_renderer();
+	std::shared_ptr<edge::Renderer> renderer = make_renderer();
 	edge::ModelCache cache{renderer};
 };
 
@@ -103,8 +103,8 @@ BOOST_AUTO_TEST_CASE(instances_share_geometry_and_textures_but_not_materials)
 	std::size_t textured = 0;
 	for (std::size_t i = 0; i < a->materials().size(); ++i)
 	{
-		edge::MaterialPtr const &ma = a->materials()[i];
-		edge::MaterialPtr const &mb = b->materials()[i];
+		std::shared_ptr<edge::Material> const &ma = a->materials()[i];
+		std::shared_ptr<edge::Material> const &mb = b->materials()[i];
 		BOOST_CHECK(ma != mb);
 		BOOST_CHECK_EQUAL(ma->name(), mb->name());
 		BOOST_REQUIRE_EQUAL(ma->diffuse_textures_count(), mb->diffuse_textures_count());

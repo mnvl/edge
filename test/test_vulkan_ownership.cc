@@ -29,10 +29,10 @@ BOOST_AUTO_TEST_CASE(no_resource_keeps_its_renderer_alive_and_each_outlives_it)
 {
 	auto renderer = std::make_shared<VulkanRenderer>(16, 16);
 	std::weak_ptr<VulkanRenderer> const alive = renderer;
-	VertexBufferPtr const vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 3);
-	IndexBufferPtr const ib = renderer->create_index_buffer(IndexFormat::U16, 6);
-	TexturePtr const texture = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8);
-	RenderTargetPtr const target = renderer->create_render_target(4, 4, PixelFormat::A8R8G8B8);
+	std::shared_ptr<VertexBuffer> const vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 3);
+	std::shared_ptr<IndexBuffer> const ib = renderer->create_index_buffer(IndexFormat::U16, 6);
+	std::shared_ptr<Texture> const texture = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(4, 4, PixelFormat::A8R8G8B8);
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	std::memset(vb_mapping.data(), 0, sizeof(VERTEX_PT) * 3);
 	vb_mapping.unmap();

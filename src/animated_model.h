@@ -15,13 +15,13 @@ class Renderer;
 template<skinned_vertex_layout V = VERTEX_PNJWT>
 class BasicAnimatedModel: public Model {
 public:
-	explicit BasicAnimatedModel(RendererPtr const &renderer_ptr);
+	explicit BasicAnimatedModel(std::shared_ptr<Renderer> const &renderer_ptr);
 	/// An instance holding @p prototype; see Model(std::shared_ptr<Model const> const &).
 	explicit BasicAnimatedModel(std::shared_ptr<BasicAnimatedModel const> const &prototype):
 		Model(std::shared_ptr<Model const>(prototype)) {}
 	~BasicAnimatedModel() override;
 
-	MeshPtr add_mesh() override;
+	std::shared_ptr<Mesh> add_mesh() override;
 	std::string mesh_serialization_type() const override { return BasicAnimatedMesh<V>::class_serialization_type(); }
 
 	/// The pose box of every skinned mesh (BasicAnimatedMesh::pose_bounds()): the union of its vertices in the bind pose and at

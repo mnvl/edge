@@ -14,32 +14,32 @@ namespace edge {
 // It cannot render — load saved .edge files with StaticModel/AnimatedModel for rendering.
 class ModelBuilder: public Model {
 public:
-	explicit ModelBuilder(RendererPtr const &renderer_ptr);
+	explicit ModelBuilder(std::shared_ptr<Renderer> const &renderer_ptr);
 	~ModelBuilder() override;
 
-	MeshBuilderPtr mesh_by_id(std::string const &id) {
+	std::shared_ptr<MeshBuilder> mesh_by_id(std::string const &id) {
 		return std::static_pointer_cast<MeshBuilder>(Model::mesh_by_id(id));
 	}
 
-	MeshBuilderPtr mesh_by_name(std::string const &name) {
+	std::shared_ptr<MeshBuilder> mesh_by_name(std::string const &name) {
 		return std::static_pointer_cast<MeshBuilder>(Model::mesh_by_name(name));
 	}
 
-	MeshBuilderPtr add_mesh_builder(std::string const &id = std::string(),
+	std::shared_ptr<MeshBuilder> add_mesh_builder(std::string const &id = std::string(),
 		std::string const &name = std::string());
-	JointPtr attach_mesh_to_joint(MeshBuilderPtr const &mesh_ptr, std::string const &joint_name = std::string());
-	MeshBuilderPtr add_geometry(std::vector<MeshBuilder::vertex_type> const &vertices,
+	std::shared_ptr<Joint> attach_mesh_to_joint(std::shared_ptr<MeshBuilder> const &mesh_ptr, std::string const &joint_name = std::string());
+	std::shared_ptr<MeshBuilder> add_geometry(std::vector<MeshBuilder::vertex_type> const &vertices,
 		std::vector<MeshBuilder::index_type> const &indices,
 		std::string const &mesh_name = std::string(),
-		MaterialPtr const &material_ptr = MaterialPtr());
+		std::shared_ptr<Material> const &material_ptr = std::shared_ptr<Material>());
 
-	MeshPtr add_mesh() override;
+	std::shared_ptr<Mesh> add_mesh() override;
 	std::string mesh_serialization_type() const override { return MeshBuilder::class_serialization_type(); }
 
 
 	using Model::draw;
 	/// A ModelBuilder does not draw: std::runtime_error.  Save it and load it as a StaticModelPTBNT.
-	void draw(Scheduler &scheduler, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod = 0) override;
+	void draw(Scheduler &scheduler, std::shared_ptr<Camera> const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod = 0) override;
 };
 
 }

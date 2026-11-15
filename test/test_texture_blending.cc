@@ -16,12 +16,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(blending_weights_in_vertex, F, edge::Backends)
 {
 	F fixture;
 	BOOST_REQUIRE_MESSAGE(fixture.renderer, "renderer unavailable: " << fixture.error);
-	edge::RendererPtr const renderer = fixture.renderer;
+	std::shared_ptr<edge::Renderer> const renderer = fixture.renderer;
 
 	std::string const src = edge::TestFixture::graphic_sources_path();
 
 
-	edge::MaterialPtr material = renderer->create_material();
+	std::shared_ptr<edge::Material> material = renderer->create_material();
 	material->set_diffuse_texture(src + "test/data/test_gray.png");
 	material->set_diffuse_texture(src + "test/data/test_stones.jpeg", 3);
 
@@ -81,7 +81,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(blending_weights_in_vertex, F, edge::Backends)
 	rove::matrix<4,4> world_matrix;
 	world_matrix.identity();
 
-	edge::UberDrawCallPtr draw_call = renderer->create_uber_draw_call();
+	std::shared_ptr<edge::UberDrawCall> draw_call = renderer->create_uber_draw_call();
 
 	draw_call->set_always_visible(true);
 	draw_call->set_vertex_buffer(vertex_array->vertex_buffer());
@@ -108,13 +108,13 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(blending_weights_in_texture, F, edge::Backends)
 {
 	F fixture;
 	BOOST_REQUIRE_MESSAGE(fixture.renderer, "renderer unavailable: " << fixture.error);
-	edge::RendererPtr const renderer = fixture.renderer;
+	std::shared_ptr<edge::Renderer> const renderer = fixture.renderer;
 
 	std::string const src = edge::TestFixture::graphic_sources_path();
 
 
 
-	edge::MaterialPtr material = renderer->create_material();
+	std::shared_ptr<edge::Material> material = renderer->create_material();
 	material->set_diffuse_texture(src + "test/data/test_gray.png");
 	material->set_diffuse_texture(src + "test/data/test_stones.jpeg", 2);
 	material->set_texture_blending_weights_texture(src + "test/data/test_texture_blending_weights.png");
@@ -171,7 +171,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(blending_weights_in_texture, F, edge::Backends)
 	rove::matrix<4,4> world_matrix;
 	world_matrix.identity();
 
-	edge::UberDrawCallPtr draw_call = renderer->create_uber_draw_call();
+	std::shared_ptr<edge::UberDrawCall> draw_call = renderer->create_uber_draw_call();
 
 	draw_call->set_always_visible(true);
 	draw_call->set_vertex_buffer(vertex_array->vertex_buffer());

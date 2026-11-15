@@ -213,7 +213,7 @@ GpuTimer &VulkanRenderer::gpu_timer() const
 
 void VulkanRenderer::init()
 {
-	VulkanInstancePtr const instance = VulkanInstance::acquire(instance_extensions_);
+	std::shared_ptr<VulkanInstance> const instance = VulkanInstance::acquire(instance_extensions_);
 	device_context_->set_instance(instance);
 	instance_ = instance->get();
 	surface_instance_extension_ = instance->surface_extension();
@@ -344,14 +344,14 @@ void VulkanRenderer::destroy_descriptor_resources()
 	material_parameters_ubo_->destroy(device_);
 	draw_constants_ubo_->destroy(device_);
 	frame_constants_ubo_->destroy(device_);
-	for (TexturePtr &t : global_textures_)
+	for (std::shared_ptr<Texture> &t : global_textures_)
 	{
 		t.reset();
 	}
 	descriptors_.reset();
 }
 
-VkDescriptorSet VulkanRenderer::material_descriptor_set(MaterialPtr const &material)
+VkDescriptorSet VulkanRenderer::material_descriptor_set(std::shared_ptr<Material> const &material)
 {
 	ensure_default_texture();
 	return descriptors_->get(material, global_textures_, global_compare_, default_texture_, frame_serial_);
@@ -501,10 +501,10 @@ void VulkanRenderer::transition_image_layout(VkImage image, VkImageLayout old_la
 	end_single_time_commands(command_buffer);
 }
 
-void VulkanRenderer::do_batch_download_textures(std::vector<TexturePtr> const &textures)
+void VulkanRenderer::do_batch_download_textures(std::vector<std::shared_ptr<Texture>> const &textures)
 {
 	std::vector<VulkanTexture *> batch;
-	for (TexturePtr const &texture : textures)
+	for (std::shared_ptr<Texture> const &texture : textures)
 	{
 		VulkanTexture *const vulkan_texture = dynamic_cast<VulkanTexture *>(texture.get());
 		if (!vulkan_texture || vulkan_texture->device() != device_)
@@ -532,10 +532,10 @@ void VulkanRenderer::do_batch_download_textures(std::vector<TexturePtr> const &t
 	}
 }
 
-void VulkanRenderer::do_batch_upload_textures(std::vector<TexturePtr> const &textures)
+void VulkanRenderer::do_batch_upload_textures(std::vector<std::shared_ptr<Texture>> const &textures)
 {
 	std::vector<VulkanTexture *> batch;
-	for (TexturePtr const &texture : textures)
+	for (std::shared_ptr<Texture> const &texture : textures)
 	{
 		VulkanTexture *const vulkan_texture = dynamic_cast<VulkanTexture *>(texture.get());
 		if (!vulkan_texture || vulkan_texture->device() != device_)
@@ -566,10 +566,10 @@ void VulkanRenderer::do_batch_upload_textures(std::vector<TexturePtr> const &tex
 	}
 }
 
-void VulkanRenderer::do_stream_textures(std::vector<TexturePtr> const &textures)
+void VulkanRenderer::do_stream_textures(std::vector<std::shared_ptr<Texture>> const &textures)
 {
 	std::vector<VulkanTexture *> batch;
-	for (TexturePtr const &texture : textures)
+	for (std::shared_ptr<Texture> const &texture : textures)
 	{
 		VulkanTexture *const vulkan_texture = dynamic_cast<VulkanTexture *>(texture.get());
 		if (!vulkan_texture || vulkan_texture->device() != device_)
@@ -684,7 +684,7 @@ bool VulkanRenderer::surface_lost() const
 	return presenter_->surface_lost();
 }
 
-bool VulkanRenderer::present(TexturePtr const &frame, int width, int height)
+bool VulkanRenderer::present(Texture &frame, int width, int height)
 {
 	if (in_frame())
 	{
@@ -732,7 +732,7 @@ void VulkanRenderer::prepare_current()
 	current_ready_ = true;
 }
 
-void VulkanRenderer::do_begin_pass(RenderTargetPtr const &target, RenderPassClearState const &clear_state, uint32_t pass_type)
+void VulkanRenderer::do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state, uint32_t pass_type)
 {
 	VulkanRenderTarget *vulkan_target = dynamic_cast<VulkanRenderTarget *>(target.get());
 	if (!vulkan_target || vulkan_target->device_context() != device_context_)
@@ -749,7 +749,7 @@ void VulkanRenderer::do_begin_pass(RenderTargetPtr const &target, RenderPassClea
 		throw std::logic_error("vulkan render pass target is not fully initialized");
 	}
 	// every colour, every layer of it: the passes that sampled it finish reading before this one draws it
-	for (TexturePtr const &texture : vulkan_target->color_textures())
+	for (std::shared_ptr<Texture> const &texture : vulkan_target->color_textures())
 	{
 		VulkanTexture *const color = dynamic_cast<VulkanTexture *>(texture.get());
 		if (!color)
@@ -828,7 +828,7 @@ void VulkanRenderer::do_begin_pass(RenderTargetPtr const &target, RenderPassClea
 
 void VulkanRenderer::do_end_pass()
 {
-	RenderTargetPtr const &finished_target = pass_target();
+	std::shared_ptr<RenderTarget> const &finished_target = pass_target();
 	vkCmdEndRenderPass(active_command_buffer_);
 
 	gpu_timer_->end_pass(active_command_buffer_);
@@ -837,7 +837,7 @@ void VulkanRenderer::do_end_pass()
 	if (vulkan_target)
 	{
 		// every colour (every layer of it), for the passes after it to sample
-		for (TexturePtr const &texture : vulkan_target->color_textures())
+		for (std::shared_ptr<Texture> const &texture : vulkan_target->color_textures())
 		{
 			VulkanTexture *const offscreen_texture = dynamic_cast<VulkanTexture *>(texture.get());
 			if (!offscreen_texture)
@@ -919,7 +919,7 @@ void VulkanRenderer::ensure_default_texture()
 	texels.unmap();
 }
 
-VkPipeline VulkanRenderer::pipeline(VertexTraits const *traits, MaterialPtr const &material)
+VkPipeline VulkanRenderer::pipeline(VertexTraits const *traits, std::shared_ptr<Material> const &material)
 {
 	if (!in_pass() || active_pass_render_pass_ == VK_NULL_HANDLE)
 	{
@@ -935,17 +935,17 @@ void VulkanRenderer::destroy_pipelines()
 	pipeline_builder_->destroy_all(device_);
 }
 
-VertexBufferPtr VulkanRenderer::create_vertex_buffer(VertexTraits const *vertex_traits, size_t size, BufferUsage)
+std::shared_ptr<VertexBuffer> VulkanRenderer::create_vertex_buffer(VertexTraits const *vertex_traits, size_t size, BufferUsage)
 {
-	return VertexBufferPtr(new VulkanVertexBuffer(shared_from_this(), size, vertex_traits));
+	return std::shared_ptr<VertexBuffer>(new VulkanVertexBuffer(shared_from_this(), size, vertex_traits));
 }
 
-IndexBufferPtr VulkanRenderer::create_index_buffer(IndexFormat index_format, size_t size, BufferUsage)
+std::shared_ptr<IndexBuffer> VulkanRenderer::create_index_buffer(IndexFormat index_format, size_t size, BufferUsage)
 {
-	return IndexBufferPtr(new VulkanIndexBuffer(shared_from_this(), index_format, size));
+	return std::shared_ptr<IndexBuffer>(new VulkanIndexBuffer(shared_from_this(), index_format, size));
 }
 
-TexturePtr VulkanRenderer::create_texture(int width, int height, PixelFormat pixel_format,
+std::shared_ptr<Texture> VulkanRenderer::create_texture(int width, int height, PixelFormat pixel_format,
 	TextureUsage const &usage)
 {
 	return std::make_shared<VulkanTexture>(this, width, height, pixel_format, usage);
@@ -982,7 +982,7 @@ void VulkanRenderer::do_set_frame_constants(void const *data, size_t size)
 	frame_constants_ubo_->write_static(block.data(), block.size());
 }
 
-void VulkanRenderer::do_set_global_texture(unsigned slot, TexturePtr const &texture, bool compare)
+void VulkanRenderer::do_set_global_texture(unsigned slot, std::shared_ptr<Texture> const &texture, bool compare)
 {
 	VulkanTexture const *const vulkan_texture = dynamic_cast<VulkanTexture const *>(texture.get());
 	if (texture && (!vulkan_texture || vulkan_texture->device() != device_))
@@ -993,7 +993,7 @@ void VulkanRenderer::do_set_global_texture(unsigned slot, TexturePtr const &text
 	global_compare_[slot] = compare;
 }
 
-RenderTargetPtr VulkanRenderer::default_render_target()
+std::shared_ptr<RenderTarget> VulkanRenderer::default_render_target()
 {
 	// made when first asked for: an application that draws into targets of its own does not pay for a screen-sized one
 	if (!default_render_target_)
@@ -1010,7 +1010,7 @@ unsigned VulkanRenderer::max_color_attachments() const
 	return std::min(properties.limits.maxColorAttachments, properties.limits.maxFragmentOutputAttachments);
 }
 
-RenderTargetPtr VulkanRenderer::do_create_render_target(int width, int height, RenderTargetFormat const &format)
+std::shared_ptr<RenderTarget> VulkanRenderer::do_create_render_target(int width, int height, RenderTargetFormat const &format)
 {
 	VkPhysicalDeviceProperties properties;
 	vkGetPhysicalDeviceProperties(physical_device_, &properties);
@@ -1039,18 +1039,18 @@ RenderTargetPtr VulkanRenderer::do_create_render_target(int width, int height, R
 	VulkanTexture::Layers layers;
 	layers.count = format.cube ? 6 : format.layers;
 	layers.cube = format.cube;
-	std::vector<TexturePtr> color_textures;
+	std::vector<std::shared_ptr<Texture>> color_textures;
 	for (PixelFormat pixel_format : format.color_formats)
 	{
 		color_textures.push_back(layers.count ? std::make_shared<VulkanTexture>(this, width, height, pixel_format, layers)
 			: std::make_shared<VulkanTexture>(this, width, height, pixel_format));
 	}
-	TexturePtr depth_texture = format.readable_depth ? std::make_shared<VulkanTexture>(this, width, height, VulkanTexture::Depth(), layers)
-		: TexturePtr();
-	return RenderTargetPtr(new VulkanRenderTarget(this, width, height, color_textures, depth_texture));
+	std::shared_ptr<Texture> depth_texture = format.readable_depth ? std::make_shared<VulkanTexture>(this, width, height, VulkanTexture::Depth(), layers)
+		: std::shared_ptr<Texture>();
+	return std::shared_ptr<RenderTarget>(new VulkanRenderTarget(this, width, height, color_textures, depth_texture));
 }
 
-MaterialPtr VulkanRenderer::create_material()
+std::shared_ptr<Material> VulkanRenderer::create_material()
 {
 	return std::make_shared<Material>(shared_from_this());
 }
@@ -1063,7 +1063,7 @@ void VulkanRenderer::do_draw(DrawCall const &call)
 		throw std::invalid_argument("a Vulkan draw of a vertex buffer of another renderer");
 	}
 	// (a buffer or an image of another device is that device's handle: on this one a wrong picture, or the driver crashes)
-	auto const check_texture = [&](TexturePtr const &texture) {
+	auto const check_texture = [&](std::shared_ptr<Texture> const &texture) {
 		if (!texture) return;
 		VulkanTexture const *const vulkan_texture = dynamic_cast<VulkanTexture const *>(texture.get());
 		if (!vulkan_texture || vulkan_texture->device() != device_)

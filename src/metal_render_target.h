@@ -22,20 +22,20 @@ class MetalRenderTarget: public RenderTarget
 public:
 	/// @p depth: the readable depth (a MetalTexture::Depth of the target's size and layers), or null.  @p layer >= 0: the target of that
 	/// layer of the textures.
-	MetalRenderTarget(MetalContextPtr const &context, int width, int height, std::vector<std::shared_ptr<MetalTexture>> const &colors,
+	MetalRenderTarget(std::shared_ptr<MetalContext> const &context, int width, int height, std::vector<std::shared_ptr<MetalTexture>> const &colors,
 		std::shared_ptr<MetalTexture> const &depth = nullptr, int layer = -1);
 	~MetalRenderTarget() override;
 
-	MetalContextPtr const &context() const { return context_; }
+	std::shared_ptr<MetalContext> const &context() const { return context_; }
 	std::vector<std::shared_ptr<MetalTexture>> const &colors() const { return colors_; }
 	/// The depth a pass draws with: the readable one, or the target's own.
 	std::shared_ptr<MetalTexture> const &depth() const { return pass_depth_; }
 
 private:
-	MetalRenderTarget(MetalContextPtr const &context, int width, int height, std::vector<std::shared_ptr<MetalTexture>> const &colors,
+	MetalRenderTarget(std::shared_ptr<MetalContext> const &context, int width, int height, std::vector<std::shared_ptr<MetalTexture>> const &colors,
 		std::shared_ptr<MetalTexture> const &depth, int layer, std::shared_ptr<MetalTexture> const &own_depth);
 
-	MetalContextPtr context_;
+	std::shared_ptr<MetalContext> context_;
 	std::vector<std::shared_ptr<MetalTexture>> colors_;
 	std::shared_ptr<MetalTexture> pass_depth_;
 };

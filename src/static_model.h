@@ -12,13 +12,13 @@ namespace edge {
 template<vertex_layout V = VERTEX_PNT>
 class BasicStaticModel: public Model {
 public:
-	explicit BasicStaticModel(RendererPtr const &renderer_ptr);
+	explicit BasicStaticModel(std::shared_ptr<Renderer> const &renderer_ptr);
 	/// An instance holding @p prototype; see Model(std::shared_ptr<Model const> const &).
 	explicit BasicStaticModel(std::shared_ptr<BasicStaticModel const> const &prototype):
 		Model(std::shared_ptr<Model const>(prototype)) {}
 	~BasicStaticModel() override;
 
-	MeshPtr add_mesh() override;
+	std::shared_ptr<Mesh> add_mesh() override;
 	std::string mesh_serialization_type() const override { return BasicStaticMesh<V>::class_serialization_type(); }
 
 };

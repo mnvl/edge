@@ -16,8 +16,8 @@ namespace
 
 std::shared_ptr<edge::AnimatedModelPTBNJWT> make_model()
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
-	edge::SchedulerPtr scheduler(new edge::Scheduler(renderer));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Scheduler> scheduler(new edge::Scheduler(renderer));
 	return std::make_shared<edge::AnimatedModelPTBNJWT>(renderer);
 }
 

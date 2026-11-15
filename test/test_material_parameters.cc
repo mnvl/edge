@@ -32,9 +32,9 @@ namespace
 int const SIZE = 16;
 
 /// A quad over the left or right half of the target, drawn with `material`
-DrawCallPtr half(RendererPtr const &renderer, MaterialPtr const &material, CameraPtr const &camera, bool left)
+std::shared_ptr<DrawCall> half(std::shared_ptr<Renderer> const &renderer, std::shared_ptr<Material> const &material, std::shared_ptr<Camera> const &camera, bool left)
 {
-	VertexBufferPtr vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	VERTEX_PT *v = vb_mapping.as<VERTEX_PT>().data();
 	float const x0 = left ? -1.0f : 0.0f, x1 = left ? 0.0f : 1.0f;
@@ -45,13 +45,13 @@ DrawCallPtr half(RendererPtr const &renderer, MaterialPtr const &material, Camer
 	for (int k = 0; k < 4; ++k)
 		v[k].texcoords = rove::vec<2>(0, 0);
 	vb_mapping.unmap();
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
 	auto ib_mapping = ib->write(Contents::DISCARD);
 	INDEX_U16 *i = ib_mapping.as<INDEX_U16>().data();
 	INDEX_U16 const order[6] = {0, 1, 2, 0, 2, 3};
 	std::copy(order, order + 6, i);
 	ib_mapping.unmap();
-	DrawCallPtr dc = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> dc = renderer->create_draw_call();
 	dc->set_vertex_buffer(vb);
 	dc->set_index_buffer(ib);
 	dc->set_material(material);
@@ -62,17 +62,17 @@ DrawCallPtr half(RendererPtr const &renderer, MaterialPtr const &material, Camer
 	return dc;
 }
 
-CameraPtr view()
+std::shared_ptr<Camera> view()
 {
-	CameraPtr camera = std::make_shared<Camera>();
+	std::shared_ptr<Camera> camera = std::make_shared<Camera>();
 	camera->set_orthographic_projection(2.0f, 2.0f, 0.0f, 2.0f);
 	camera->look_at(rove::vec<3>(0, 0, 1), rove::vec<3>(0, 0, 0), rove::vec<3>(0, 1, 0));
 	return camera;
 }
 
-MaterialPtr reading(RendererPtr const &renderer, int vec4_index)
+std::shared_ptr<Material> reading(std::shared_ptr<Renderer> const &renderer, int vec4_index)
 {
-	MaterialPtr m = renderer->create_material();
+	std::shared_ptr<Material> m = renderer->create_material();
 	m->set_cull_mode(Material::CullMode::NONE);
 	m->set_shader_program(renderer->create_shader_program(test_shader("test_frame.vert"), test_shader("test_material_parameters.frag")));
 	m->set_extra_parameter(0, rove::vec<4>(float(vec4_index), 0, 0, 0));
@@ -88,9 +88,9 @@ std::vector<float> block_of(float first, size_t vec4s)
 }
 
 /// The left half's and the right half's pixel after drawing the two
-std::pair<rove::rgba<float>, rove::rgba<float>> draw(RendererPtr const &renderer, DrawCallPtr const &left, DrawCallPtr const &right)
+std::pair<rove::rgba<float>, rove::rgba<float>> draw(std::shared_ptr<Renderer> const &renderer, std::shared_ptr<DrawCall> const &left, std::shared_ptr<DrawCall> const &right)
 {
-	RenderTargetPtr const target = renderer->create_render_target(SIZE, SIZE, PixelFormat::R32G32B32A32F);
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(SIZE, SIZE, PixelFormat::R32G32B32A32F);
 	RenderPassClearState clear;
 	clear.clear_color_r = clear.clear_color_g = clear.clear_color_b = clear.clear_color_a = -1;
 	renderer->begin_frame();
@@ -120,8 +120,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(each_draw_reads_its_own_materials_block_to_its_las
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
 	BOOST_REQUIRE_EQUAL(Material::PARAMETERS_SIZE, 1024u);
 	size_t const vec4s = Material::PARAMETERS_SIZE / 16;
-	CameraPtr const camera = view();
-	MaterialPtr const a = reading(renderer, int(vec4s) - 1), b = reading(renderer, 5);
+	std::shared_ptr<Camera> const camera = view();
+	std::shared_ptr<Material> const a = reading(renderer, int(vec4s) - 1), b = reading(renderer, 5);
 	std::vector<float> const block_a = block_of(1.0f, vec4s), block_b = block_of(2.0f, vec4s);
 	a->set_parameters(block_a.data(), block_a.size() * sizeof(float));
 	b->set_parameters(block_b.data(), block_b.size() * sizeof(float));
@@ -136,8 +136,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_material_without_a_block_reads_zeros_and_a_short
 	F fixture;
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
-	CameraPtr const camera = view();
-	MaterialPtr const with = reading(renderer, 0), past = reading(renderer, 1), without = reading(renderer, 0);
+	std::shared_ptr<Camera> const camera = view();
+	std::shared_ptr<Material> const with = reading(renderer, 0), past = reading(renderer, 1), without = reading(renderer, 0);
 	float const one[4] = {0.5f, 0.25f, 0.125f, 1.0f};
 	with->set_parameters(one, sizeof(one));
 	past->set_parameters(one, sizeof(one));
@@ -154,16 +154,16 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_block_set_again_is_read_from_the_next_frame, F, 
 	F fixture;
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
-	CameraPtr const camera = view();
-	MaterialPtr const m = reading(renderer, 0);
+	std::shared_ptr<Camera> const camera = view();
+	std::shared_ptr<Material> const m = reading(renderer, 0);
 	float const first[4] = {0.1f, 0.2f, 0.3f, 0.4f}, second[4] = {0.9f, 0.8f, 0.7f, 0.6f};
 	m->set_parameters(first, sizeof(first));
-	DrawCallPtr const left = half(renderer, m, camera, true), right = half(renderer, m, camera, false);
+	std::shared_ptr<DrawCall> const left = half(renderer, m, camera, true), right = half(renderer, m, camera, false);
 	BOOST_CHECK(is(draw(renderer, left, right).first, 0.1f, 0.2f, 0.3f, 0.4f));
 	m->set_parameters(second, sizeof(second));
 	BOOST_CHECK(is(draw(renderer, left, right).second, 0.9f, 0.8f, 0.7f, 0.6f));
 	// a clone has the block, its own afterwards
-	MaterialPtr const copy = m->clone();
+	std::shared_ptr<Material> const copy = m->clone();
 	BOOST_REQUIRE_EQUAL(copy->parameters().size(), sizeof(second));
 	m->set_parameters(first, sizeof(first));
 	BOOST_CHECK(std::memcmp(copy->parameters().data(), second, sizeof(second)) == 0);
@@ -174,7 +174,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_block_past_the_size_or_with_no_bytes_is_refused,
 	F fixture;
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
-	MaterialPtr const m = renderer->create_material();
+	std::shared_ptr<Material> const m = renderer->create_material();
 	std::vector<unsigned char> const too_big(Material::PARAMETERS_SIZE + 1, 0);
 	BOOST_CHECK_THROW(m->set_parameters(too_big.data(), too_big.size()), std::invalid_argument);
 	BOOST_CHECK_THROW(m->set_parameters(nullptr, 16), std::invalid_argument);

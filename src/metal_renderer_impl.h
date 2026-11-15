@@ -69,7 +69,7 @@ struct MetalPipelineKey
 
 struct MetalRenderer::Impl
 {
-	MetalContextPtr context;
+	std::shared_ptr<MetalContext> context;
 	std::string shader_dir;
 	dispatch_semaphore_t slots;
 	uint64_t frame_serial = 0;
@@ -82,8 +82,8 @@ struct MetalRenderer::Impl
 	id<MTLDepthStencilState> depth_write = nil, depth_read = nil;
 	std::map<std::pair<std::string, std::string>, std::shared_ptr<MetalProgram>> programs;
 	std::map<MetalPipelineKey, id<MTLRenderPipelineState>> pipelines;
-	TexturePtr white_texture;
-	TexturePtr global_textures[Renderer::GLOBAL_TEXTURES_COUNT];
+	std::shared_ptr<Texture> white_texture;
+	std::shared_ptr<Texture> global_textures[Renderer::GLOBAL_TEXTURES_COUNT];
 	bool global_compare[Renderer::GLOBAL_TEXTURES_COUNT] = {};
 	std::unique_ptr<MetalGpuTimer> timer;
 	// show_frame

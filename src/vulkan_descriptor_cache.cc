@@ -197,11 +197,11 @@ void VulkanDescriptorCache::destroy()
 	}
 }
 
-VkDescriptorSet VulkanDescriptorCache::get(MaterialPtr const &material, TexturePtr const (&global_textures)[GLOBAL_TEXTURES_COUNT],
-	bool const (&global_compare)[GLOBAL_TEXTURES_COUNT], TexturePtr const &default_texture, uint64_t frame)
+VkDescriptorSet VulkanDescriptorCache::get(std::shared_ptr<Material> const &material, std::shared_ptr<Texture> const (&global_textures)[GLOBAL_TEXTURES_COUNT],
+	bool const (&global_compare)[GLOBAL_TEXTURES_COUNT], std::shared_ptr<Texture> const &default_texture, uint64_t frame)
 {
 	// Material textures 0-7 (bindings 0-5, 10, 11), then the global ones (12-19).
-	TexturePtr textures[DESCRIPTOR_TEXTURES];
+	std::shared_ptr<Texture> textures[DESCRIPTOR_TEXTURES];
 	Texture const *texture_keys[DESCRIPTOR_TEXTURES];
 	for (size_t i = 0; i < 4; ++i)
 	{

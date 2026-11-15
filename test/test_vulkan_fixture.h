@@ -13,7 +13,7 @@ namespace edge
 
 struct VulkanFixture
 {
-	VulkanRendererPtr renderer;
+	std::shared_ptr<VulkanRenderer> renderer;
 	std::string error;
 
 	VulkanFixture()

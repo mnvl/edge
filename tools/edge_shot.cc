@@ -301,7 +301,7 @@ std::string renderer_choice(std::optional<std::string> const &asked)
 }
 
 /// A renderer that draws into targets and shows nothing.
-edge::RendererPtr headless_renderer(std::string const &choice, int width, int height)
+std::shared_ptr<edge::Renderer> headless_renderer(std::string const &choice, int width, int height)
 {
 #ifdef EDGE_USE_METAL
 	if (choice == "metal")
@@ -367,7 +367,7 @@ Orbit orbit_of(Options const &options)
 class Scene
 {
 public:
-	Scene(edge::RendererPtr const &renderer, Rgb const &background):
+	Scene(std::shared_ptr<edge::Renderer> const &renderer, Rgb const &background):
 		renderer_(renderer),
 		scheduler_(std::make_shared<edge::Scheduler>(renderer)),
 		camera_(std::make_shared<edge::Camera>()),
@@ -380,9 +380,9 @@ public:
 	}
 
 	/// The model of @p file, lit, in the pose of the clip @p animation names (a name or a number; the first when not given) at @p time.
-	edge::ModelPtr load(std::string const &file, std::optional<std::string> const &animation, std::optional<double> const &time)
+	std::shared_ptr<edge::Model> load(std::string const &file, std::optional<std::string> const &animation, std::optional<double> const &time)
 	{
-		edge::ModelPtr model;
+		std::shared_ptr<edge::Model> model;
 		try
 		{
 			model = edge::load_model(renderer_, file);
@@ -398,7 +398,7 @@ public:
 	}
 
 	/// @p model seen from @p orbit, @p width x @p height pixels, in the target (which holds it until the next draw).
-	edge::RenderTargetPtr const &draw(edge::Model &model, Orbit const &orbit, int width, int height)
+	std::shared_ptr<edge::RenderTarget> const &draw(edge::Model &model, Orbit const &orbit, int width, int height)
 	{
 		if (!target_ || target_->color_texture()->width() != width || target_->color_texture()->height() != height)
 			target_ = renderer_->create_render_target(width, height, edge::PixelFormat::A8R8G8B8);
@@ -459,11 +459,11 @@ private:
 		model.animations()[clip_index(model, file, animation)]->pose(float(time.value_or(0.0)));
 	}
 
-	edge::RendererPtr renderer_;
-	edge::SchedulerPtr scheduler_;
-	edge::CameraPtr camera_;
-	edge::ShaderProgramPtr lit_;
-	edge::RenderTargetPtr target_;
+	std::shared_ptr<edge::Renderer> renderer_;
+	std::shared_ptr<edge::Scheduler> scheduler_;
+	std::shared_ptr<edge::Camera> camera_;
+	std::shared_ptr<edge::ShaderProgram> lit_;
+	std::shared_ptr<edge::RenderTarget> target_;
 	edge::RenderPassClearState clear_;
 };
 
@@ -499,13 +499,13 @@ void sheet(Options const &options, bool single_shot)
 	int const count = int(options.models.size()) * views;
 	int const columns = single_shot ? 1 : options.columns ? *options.columns : views > 1 ? views : int(std::ceil(std::sqrt(double(count))));
 	int const rows = (count + columns - 1) / columns;
-	edge::RendererPtr const renderer = headless_renderer(renderer_choice(options.renderer), width, height);
+	std::shared_ptr<edge::Renderer> const renderer = headless_renderer(renderer_choice(options.renderer), width, height);
 	Scene scene(renderer, options.background);
 	edge::Image<rove::rgb<uint8_t>> picture(columns * width, rows * height, rgb_of(options.background));
 	int cell = 0;
 	for (std::string const &file : options.models)
 	{
-		edge::ModelPtr const model = scene.load(file, options.animation, options.time);
+		std::shared_ptr<edge::Model> const model = scene.load(file, options.animation, options.time);
 		for (int view = 0; view < views; ++view, ++cell)
 		{
 			Orbit orbit = orbit_of(options);
@@ -533,8 +533,8 @@ class Screen
 {
 public:
 	virtual ~Screen() = default;
-	edge::RendererPtr renderer;
-	virtual void show(edge::TexturePtr const &frame, int window_width, int window_height) = 0;
+	std::shared_ptr<edge::Renderer> renderer;
+	virtual void show(edge::Texture &frame, int window_width, int window_height) = 0;
 };
 
 #ifdef EDGE_USE_VULKAN
@@ -551,7 +551,7 @@ public:
 	{
 		vulkan_->detach_surface();          // (before the window it is the surface of)
 	}
-	void show(edge::TexturePtr const &frame, int window_width, int window_height) override { vulkan_->present(frame, window_width, window_height); }
+	void show(edge::Texture &frame, int window_width, int window_height) override { vulkan_->present(frame, window_width, window_height); }
 
 private:
 	std::shared_ptr<edge::VulkanRenderer> vulkan_;
@@ -572,7 +572,7 @@ public:
 		renderer.reset();
 		metal_.reset();          // (before the layer it shows in)
 	}
-	void show(edge::TexturePtr const &frame, int window_width, int window_height) override
+	void show(edge::Texture &frame, int window_width, int window_height) override
 	{
 		metal_->show_frame(frame, window_width, window_height);
 		metal_->swap_window();
@@ -619,7 +619,7 @@ void gui(Options const &options)
 		throw Failure("--renderer " + choice + ": this build has no such renderer");
 
 	Scene scene(screen->renderer, options.background);
-	edge::ModelPtr const model = scene.load(options.models[0], options.animation, options.time);
+	std::shared_ptr<edge::Model> const model = scene.load(options.models[0], options.animation, options.time);
 	auto pixels = [&] { int w, h; sdl_check(SDL_GetWindowSizeInPixels(window, &w, &h), "SDL_GetWindowSizeInPixels"); return std::pair<int, int>(w, h); };
 	Orbit orbit = orbit_of(options);
 	orbit.frame(*model, double(pixels().first) / pixels().second);
@@ -700,7 +700,7 @@ void gui(Options const &options)
 		auto const [w, h] = pixels();
 		if (w > 0 && h > 0)
 		{
-			screen->show(scene.draw(*model, orbit, w, h)->color_texture(), w, h);
+			screen->show(*scene.draw(*model, orbit, w, h)->color_texture(), w, h);
 		}
 		if (options.frames && ++frames >= *options.frames)
 			open = false;

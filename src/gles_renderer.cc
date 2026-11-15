@@ -103,7 +103,7 @@ GLESProgram::Map read_map(std::string const &path)
 
 }
 
-GLESProgram::GLESProgram(GLESContextPtr const &context_, std::string const &shader_dir, std::string const &vertex_shader,
+GLESProgram::GLESProgram(std::shared_ptr<GLESContext> const &context_, std::string const &shader_dir, std::string const &vertex_shader,
 	std::string const &fragment_shader):
 	context(context_)
 {
@@ -187,7 +187,7 @@ void GLESProgram::bind_resources(Map const &map_in)
 	check_gl_often("binding a program's resources");
 }
 
-GLESProgram::GLESProgram(GLESContextPtr const &context_, std::string const &vertex_source, std::string const &vertex_path,
+GLESProgram::GLESProgram(std::shared_ptr<GLESContext> const &context_, std::string const &vertex_source, std::string const &vertex_path,
 	std::string const &fragment_source, std::string const &fragment_path):
 	context(context_)
 {
@@ -237,7 +237,7 @@ GLESProgram::~GLESProgram()
 	glDeleteProgram(id);
 }
 
-GLESRenderer::GLESRenderer(int width, int height, std::string const &shader_dir, GLESContextPtr const &context):
+GLESRenderer::GLESRenderer(int width, int height, std::string const &shader_dir, std::shared_ptr<GLESContext> const &context):
 	context_(context),
 	shader_dir_(shader_dir),
 	width_(width),
@@ -346,7 +346,7 @@ void GLESRenderer::do_finish_frame()
 	gpu_timer_->end_frame();
 }
 
-void GLESRenderer::do_begin_pass(RenderTargetPtr const &target, RenderPassClearState const &clear_state, uint32_t)
+void GLESRenderer::do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state, uint32_t)
 {
 	auto *gles_target = dynamic_cast<GLESRenderTarget *>(target.get());
 	if (!gles_target || gles_target->context() != context_)
@@ -389,21 +389,21 @@ void GLESRenderer::do_set_viewport(int x, int y, int width, int height)
 	glScissor(x, y, width, height);
 }
 
-VertexBufferPtr GLESRenderer::create_vertex_buffer(VertexTraits const *vertex_traits, size_t size, BufferUsage usage)
+std::shared_ptr<VertexBuffer> GLESRenderer::create_vertex_buffer(VertexTraits const *vertex_traits, size_t size, BufferUsage usage)
 {
 	auto buffer = std::make_shared<GLESVertexBuffer>(context_, vertex_traits, size, usage == BufferUsage::DYNAMIC);
 	buffer->set_owner(this);
 	return buffer;
 }
 
-IndexBufferPtr GLESRenderer::create_index_buffer(IndexFormat index_format, size_t size, BufferUsage usage)
+std::shared_ptr<IndexBuffer> GLESRenderer::create_index_buffer(IndexFormat index_format, size_t size, BufferUsage usage)
 {
 	auto buffer = std::make_shared<GLESIndexBuffer>(context_, index_format, size, usage == BufferUsage::DYNAMIC);
 	buffer->set_owner(this);
 	return buffer;
 }
 
-TexturePtr GLESRenderer::create_texture(int width, int height, PixelFormat pixel_format, TextureUsage const &usage)
+std::shared_ptr<Texture> GLESRenderer::create_texture(int width, int height, PixelFormat pixel_format, TextureUsage const &usage)
 {
 	auto texture = std::make_shared<GLESTexture>(context_, width, height, pixel_format, usage);
 	texture->set_owner(this);
@@ -422,7 +422,7 @@ void GLESRenderer::do_set_frame_constants(void const *data, size_t size)
 	check_gl_often("setting the frame constants");
 }
 
-void GLESRenderer::do_set_global_texture(unsigned slot, TexturePtr const &texture, bool compare)
+void GLESRenderer::do_set_global_texture(unsigned slot, std::shared_ptr<Texture> const &texture, bool compare)
 {
 	if (texture)
 	{
@@ -450,7 +450,7 @@ void GLESRenderer::bind_draw_constants(rove::matrix<4,4> const &world_view_proje
 
 void GLESRenderer::bind_texture(Material const &material, int binding, int unit)
 {
-	TexturePtr texture;
+	std::shared_ptr<Texture> texture;
 	bool global = false;
 	if (binding >= 0 && binding < 4)
 		texture = static_cast<size_t>(binding) < material.diffuse_textures_count() ? material.diffuse_texture(binding) : nullptr;
@@ -490,7 +490,7 @@ void GLESRenderer::bind_texture(Material const &material, int binding, int unit)
 	glBindSampler(unit, compare ? compare_sampler_ : gles_texture->is_depth() ? 0 : global ? global_sampler_ : material_sampler_);
 }
 
-RenderTargetPtr GLESRenderer::default_render_target()
+std::shared_ptr<RenderTarget> GLESRenderer::default_render_target()
 {
 	if (!default_render_target_)
 		default_render_target_ = create_render_target(width_, height_, PixelFormat::A8R8G8B8);
@@ -507,7 +507,7 @@ unsigned GLESRenderer::max_color_attachments() const
 	return static_cast<unsigned>(std::min(draw_buffers, color_attachments));
 }
 
-RenderTargetPtr GLESRenderer::do_create_render_target(int width, int height, RenderTargetFormat const &format)
+std::shared_ptr<RenderTarget> GLESRenderer::do_create_render_target(int width, int height, RenderTargetFormat const &format)
 {
 	context_->make_current();
 	GLint max_layers = 0, max_cube = 0;
@@ -530,7 +530,7 @@ RenderTargetPtr GLESRenderer::do_create_render_target(int width, int height, Ren
 	return std::make_shared<GLESRenderTarget>(context_, width, height, colors, depth);
 }
 
-MaterialPtr GLESRenderer::create_material()
+std::shared_ptr<Material> GLESRenderer::create_material()
 {
 	return std::make_shared<Material>(shared_from_this());
 }
@@ -598,13 +598,13 @@ void GLESRenderer::show_frame(void const *frame, int width, int height, int wind
 	show_bound_texture(*show_program_, window_width, window_height);
 }
 
-void GLESRenderer::show_frame(TexturePtr const &frame, int window_width, int window_height)
+void GLESRenderer::show_frame(Texture &frame, int window_width, int window_height)
 {
 	if (!context_->hosted())
 		throw std::logic_error("GLES show_frame without a host window");
 	if (in_frame())
 		throw std::logic_error("GLES show_frame inside a frame");
-	auto *texture = dynamic_cast<GLESTexture *>(frame.get());
+	auto *texture = dynamic_cast<GLESTexture *>(&frame);
 	if (!texture || texture->context() != context_)
 		throw std::invalid_argument("GLES show_frame: a texture of this renderer's");
 	if (window_width <= 0 || window_height <= 0)

@@ -71,7 +71,7 @@ std::vector<float> WeightsSampler::get(rove::scalar time) const
 
 void WeightsSampler::apply(rove::scalar t) const
 {
-	if (MeshPtr mesh_ptr = mesh_.lock())
+	if (std::shared_ptr<Mesh> mesh_ptr = mesh_.lock())
 	{
 		mesh_ptr->set_morph_weights(get(t));
 	}

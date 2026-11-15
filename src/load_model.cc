@@ -19,7 +19,7 @@ namespace
 {
 
 /// A model of the type whose meshes are @p mesh_type; none for a type nothing loads.
-ModelPtr model_of_type(std::string const &mesh_type, RendererPtr const &renderer)
+std::shared_ptr<Model> model_of_type(std::string const &mesh_type, std::shared_ptr<Renderer> const &renderer)
 {
 	if (mesh_type == BasicStaticMesh<VERTEX_PTBNT>::class_serialization_type())
 		return std::make_shared<StaticModelPTBNT>(renderer);
@@ -33,12 +33,12 @@ ModelPtr model_of_type(std::string const &mesh_type, RendererPtr const &renderer
 		return std::make_shared<AnimatedModelPTBNJWTC>(renderer);
 	if (mesh_type == BasicAnimatedMesh<VERTEX_PNJWT>::class_serialization_type())
 		return std::make_shared<AnimatedModelPNJWT>(renderer);
-	return ModelPtr();
+	return std::shared_ptr<Model>();
 }
 
 }
 
-ModelPtr load_model(RendererPtr const &renderer, std::string const &filename, GltfOptions const &options)
+std::shared_ptr<Model> load_model(std::shared_ptr<Renderer> const &renderer, std::string const &filename, GltfOptions const &options)
 {
 	std::string const extension = std::filesystem::path(filename).extension().string();
 	if (extension == ".edge")
@@ -55,7 +55,7 @@ ModelPtr load_model(RendererPtr const &renderer, std::string const &filename, Gl
 			throw std::runtime_error("model file " + filename + " has meshes of " + std::to_string(types.size()) + " types (" + names +
 				"): a model is of one");
 		}
-		ModelPtr const model = model_of_type(*types.begin(), renderer);
+		std::shared_ptr<Model> const model = model_of_type(*types.begin(), renderer);
 		if (!model)
 			throw std::runtime_error("model file " + filename + " has meshes of type " + *types.begin() + ", which no model of edge's loads");
 		try
@@ -71,7 +71,7 @@ ModelPtr load_model(RendererPtr const &renderer, std::string const &filename, Gl
 	if (extension == ".glb" || extension == ".gltf")
 	{
 		GltfContents const contents = gltf_contents(filename);
-		ModelPtr model;
+		std::shared_ptr<Model> model;
 		if (contents.skin)
 			model = std::make_shared<AnimatedModelPTBNJWT>(renderer);
 		else if (contents.vertex_colors)

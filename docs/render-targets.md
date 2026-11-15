@@ -6,7 +6,7 @@ A target is colour attachments and a depth (`RenderTargetFormat`).  A fragment s
 edge::RenderTargetFormat format;
 format.color_formats = {edge::PixelFormat::R16G16B16A16F, edge::PixelFormat::R32F};   // layout(location = 0) out vec4; location 1: float
 format.readable_depth = true;
-edge::RenderTargetPtr gbuffer = renderer->create_render_target(w, h, format);
+std::shared_ptr<edge::RenderTarget> gbuffer = renderer->create_render_target(w, h, format);
 gbuffer->color_texture(1);                          // a texture of its own, sampled by later passes, downloaded
 ```
 
@@ -16,7 +16,7 @@ target's `layer(i)`, and later passes sample the whole as an array or a cube:
 ```cpp
 format.color_formats = {};
 format.layers = 4;                                      // shadow cascades: sampler2DArrayShadow, set_global_shadow_texture
-edge::RenderTargetPtr cascades = renderer->create_render_target(2048, 2048, format);
+std::shared_ptr<edge::RenderTarget> cascades = renderer->create_render_target(2048, 2048, format);
 for (int i = 0; i < 4; ++i)
 {
     renderer->begin_pass(cascades->layer(i));           // layer i drawn, the others kept

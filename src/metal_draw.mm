@@ -233,7 +233,7 @@ void MetalRenderer::do_draw(DrawCall const &call)
 		for (MetalProgram::Sampler const &sampler : stage.samplers)
 		{
 			int const binding = sampler.texture;
-			TexturePtr texture;
+			std::shared_ptr<Texture> texture;
 			bool global = false;
 			if (binding >= 0 && binding < 4)
 				texture = static_cast<size_t>(binding) < material.diffuse_textures_count() ? material.diffuse_texture(binding) : nullptr;

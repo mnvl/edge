@@ -45,12 +45,12 @@ struct Rgba
 /// pixel by its corner of the image and the vertex that must be nearest it by the quad's own geometry.
 struct ColoredQuad
 {
-	VertexBufferPtr vb;
-	IndexBufferPtr ib;
-	CameraPtr camera;
-	RenderTargetPtr target;
+	std::shared_ptr<VertexBuffer> vb;
+	std::shared_ptr<IndexBuffer> ib;
+	std::shared_ptr<Camera> camera;
+	std::shared_ptr<RenderTarget> target;
 
-	ColoredQuad(RendererPtr const &renderer, std::array<std::array<float, 4>, 4> const &colors)
+	ColoredQuad(std::shared_ptr<Renderer> const &renderer, std::array<std::array<float, 4>, 4> const &colors)
 	{
 		vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PTBNTC>(), sizeof(VERTEX_PTBNTC) * 4);
 		auto vb_mapping = vb->write(Contents::DISCARD);
@@ -82,9 +82,9 @@ struct ColoredQuad
 
 	/// Through the plain draw call, or the uber one, which is what a model is drawn with (it looks the vertex format up in the uber
 	/// shader, which must know it even when the material brings shaders of its own).
-	std::vector<Rgba> render(RendererPtr const &renderer, bool uber)
+	std::vector<Rgba> render(std::shared_ptr<Renderer> const &renderer, bool uber)
 	{
-		MaterialPtr material = renderer->create_material();
+		std::shared_ptr<Material> material = renderer->create_material();
 		material->set_cull_mode(Material::CullMode::NONE);
 		material->set_shader_program(renderer->create_shader_program(edge::test_shader("test_vertex_color.vert"), edge::test_shader("test_vertex_color.frag")));
 
@@ -110,7 +110,7 @@ struct ColoredQuad
 		else
 			draw(renderer->create_draw_call());
 
-		TexturePtr color = target->color_texture();
+		std::shared_ptr<Texture> color = target->color_texture();
 		color->download();
 		auto color_mapping = color->read();
 		Rgba const *pixels = color_mapping.as<Rgba const>().data();

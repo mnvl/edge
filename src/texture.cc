@@ -124,7 +124,7 @@ void const *Texture::cpu_copy(PixelFormat const *pixel_formats, size_t count) co
 	return read().data();
 }
 
-TexturePtr Texture::load_from_file(RendererPtr const &renderer, std::string const &filename,
+std::shared_ptr<Texture> Texture::load_from_file(std::shared_ptr<Renderer> const &renderer, std::string const &filename,
 	bool compress, TextureUsage const &usage) {
 	std::ifstream in(filename, std::ios::binary);
 	if (!in)
@@ -132,7 +132,7 @@ TexturePtr Texture::load_from_file(RendererPtr const &renderer, std::string cons
 		throw std::runtime_error("failed to load image: " + filename + " (no such file)");
 	}
 	std::vector<char> const bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-	TexturePtr texture;
+	std::shared_ptr<Texture> texture;
 	try
 	{
 		texture = load_from_memory(renderer, bytes.data(), bytes.size(), compress, usage);
@@ -145,7 +145,7 @@ TexturePtr Texture::load_from_file(RendererPtr const &renderer, std::string cons
 	return texture;
 }
 
-TexturePtr Texture::load_from_memory(RendererPtr const &renderer, void const *data, size_t size,
+std::shared_ptr<Texture> Texture::load_from_memory(std::shared_ptr<Renderer> const &renderer, void const *data, size_t size,
 	bool compress, TextureUsage const &usage) {
 	TextureDecoding how;
 	how.compress = compress;
@@ -179,7 +179,7 @@ namespace
 {
 
 /// The texture a DDS of `d` makes: its levels as they are, sRGB as the file or `usage` says (never BC5), `layers` layers (0: not an array).
-TexturePtr dds_texture(RendererPtr const &renderer, DdsHeader const &d, int layers, TextureUsage const &usage)
+std::shared_ptr<Texture> dds_texture(std::shared_ptr<Renderer> const &renderer, DdsHeader const &d, int layers, TextureUsage const &usage)
 {
 	TextureUsage u = usage;
 	u.mipmaps = false;
@@ -191,17 +191,17 @@ TexturePtr dds_texture(RendererPtr const &renderer, DdsHeader const &d, int laye
 
 }
 
-TexturePtr Texture::load_dds(RendererPtr const &renderer, void const *data, size_t size, TextureUsage const &usage)
+std::shared_ptr<Texture> Texture::load_dds(std::shared_ptr<Renderer> const &renderer, void const *data, size_t size, TextureUsage const &usage)
 {
 	DdsHeader const d = read_dds(data, size);
-	TexturePtr texture = dds_texture(renderer, d, d.layers > 1 ? d.layers : 0, usage);
+	std::shared_ptr<Texture> texture = dds_texture(renderer, d, d.layers > 1 ? d.layers : 0, usage);
 	auto texels = texture->write(Contents::DISCARD);
 	std::memcpy(texels.data(), static_cast<char const *>(data) + d.offset, d.data_size());
 	texels.unmap();
 	return texture;
 }
 
-TexturePtr Texture::load_dds_array(RendererPtr const &renderer, std::vector<std::span<std::byte const>> const &files, TextureUsage const &usage)
+std::shared_ptr<Texture> Texture::load_dds_array(std::shared_ptr<Renderer> const &renderer, std::vector<std::span<std::byte const>> const &files, TextureUsage const &usage)
 {
 	if (files.empty())
 		throw std::runtime_error("DDS array: no files");
@@ -231,7 +231,7 @@ TexturePtr Texture::load_dds_array(RendererPtr const &renderer, std::vector<std:
 			throw fail(std::to_string(d.levels) + " levels, file 0 has " + std::to_string(first.levels));
 		dds.push_back(d);
 	}
-	TexturePtr texture = dds_texture(renderer, dds.front(), int(files.size()), usage);
+	std::shared_ptr<Texture> texture = dds_texture(renderer, dds.front(), int(files.size()), usage);
 	auto texels = texture->write(Contents::DISCARD);
 	for (size_t k = 0; k < files.size(); ++k)
 		std::memcpy(texels.data() + k * dds[k].data_size(), files[k].data() + dds[k].offset, dds[k].data_size());
@@ -239,9 +239,9 @@ TexturePtr Texture::load_dds_array(RendererPtr const &renderer, std::vector<std:
 	return texture;
 }
 
-void Texture::save_to_file(TexturePtr const &texture, std::string const &filename) {
+void Texture::save_to_file(Texture const &texture, std::string const &filename) {
 	// (of 8 bits a channel, in the order they are stored: there is no one way to write the others as an image)
-	PixelFormat const format = texture->pixel_format();
+	PixelFormat const format = texture.pixel_format();
 	if (format != PixelFormat::A8R8G8B8 && format != PixelFormat::X8R8G8B8)
 		throw std::invalid_argument("save_to_file: a texture of pixel format " + to_string(format) + " is not 8-bit BGRA");
 
@@ -250,13 +250,13 @@ void Texture::save_to_file(TexturePtr const &texture, std::string const &filenam
 	if (!png && !bmp && !tga && !jpg)
 		throw std::invalid_argument("save_to_file: '" + filename + "' is not .png, .bmp, .tga, .jpg or .jpeg");
 
-	int const w = texture->width();
-	int const h = texture->height();
+	int const w = texture.width();
+	int const h = texture.height();
 	size_t const pixel_count = static_cast<size_t>(w) * static_cast<size_t>(h);
 
 	std::vector<unsigned char> rgba(pixel_count * 4);
 	{
-		auto const texels = std::as_const(*texture).read();
+		auto const texels = texture.read();
 		std::memcpy(rgba.data(), texels.data(), pixel_count * 4);
 	}
 

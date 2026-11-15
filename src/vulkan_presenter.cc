@@ -422,7 +422,7 @@ void VulkanPresenter::make_swapchain(int width, int height, std::string const &w
 	}
 }
 
-bool VulkanPresenter::present(TexturePtr const &frame, int width, int height)
+bool VulkanPresenter::present(Texture &frame, int width, int height)
 {
 	if (surface_ == VK_NULL_HANDLE)
 	{
@@ -432,7 +432,7 @@ bool VulkanPresenter::present(TexturePtr const &frame, int width, int height)
 	{
 		throw std::logic_error("present: the surface was lost: detach it and attach the window's next");
 	}
-	VulkanTexture *const source = dynamic_cast<VulkanTexture *>(frame.get());
+	VulkanTexture *const source = dynamic_cast<VulkanTexture *>(&frame);
 	if (!source || source->device() != device_)
 	{
 		throw std::invalid_argument("present: not a texture of this renderer");

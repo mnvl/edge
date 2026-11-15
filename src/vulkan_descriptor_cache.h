@@ -70,8 +70,8 @@ public:
 	/// says (a shadow texture); a texture that is missing is replaced by default_texture.  Reused while the material and every
 	/// texture it was written for are the same live objects, sampled alike; otherwise the old set is retired (it may be recorded in
 	/// `frame`, the frame being recorded) and a new one made.
-	VkDescriptorSet get(MaterialPtr const &material, TexturePtr const (&global_textures)[GLOBAL_TEXTURES_COUNT],
-		bool const (&global_compare)[GLOBAL_TEXTURES_COUNT], TexturePtr const &default_texture, uint64_t frame);
+	VkDescriptorSet get(std::shared_ptr<Material> const &material, std::shared_ptr<Texture> const (&global_textures)[GLOBAL_TEXTURES_COUNT],
+		bool const (&global_compare)[GLOBAL_TEXTURES_COUNT], std::shared_ptr<Texture> const &default_texture, uint64_t frame);
 
 	/// Retires the sets of materials that have died (frames up to `recorded`, the last one recorded, may hold them), then frees every
 	/// retired set no frame after `completed`, the last one the GPU is known to have finished, can still hold.

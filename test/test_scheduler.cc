@@ -21,8 +21,8 @@ namespace
 
 struct SchedulerFixture
 {
-	edge::RendererPtr renderer;
-	edge::SchedulerPtr scheduler;
+	std::shared_ptr<edge::Renderer> renderer;
+	std::shared_ptr<edge::Scheduler> scheduler;
 
 	SchedulerFixture()
 	{
@@ -30,15 +30,15 @@ struct SchedulerFixture
 		scheduler = std::make_shared<edge::Scheduler>(renderer);
 	}
 
-	edge::DrawCallPtr make_visible_draw_call(int priority = 0)
+	std::shared_ptr<edge::DrawCall> make_visible_draw_call(int priority = 0)
 	{
-		edge::DrawCallPtr dc = renderer->create_draw_call();
+		std::shared_ptr<edge::DrawCall> dc = renderer->create_draw_call();
 		dc->set_always_visible(true);
 		dc->set_priority(priority);
 		dc->set_vertex_buffer(renderer->create_vertex_buffer(nullptr, 1));
 		dc->set_material(renderer->create_material());
 
-		edge::CameraPtr camera(new edge::Camera());
+		std::shared_ptr<edge::Camera> camera(new edge::Camera());
 		camera->set_perspective_projection(1.0f, 1.0f, 0.1f, 100.0f);
 		camera->look_at(
 			rove::vec<3>(0, 0, 5),
@@ -49,15 +49,15 @@ struct SchedulerFixture
 		return dc;
 	}
 
-	edge::DrawCallPtr make_invisible_draw_call(int priority = 0)
+	std::shared_ptr<edge::DrawCall> make_invisible_draw_call(int priority = 0)
 	{
-		edge::DrawCallPtr dc = renderer->create_draw_call();
+		std::shared_ptr<edge::DrawCall> dc = renderer->create_draw_call();
 		dc->set_always_visible(false);
 		dc->set_priority(priority);
 		dc->set_vertex_buffer(renderer->create_vertex_buffer(nullptr, 1));
 		dc->set_material(renderer->create_material());
 
-		edge::CameraPtr camera(new edge::Camera());
+		std::shared_ptr<edge::Camera> camera(new edge::Camera());
 		camera->set_perspective_projection(1.0f, 1.0f, 0.1f, 100.0f);
 		camera->look_at(
 			rove::vec<3>(0, 0, 5),
@@ -150,17 +150,17 @@ BOOST_FIXTURE_TEST_CASE(calls_execute_by_priority_then_in_the_order_added, Sched
 
 	// Materials handed out highest address first, so ordering by material
 	// pointer would reverse the order within each priority.
-	std::vector<edge::MaterialPtr> materials;
+	std::vector<std::shared_ptr<edge::Material>> materials;
 	for (std::size_t i = 0; i < count; ++i)
 		materials.push_back(renderer->create_material());
-	std::sort(materials.begin(), materials.end(), std::greater<edge::MaterialPtr>());
+	std::sort(materials.begin(), materials.end(), std::greater<std::shared_ptr<edge::Material>>());
 
 	auto const recording = std::make_shared<RecordingRenderer>();
 	auto const recorded = std::make_shared<edge::Scheduler>(recording);
-	edge::CameraPtr camera(new edge::Camera());
+	std::shared_ptr<edge::Camera> camera(new edge::Camera());
 	for (std::size_t i = 0; i < count; ++i)
 	{
-		edge::DrawCallPtr dc = recording->create_draw_call();
+		std::shared_ptr<edge::DrawCall> dc = recording->create_draw_call();
 		dc->set_priority(priorities[i]);
 		dc->set_always_visible(true);
 		dc->set_vertex_buffer(recording->create_vertex_buffer(nullptr, 1));
@@ -192,9 +192,9 @@ BOOST_FIXTURE_TEST_CASE(multiple_calls_sorted_by_priority, SchedulerFixture)
 BOOST_FIXTURE_TEST_CASE(executed_triangles_count_visible_calls_only, SchedulerFixture)
 {
 	BOOST_CHECK_EQUAL(scheduler->executed_triangles_count(), 0u);
-	edge::DrawCallPtr const seen = make_visible_draw_call();
+	std::shared_ptr<edge::DrawCall> const seen = make_visible_draw_call();
 	seen->set_triangles_count(12);
-	edge::DrawCallPtr const culled = make_invisible_draw_call();
+	std::shared_ptr<edge::DrawCall> const culled = make_invisible_draw_call();
 	culled->set_triangles_count(1000);
 	scheduler->add(seen);
 	scheduler->add(culled);
@@ -205,7 +205,7 @@ BOOST_FIXTURE_TEST_CASE(executed_triangles_count_visible_calls_only, SchedulerFi
 BOOST_FIXTURE_TEST_CASE(executed_triangles_add_up_over_flushes, SchedulerFixture)
 {
 	// the count is of every flush since the scheduler was made (a frame's several passes), not of the last one
-	edge::DrawCallPtr const dc = make_visible_draw_call();
+	std::shared_ptr<edge::DrawCall> const dc = make_visible_draw_call();
 	dc->set_triangles_count(5);
 	scheduler->add(dc);
 	edge::flush_in_a_pass(scheduler, false);
@@ -230,9 +230,9 @@ BOOST_FIXTURE_TEST_CASE(offered_counts_include_culled_calls, SchedulerFixture)
 	// "offered" is everything a flush was given, the culled calls too: drawn / offered is what culling saved
 	BOOST_CHECK_EQUAL(scheduler->offered_calls_count(), 0u);
 	BOOST_CHECK_EQUAL(scheduler->offered_triangles_count(), 0u);
-	edge::DrawCallPtr const seen = make_visible_draw_call();
+	std::shared_ptr<edge::DrawCall> const seen = make_visible_draw_call();
 	seen->set_triangles_count(12);
-	edge::DrawCallPtr const culled = make_invisible_draw_call();
+	std::shared_ptr<edge::DrawCall> const culled = make_invisible_draw_call();
 	culled->set_triangles_count(1000);
 	scheduler->add(seen);
 	scheduler->add(culled);

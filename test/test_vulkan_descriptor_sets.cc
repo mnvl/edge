@@ -73,7 +73,7 @@ RenderPassClearState make_clear_state()
 	return clear_state;
 }
 
-void write_fullscreen_quad(VertexBufferPtr const &vb)
+void write_fullscreen_quad(std::shared_ptr<VertexBuffer> const &vb)
 {
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	VERTEX_PT *v = vb_mapping.as<VERTEX_PT>().data();
@@ -85,7 +85,7 @@ void write_fullscreen_quad(VertexBufferPtr const &vb)
 	vb_mapping.unmap();
 }
 
-void write_quad_indices(IndexBufferPtr const &ib)
+void write_quad_indices(std::shared_ptr<IndexBuffer> const &ib)
 {
 	auto ib_mapping = ib->write(Contents::DISCARD);
 	INDEX_U16 *idx = ib_mapping.as<INDEX_U16>().data();
@@ -95,9 +95,9 @@ void write_quad_indices(IndexBufferPtr const &ib)
 	ib_mapping.unmap();
 }
 
-CameraPtr make_ortho_camera()
+std::shared_ptr<Camera> make_ortho_camera()
 {
-	CameraPtr camera(new Camera());
+	std::shared_ptr<Camera> camera(new Camera());
 	camera->set_orthographic_projection(2.0f, 2.0f, 0.0f, 2.0f);
 	camera->look_at(
 		rove::vec<3>(0, 0, 1),
@@ -108,9 +108,9 @@ CameraPtr make_ortho_camera()
 
 // A 1x1 texture of one solid colour, so a covered pixel reads that colour
 // back.
-TexturePtr make_solid_texture(VulkanRendererPtr const &renderer, uint32_t argb)
+std::shared_ptr<Texture> make_solid_texture(std::shared_ptr<VulkanRenderer> const &renderer, uint32_t argb)
 {
-	TexturePtr texture = renderer->create_texture(2, 2, PixelFormat::X8R8G8B8);
+	std::shared_ptr<Texture> texture = renderer->create_texture(2, 2, PixelFormat::X8R8G8B8);
 	auto texture_mapping = texture->write(Contents::DISCARD);
 	unsigned *p = texture_mapping.as<unsigned>().data();
 	BOOST_REQUIRE(p);
@@ -119,9 +119,9 @@ TexturePtr make_solid_texture(VulkanRendererPtr const &renderer, uint32_t argb)
 	return texture;
 }
 
-MaterialPtr make_material(VulkanRendererPtr const &renderer, uint32_t argb)
+std::shared_ptr<Material> make_material(std::shared_ptr<VulkanRenderer> const &renderer, uint32_t argb)
 {
-	MaterialPtr material = renderer->create_material();
+	std::shared_ptr<Material> material = renderer->create_material();
 	material->set_diffuse_texture(make_solid_texture(renderer, argb));
 	material->set_cull_mode(Material::CullMode::NONE);
 	return material;
@@ -129,12 +129,12 @@ MaterialPtr make_material(VulkanRendererPtr const &renderer, uint32_t argb)
 
 struct Quad
 {
-	VertexBufferPtr vb;
-	IndexBufferPtr ib;
-	CameraPtr camera;
-	RenderTargetPtr target;
+	std::shared_ptr<VertexBuffer> vb;
+	std::shared_ptr<IndexBuffer> ib;
+	std::shared_ptr<Camera> camera;
+	std::shared_ptr<RenderTarget> target;
 
-	explicit Quad(VulkanRendererPtr const &renderer)
+	explicit Quad(std::shared_ptr<VulkanRenderer> const &renderer)
 	{
 		vb = renderer->create_vertex_buffer(
 			VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
@@ -146,9 +146,9 @@ struct Quad
 			TARGET_SIZE, TARGET_SIZE, PixelFormat::X8R8G8B8);
 	}
 
-	void render(VulkanRendererPtr const &renderer, MaterialPtr const &material)
+	void render(std::shared_ptr<VulkanRenderer> const &renderer, std::shared_ptr<Material> const &material)
 	{
-		DrawCallPtr draw_call = renderer->create_uber_draw_call();
+		std::shared_ptr<DrawCall> draw_call = renderer->create_uber_draw_call();
 		draw_call->set_vertex_buffer(vb);
 		draw_call->set_index_buffer(ib);
 		draw_call->set_material(material);
@@ -164,10 +164,10 @@ struct Quad
 		renderer->finish_frame();
 	}
 
-	uint32_t render_with(VulkanRendererPtr const &renderer, MaterialPtr const &material)
+	uint32_t render_with(std::shared_ptr<VulkanRenderer> const &renderer, std::shared_ptr<Material> const &material)
 	{
 		render(renderer, material);
-		TexturePtr color = target->color_texture();
+		std::shared_ptr<Texture> color = target->color_texture();
 		color->download();
 		auto color_mapping = color->read();
 		uint32_t const *pixels = color_mapping.as<uint32_t const>().data();
@@ -186,7 +186,7 @@ struct Quad
 // so the shrink changes nothing about what they exercise.
 struct SmallPoolVulkanFixture
 {
-	VulkanRendererPtr renderer;
+	std::shared_ptr<VulkanRenderer> renderer;
 	std::string error;
 
 	SmallPoolVulkanFixture()
@@ -229,7 +229,7 @@ BOOST_AUTO_TEST_CASE(streaming_materials_through_one_renderer_never_exhausts_the
 	for (size_t i = 0; i < MATERIALS_TO_STREAM; ++i)
 	{
 		uint32_t const colour = (i % 2 == 0) ? RED : GREEN;
-		MaterialPtr material = make_material(renderer, colour);
+		std::shared_ptr<Material> material = make_material(renderer, colour);
 		if (i % 64 != 63)
 		{
 			BOOST_REQUIRE_NO_THROW(quad.render(renderer, material));
@@ -245,7 +245,7 @@ BOOST_AUTO_TEST_CASE(streaming_materials_through_one_renderer_never_exhausts_the
 	// Reclaim happens at the frame boundary, so one more frame with a live
 	// material leaves exactly that material's set behind — every streamed
 	// one is gone.
-	MaterialPtr last = make_material(renderer, RED);
+	std::shared_ptr<Material> last = make_material(renderer, RED);
 	BOOST_CHECK_EQUAL(quad.render_with(renderer, last), rgb(RED));
 	BOOST_CHECK_EQUAL(renderer->material_descriptor_set_count(), 1u);
 	// Reclaimed, not outgrown: a pool would be added if the dead sets were not freed.
@@ -260,7 +260,7 @@ BOOST_AUTO_TEST_CASE(more_live_materials_than_a_pool_holds_get_another_pool,
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 	Quad quad(renderer);
 
-	std::vector<MaterialPtr> live;
+	std::vector<std::shared_ptr<Material>> live;
 	for (size_t i = 0; i < MATERIALS_TO_STREAM; ++i)
 	{
 		uint32_t const colour = (i % 2 == 0) ? RED : GREEN;
@@ -279,7 +279,7 @@ BOOST_AUTO_TEST_CASE(more_live_materials_than_a_pool_holds_get_another_pool,
 	BOOST_CHECK_EQUAL(quad.render_with(renderer, live.front()), rgb(RED));
 
 	live.clear();
-	MaterialPtr last = make_material(renderer, GREEN);
+	std::shared_ptr<Material> last = make_material(renderer, GREEN);
 	BOOST_CHECK_EQUAL(quad.render_with(renderer, last), rgb(GREEN));
 	BOOST_CHECK_EQUAL(quad.render_with(renderer, last), rgb(GREEN));
 	BOOST_CHECK_EQUAL(renderer->material_descriptor_set_count(), 1u);
@@ -292,12 +292,12 @@ BOOST_AUTO_TEST_CASE(sets_of_live_materials_survive_reclaim,
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 	Quad quad(renderer);
 
-	MaterialPtr kept = make_material(renderer, RED);
+	std::shared_ptr<Material> kept = make_material(renderer, RED);
 	BOOST_CHECK_EQUAL(quad.render_with(renderer, kept), rgb(RED));
 	BOOST_CHECK_EQUAL(renderer->material_descriptor_set_count(), 1u);
 
 	{
-		MaterialPtr transient = make_material(renderer, GREEN);
+		std::shared_ptr<Material> transient = make_material(renderer, GREEN);
 		BOOST_CHECK_EQUAL(quad.render_with(renderer, transient), rgb(GREEN));
 		BOOST_CHECK_EQUAL(renderer->material_descriptor_set_count(), 2u);
 	}
@@ -316,7 +316,7 @@ BOOST_AUTO_TEST_CASE(the_set_of_draws_without_a_material_is_kept,
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 	renderer->begin_frame();
-	BOOST_CHECK(renderer->material_descriptor_set(MaterialPtr()) != VK_NULL_HANDLE);
+	BOOST_CHECK(renderer->material_descriptor_set(std::shared_ptr<Material>()) != VK_NULL_HANDLE);
 	renderer->finish_frame();
 	BOOST_CHECK_EQUAL(renderer->material_descriptor_set_count(), 1u);
 	renderer->begin_frame();
@@ -337,11 +337,11 @@ BOOST_AUTO_TEST_CASE(recycled_material_address_does_not_inherit_a_stale_set,
 	// and the loop makes "nearly" irrelevant.
 	for (int i = 0; i < 64; ++i)
 	{
-		MaterialPtr first = make_material(renderer, RED);
+		std::shared_ptr<Material> first = make_material(renderer, RED);
 		BOOST_REQUIRE_EQUAL(quad.render_with(renderer, first), rgb(RED));
 		first.reset();
 
-		MaterialPtr second = make_material(renderer, GREEN);
+		std::shared_ptr<Material> second = make_material(renderer, GREEN);
 		BOOST_REQUIRE_EQUAL(quad.render_with(renderer, second), rgb(GREEN));
 	}
 }
@@ -353,7 +353,7 @@ BOOST_AUTO_TEST_CASE(a_live_material_whose_texture_changes_shows_the_new_texture
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 	Quad quad(renderer);
 
-	MaterialPtr material = make_material(renderer, RED);
+	std::shared_ptr<Material> material = make_material(renderer, RED);
 	BOOST_CHECK_EQUAL(quad.render_with(renderer, material), rgb(RED));
 	material->set_diffuse_texture(make_solid_texture(renderer, GREEN));
 	BOOST_CHECK_EQUAL(quad.render_with(renderer, material), rgb(GREEN));
@@ -369,7 +369,7 @@ BOOST_AUTO_TEST_CASE(an_unchanged_material_keeps_one_set_across_frames,
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 	Quad quad(renderer);
 
-	MaterialPtr material = make_material(renderer, GREEN);
+	std::shared_ptr<Material> material = make_material(renderer, GREEN);
 	for (int frame = 0; frame < 5; ++frame)
 	{
 		BOOST_CHECK_EQUAL(quad.render_with(renderer, material), rgb(GREEN));
@@ -394,8 +394,8 @@ BOOST_AUTO_TEST_CASE(a_texture_of_another_renderer_is_refused,
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 	Quad quad(renderer);
-	RendererPtr other(new NullRenderer(4, 4));
-	MaterialPtr material = renderer->create_material();
+	std::shared_ptr<Renderer> other(new NullRenderer(4, 4));
+	std::shared_ptr<Material> material = renderer->create_material();
 	material->set_diffuse_texture(other->create_texture(2, 2, PixelFormat::X8R8G8B8));
 	BOOST_CHECK_THROW(quad.render(renderer, material), std::invalid_argument);
 }

@@ -41,9 +41,9 @@ inline std::filesystem::path unique_temp_directory(std::string const &prefix)
 }
 
 /// Flushes @p scheduler as a frame does: in a pass of its renderer, into the default target.
-inline void flush_in_a_pass(SchedulerPtr const &scheduler, bool clear = true)
+inline void flush_in_a_pass(std::shared_ptr<Scheduler> const &scheduler, bool clear = true)
 {
-	RendererPtr const renderer = scheduler->renderer();
+	std::shared_ptr<Renderer> const renderer = scheduler->renderer();
 	renderer->begin_frame();
 	renderer->begin_pass(renderer->default_render_target());
 	scheduler->flush(clear);

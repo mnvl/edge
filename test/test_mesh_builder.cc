@@ -17,8 +17,8 @@ namespace
 
 std::shared_ptr<edge::ModelBuilder> make_model()
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
-	edge::SchedulerPtr scheduler(new edge::Scheduler(renderer));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Scheduler> scheduler(new edge::Scheduler(renderer));
 	return std::make_shared<edge::ModelBuilder>(renderer);
 }
 
@@ -27,9 +27,9 @@ std::string make_asset_path(std::string const &asset_name)
 	return edge::TestFixture::graphic_sources_path() + "test/data/" + asset_name;
 }
 
-edge::MeshBuilderPtr make_triangle_mesh(edge::ModelBuilder &model)
+std::shared_ptr<edge::MeshBuilder> make_triangle_mesh(edge::ModelBuilder &model)
 {
-	edge::MeshBuilderPtr mesh = model.add_mesh_builder();
+	std::shared_ptr<edge::MeshBuilder> mesh = model.add_mesh_builder();
 
 	std::vector<edge::MeshBuilder::vertex_type> verts(3);
 	std::memset(verts.data(), 0, sizeof(verts[0]) * verts.size());
@@ -42,7 +42,7 @@ edge::MeshBuilderPtr make_triangle_mesh(edge::ModelBuilder &model)
 
 	std::vector<edge::MeshBuilder::index_type> indices = {0, 1, 2};
 	mesh->set_geometry(verts, indices);
-	mesh->add_triangles(edge::MaterialPtr(), 0, 1);
+	mesh->add_triangles(std::shared_ptr<edge::Material>(), 0, 1);
 	return mesh;
 }
 
@@ -53,7 +53,7 @@ BOOST_AUTO_TEST_SUITE(mesh_builder)
 BOOST_AUTO_TEST_CASE(set_geometry_sets_vertex_and_index_buffers)
 {
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = make_triangle_mesh(*model);
+	std::shared_ptr<edge::MeshBuilder> mesh = make_triangle_mesh(*model);
 
 	BOOST_CHECK_EQUAL(mesh->vertex_buffer().size(), 3u);
 	BOOST_CHECK_EQUAL(mesh->index_buffer().size(), 3u);
@@ -63,7 +63,7 @@ BOOST_AUTO_TEST_CASE(set_geometry_sets_vertex_and_index_buffers)
 BOOST_AUTO_TEST_CASE(set_vertices_generic)
 {
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = model->add_mesh_builder();
+	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
 
 	edge::GenericVertex verts[3];
 	std::memset(verts, 0, sizeof(verts));
@@ -85,7 +85,7 @@ BOOST_AUTO_TEST_CASE(set_vertices_generic)
 BOOST_AUTO_TEST_CASE(set_indices_generic)
 {
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = model->add_mesh_builder();
+	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
 
 	edge::GenericVertex verts[3];
 	std::memset(verts, 0, sizeof(verts));
@@ -103,7 +103,7 @@ BOOST_AUTO_TEST_CASE(set_indices_generic)
 BOOST_AUTO_TEST_CASE(morph_targets_applied_to_position)
 {
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = model->add_mesh_builder();
+	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
 
 	std::vector<edge::MeshBuilder::vertex_type> verts(2);
 	std::memset(verts.data(), 0, sizeof(verts[0]) * verts.size());
@@ -130,7 +130,7 @@ BOOST_AUTO_TEST_CASE(a_mesh_builder_holds_no_skin)
 {
 	// it is saved as a static mesh: joints and weights are refused, not dropped
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = model->add_mesh_builder();
+	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
 	std::vector<edge::GenericVertex> vertices(3);
 	std::memset(vertices.data(), 0, sizeof(vertices[0]) * vertices.size());
 	for (auto format : {edge::GenericVertex::FORMAT_JOINT_INDICES, edge::GenericVertex::FORMAT_JOINT_WEIGHTS})
@@ -150,7 +150,7 @@ BOOST_AUTO_TEST_CASE(a_model_builder_does_not_draw)
 BOOST_AUTO_TEST_CASE(add_triangles_out_of_range_throws)
 {
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = model->add_mesh_builder();
+	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
 
 	std::vector<edge::MeshBuilder::vertex_type> verts(3);
 	std::memset(verts.data(), 0, sizeof(verts[0]) * verts.size());
@@ -158,17 +158,17 @@ BOOST_AUTO_TEST_CASE(add_triangles_out_of_range_throws)
 	mesh->set_geometry(verts, indices);
 
 	// Out of bounds: offset > indices size
-	BOOST_CHECK_THROW(mesh->add_triangles(edge::MaterialPtr(), 100, 1), std::runtime_error);
+	BOOST_CHECK_THROW(mesh->add_triangles(std::shared_ptr<edge::Material>(), 100, 1), std::runtime_error);
 }
 
 BOOST_AUTO_TEST_CASE(shallow_copy)
 {
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = make_triangle_mesh(*model);
+	std::shared_ptr<edge::MeshBuilder> mesh = make_triangle_mesh(*model);
 	mesh->set_id("original_id");
 	mesh->set_name("original_name");
 
-	edge::MeshPtr copy = mesh->shallow_copy();
+	std::shared_ptr<edge::Mesh> copy = mesh->shallow_copy();
 	BOOST_REQUIRE(copy);
 	BOOST_CHECK_EQUAL(copy->id(), "original_id");
 	BOOST_CHECK_EQUAL(copy->name(), "original_name");

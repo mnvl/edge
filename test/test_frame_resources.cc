@@ -57,12 +57,12 @@ struct Rgba
 // in clip units (1 covers the whole target), UVs 0..1 across it.
 struct Quad
 {
-	VertexBufferPtr vb;
-	IndexBufferPtr ib;
-	CameraPtr camera;
-	RenderTargetPtr target;
+	std::shared_ptr<VertexBuffer> vb;
+	std::shared_ptr<IndexBuffer> ib;
+	std::shared_ptr<Camera> camera;
+	std::shared_ptr<RenderTarget> target;
 
-	Quad(RendererPtr const &renderer, float extent = 1.0f, int size = TARGET_SIZE, float uv_offset = 0.0f)
+	Quad(std::shared_ptr<Renderer> const &renderer, float extent = 1.0f, int size = TARGET_SIZE, float uv_offset = 0.0f)
 	{
 		vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
 		auto vb_mapping = vb->write(Contents::DISCARD);
@@ -92,10 +92,10 @@ struct Quad
 
 	// Every pixel of the target after drawing the quad with `material`
 	// over a clear of (-1, -1, -1, -1).
-	std::vector<Rgba> render(RendererPtr const &renderer, MaterialPtr const &material,
+	std::vector<Rgba> render(std::shared_ptr<Renderer> const &renderer, std::shared_ptr<Material> const &material,
 		rove::matrix<4, 4> const *world = nullptr)
 	{
-		DrawCallPtr draw_call = renderer->create_draw_call();
+		std::shared_ptr<DrawCall> draw_call = renderer->create_draw_call();
 		if (world)
 			draw_call->set_world_matrix(*world);
 		draw_call->set_vertex_buffer(vb);
@@ -114,7 +114,7 @@ struct Quad
 		renderer->end_pass();
 		renderer->finish_frame();
 
-		TexturePtr color = target->color_texture();
+		std::shared_ptr<Texture> color = target->color_texture();
 		color->download();
 		auto color_mapping = color->read();
 		Rgba const *pixels = color_mapping.as<Rgba const>().data();
@@ -124,7 +124,7 @@ struct Quad
 		return out;
 	}
 
-	Rgba centre(RendererPtr const &renderer, MaterialPtr const &material,
+	Rgba centre(std::shared_ptr<Renderer> const &renderer, std::shared_ptr<Material> const &material,
 		rove::matrix<4, 4> const *world = nullptr)
 	{
 		std::vector<Rgba> px = render(renderer, material, world);
@@ -133,17 +133,17 @@ struct Quad
 	}
 };
 
-MaterialPtr material_with(RendererPtr const &renderer, std::string const &fragment)
+std::shared_ptr<Material> material_with(std::shared_ptr<Renderer> const &renderer, std::string const &fragment)
 {
-	MaterialPtr material = renderer->create_material();
+	std::shared_ptr<Material> material = renderer->create_material();
 	material->set_cull_mode(Material::CullMode::NONE);
 	material->set_shader_program(renderer->create_shader_program(edge::test_shader("test_frame.vert"), fragment));
 	return material;
 }
 
-TexturePtr solid(RendererPtr const &renderer, uint32_t bgra, TextureUsage const &usage = TextureUsage())
+std::shared_ptr<Texture> solid(std::shared_ptr<Renderer> const &renderer, uint32_t bgra, TextureUsage const &usage = TextureUsage())
 {
-	TexturePtr t = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, usage);
+	std::shared_ptr<Texture> t = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, usage);
 	auto t_mapping = t->write(Contents::DISCARD);
 	uint32_t *p = t_mapping.as<uint32_t>().data();
 	BOOST_REQUIRE(p);
@@ -188,15 +188,15 @@ enum Probe
 	PROBE_OCCLUSION = 36,
 };
 
-MaterialPtr contract_material(RendererPtr const &renderer)
+std::shared_ptr<Material> contract_material(std::shared_ptr<Renderer> const &renderer)
 {
-	MaterialPtr material = renderer->create_material();
+	std::shared_ptr<Material> material = renderer->create_material();
 	material->set_cull_mode(Material::CullMode::NONE);
 	material->set_shader_program(renderer->create_shader_program(edge::test_shader("test_contract.vert"), edge::test_shader("test_contract.frag")));
 	return material;
 }
 
-Rgba probe(Quad &quad, RendererPtr const &renderer, MaterialPtr const &material, Probe p,
+Rgba probe(Quad &quad, std::shared_ptr<Renderer> const &renderer, std::shared_ptr<Material> const &material, Probe p,
 	rove::vec<3> const &extra_0_yzw = rove::vec<3>(0, 0, 0), rove::matrix<4, 4> const *world = nullptr)
 {
 	material->set_extra_parameter(0, rove::vec<4>(float(p), extra_0_yzw.x, extra_0_yzw.y, extra_0_yzw.z));
@@ -235,7 +235,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(frame_constants_reach_every_draw_and_change_betwee
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
 	Quad quad(renderer);
-	MaterialPtr material = material_with(renderer, edge::test_shader("test_frame_constants.frag"));
+	std::shared_ptr<Material> material = material_with(renderer, edge::test_shader("test_frame_constants.frag"));
 
 	// The shader returns the first vec4 of the block plus the second's x.
 	float constants[8] = {0.25f, 0.5f, 0.75f, 1.0f, 0.125f, 0, 0, 0};
@@ -258,7 +258,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_frame_constants_block_of_16_kb_reaches_the_shade
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
 	BOOST_REQUIRE_EQUAL(Renderer::FRAME_CONSTANTS_SIZE, 16384u);
 	Quad quad(renderer);
-	MaterialPtr material = material_with(renderer, edge::test_shader("test_frame_constants_last.frag"));
+	std::shared_ptr<Material> material = material_with(renderer, edge::test_shader("test_frame_constants_last.frag"));
 	std::vector<float> constants(Renderer::FRAME_CONSTANTS_SIZE / sizeof(float), 0.9f);
 	float *const last = constants.data() + constants.size() - 4;
 	last[0] = 0.1f;
@@ -289,7 +289,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(each_global_texture_slot_reads_its_own_texture, F,
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
 	Quad quad(renderer);
-	MaterialPtr material = material_with(renderer, edge::test_shader("test_global_texture.frag"));
+	std::shared_ptr<Material> material = material_with(renderer, edge::test_shader("test_global_texture.frag"));
 	BOOST_REQUIRE_EQUAL(Renderer::GLOBAL_TEXTURES_COUNT, 8u);
 	uint32_t const colors[8] = {0xFFFF0000u, 0xFF00FF00u, 0xFF0000FFu, 0xFF808080u,
 		0xFFFFFF00u, 0xFF00FFFFu, 0xFFFF00FFu, 0xFF404040u};
@@ -309,7 +309,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(each_global_texture_slot_reads_its_own_texture, F,
 	material->set_extra_parameter(0, rove::vec<4>(0, 0, 0, 0));
 	Rgba white = quad.centre(renderer, material);
 	BOOST_CHECK(near(white.r, 1) && near(white.g, 1) && near(white.b, 1));
-	BOOST_CHECK_THROW(renderer->set_global_texture(Renderer::GLOBAL_TEXTURES_COUNT, TexturePtr()), std::out_of_range);
+	BOOST_CHECK_THROW(renderer->set_global_texture(Renderer::GLOBAL_TEXTURES_COUNT, std::shared_ptr<Texture>()), std::out_of_range);
 	// a texture of another renderer is images on another device
 	F other;
 	BOOST_REQUIRE_MESSAGE(other.renderer, "renderer unavailable: " << other.error);
@@ -322,14 +322,14 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_render_target_feeds_a_later_pass_through_a_globa
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
 	Quad first(renderer);
-	MaterialPtr writer = material_with(renderer, edge::test_shader("test_frame_constants.frag"));
+	std::shared_ptr<Material> writer = material_with(renderer, edge::test_shader("test_frame_constants.frag"));
 	float constants[8] = {0.2f, 0.4f, 0.6f, 0.8f, 0, 0, 0, 0};
 	renderer->set_frame_constants(constants, sizeof(constants));
 	first.render(renderer, writer);
 	renderer->set_global_texture(1, first.target->color_texture());
 
 	Quad second(renderer);
-	MaterialPtr reader = material_with(renderer, edge::test_shader("test_global_texture.frag"));
+	std::shared_ptr<Material> reader = material_with(renderer, edge::test_shader("test_global_texture.frag"));
 	reader->set_extra_parameter(0, rove::vec<4>(1, 0, 0, 0));
 	Rgba got = second.centre(renderer, reader);
 	BOOST_CHECK(near(got.r, 0.2f) && near(got.g, 0.4f) && near(got.b, 0.6f) && near(got.a, 0.8f));
@@ -339,7 +339,7 @@ BOOST_FIXTURE_TEST_CASE(srgb_textures_are_sampled_as_linear_values, VulkanFixtur
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 	Quad quad(renderer);
-	MaterialPtr material = material_with(renderer, edge::test_shader("test_sample.frag"));
+	std::shared_ptr<Material> material = material_with(renderer, edge::test_shader("test_sample.frag"));
 	TextureUsage srgb;
 	srgb.srgb = true;
 	material->set_diffuse_texture(solid(renderer, 0xFF808080u, srgb));
@@ -358,7 +358,7 @@ BOOST_FIXTURE_TEST_CASE(a_mipmapped_texture_seen_small_is_filtered_not_aliased, 
 	// A 256 x 256 one-texel checker over an 8 x 8 pixel quad: 32 texels a pixel.
 	int const n = 256;
 	auto checker = [&](TextureUsage const &usage) {
-		TexturePtr t = renderer->create_texture(n, n, PixelFormat::A8R8G8B8, usage);
+		std::shared_ptr<Texture> t = renderer->create_texture(n, n, PixelFormat::A8R8G8B8, usage);
 		auto t_mapping = t->write(Contents::DISCARD);
 		uint32_t *p = t_mapping.as<uint32_t>().data();
 		BOOST_REQUIRE(p);
@@ -371,8 +371,8 @@ BOOST_FIXTURE_TEST_CASE(a_mipmapped_texture_seen_small_is_filtered_not_aliased, 
 	// Half a texel off, so that without mips each pixel samples one texel's
 	// centre (pure black or white) rather than the edge between two.
 	Quad quad(renderer, 8.0f / TARGET_SIZE, TARGET_SIZE, 0.5f / n);
-	MaterialPtr material = material_with(renderer, edge::test_shader("test_sample.frag"));
-	auto spread = [&](TexturePtr const &t) {
+	std::shared_ptr<Material> material = material_with(renderer, edge::test_shader("test_sample.frag"));
+	auto spread = [&](std::shared_ptr<Texture> const &t) {
 		material->set_diffuse_texture(t);
 		std::vector<Rgba> px = quad.render(renderer, material);
 		float lo = 2, hi = -2;
@@ -386,13 +386,13 @@ BOOST_FIXTURE_TEST_CASE(a_mipmapped_texture_seen_small_is_filtered_not_aliased, 
 	};
 	TextureUsage mipped;
 	mipped.mipmaps = true;
-	TexturePtr with_mips = checker(mipped);
+	std::shared_ptr<Texture> with_mips = checker(mipped);
 	BOOST_CHECK_EQUAL(with_mips->mip_levels(), 9);
 	auto filtered = spread(with_mips);
 	BOOST_CHECK_MESSAGE(filtered.first > 0.35f && filtered.second < 0.65f,
 		"mipmapped checker spans " << filtered.first << ".." << filtered.second);
 	// The same texture without mips aliases: the test can tell them apart.
-	TexturePtr without = checker(TextureUsage());
+	std::shared_ptr<Texture> without = checker(TextureUsage());
 	BOOST_CHECK_EQUAL(without->mip_levels(), 1);
 	auto aliased = spread(without);
 	BOOST_CHECK_MESSAGE(aliased.first < 0.2f || aliased.second > 0.8f,
@@ -408,7 +408,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(an_x8r8g8b8_texture_is_sampled_as_written_its_four
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
 	for (uint8_t const x : {uint8_t(0), uint8_t(77), uint8_t(255)})
 	{
-		TexturePtr texture = renderer->create_texture(4, 4, PixelFormat::X8R8G8B8);
+		std::shared_ptr<Texture> texture = renderer->create_texture(4, 4, PixelFormat::X8R8G8B8);
 		auto texture_mapping = texture->write(Contents::DISCARD);
 		uint8_t *p = texture_mapping.as<uint8_t>().data();
 		BOOST_REQUIRE(p);
@@ -421,7 +421,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(an_x8r8g8b8_texture_is_sampled_as_written_its_four
 		}
 		texture_mapping.unmap();
 		Quad quad(renderer);
-		MaterialPtr material = material_with(renderer, edge::test_shader("test_sample.frag"));
+		std::shared_ptr<Material> material = material_with(renderer, edge::test_shader("test_sample.frag"));
 		material->set_diffuse_texture(texture);
 		Rgba const c = quad.centre(renderer, material);
 		BOOST_TEST(std::abs(c.r - 0.8f) < 1e-3f, "red " << c.r << " with X " << int(x));
@@ -449,7 +449,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(material_pbr_parameters_and_textures_reach_the_sha
 	// The shader returns (metal-rough texture's g * roughness factor,
 	// metal-rough texture's b * metallic factor, emissive texture's r *
 	// emissive factor's r, alpha cutoff).
-	MaterialPtr material = material_with(renderer, edge::test_shader("test_material_pbr.frag"));
+	std::shared_ptr<Material> material = material_with(renderer, edge::test_shader("test_material_pbr.frag"));
 	material->set_metallic_roughness_texture(solid(renderer, 0xFF00C080u));   // r 0, g 0.753, b 0.502
 	material->set_emissive_texture(solid(renderer, 0xFF400000u));             // r 0.251
 	material->set_roughness_factor(0.5f);
@@ -463,7 +463,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(material_pbr_parameters_and_textures_reach_the_sha
 	BOOST_CHECK_MESSAGE(near(got.a, 0.375f), "alpha cutoff " << got.a);
 
 	// Without the textures the factors alone come through (the flags say so).
-	MaterialPtr bare = material_with(renderer, edge::test_shader("test_material_pbr.frag"));
+	std::shared_ptr<Material> bare = material_with(renderer, edge::test_shader("test_material_pbr.frag"));
 	bare->set_roughness_factor(0.5f);
 	bare->set_metallic_factor(0.25f);
 	bare->set_emissive_factor(rove::vec<3>(2.0f, 0.0f, 0.0f));
@@ -476,14 +476,14 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(pbr_defaults_follow_gltf, F, edge::Backends)
 	F fixture;
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
-	MaterialPtr m = renderer->create_material();
+	std::shared_ptr<Material> m = renderer->create_material();
 	BOOST_CHECK_EQUAL(m->metallic_factor(), 1.0f);    // glTF: metallicFactor 1
 	BOOST_CHECK_EQUAL(m->roughness_factor(), 1.0f);   // glTF: roughnessFactor 1
 	BOOST_CHECK_EQUAL(m->emissive_factor().x, 0.0f);
 	BOOST_CHECK_EQUAL(m->alpha_cutoff(), 0.0f);
 	BOOST_CHECK(!m->metallic_roughness_texture());
 	BOOST_CHECK(!m->emissive_texture());
-	MaterialPtr c = m->clone();
+	std::shared_ptr<Material> c = m->clone();
 	m->set_roughness_factor(0.3f);
 	BOOST_CHECK_EQUAL(c->roughness_factor(), 1.0f);
 }
@@ -496,8 +496,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_viewport_confines_draws_to_its_rectangle, F, edg
 	// a full-screen quad drawn twice: once into the top-left quarter in one
 	// colour, once into the bottom-right quarter in another
 	Quad quad(renderer);
-	MaterialPtr material = material_with(renderer, edge::test_shader("test_frame_constants.frag"));
-	DrawCallPtr call = renderer->create_draw_call();
+	std::shared_ptr<Material> material = material_with(renderer, edge::test_shader("test_frame_constants.frag"));
+	std::shared_ptr<DrawCall> call = renderer->create_draw_call();
 	call->set_vertex_buffer(quad.vb);
 	call->set_index_buffer(quad.ib);
 	call->set_material(material);
@@ -522,7 +522,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_viewport_confines_draws_to_its_rectangle, F, edg
 	renderer->end_pass();
 	BOOST_CHECK_THROW(renderer->set_viewport(0, 0, 1, 1), std::logic_error);
 	renderer->finish_frame();
-	TexturePtr colour = quad.target->color_texture();
+	std::shared_ptr<Texture> colour = quad.target->color_texture();
 	colour->download();
 	auto colour_mapping = colour->read();
 	Rgba const *px = colour_mapping.as<Rgba const>().data();
@@ -543,7 +543,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(each_texture_binding_reads_the_texture_the_api_put
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
 	Quad quad(renderer);
-	MaterialPtr material = contract_material(renderer);
+	std::shared_ptr<Material> material = contract_material(renderer);
 	for (unsigned i = 0; i < 4; ++i)
 		material->set_diffuse_texture(solid(renderer, slot_color(i)), i);
 	material->set_texture_blending_weights_texture(solid(renderer, slot_color(4)));
@@ -571,7 +571,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(a_texture_the_material_lacks_is_white_and_leaves_t
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
 	Quad quad(renderer);
-	MaterialPtr material = contract_material(renderer);
+	std::shared_ptr<Material> material = contract_material(renderer);
 	material->set_diffuse_texture(solid(renderer, slot_color(0)));
 	material->set_emissive_texture(solid(renderer, slot_color(7)));
 	Rgba got = probe(quad, renderer, material, PROBE_DIFFUSE_0);
@@ -593,7 +593,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(push_constant_fields_carry_the_material_and_the_ca
 	Quad quad(renderer);
 	quad.camera->look_at(rove::vec<3>(0.25f, -0.5f, 1.5f), rove::vec<3>(0.25f, -0.5f, 0.0f),
 		rove::vec<3>(0, 1, 0));
-	MaterialPtr material = contract_material(renderer);
+	std::shared_ptr<Material> material = contract_material(renderer);
 	material->set_base_color_factor(rove::vec<4>(0.1f, 0.2f, 0.3f, 0.4f));
 	material->set_metallic_factor(0.35f);
 	material->set_roughness_factor(0.65f);
@@ -633,20 +633,20 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(flags_are_the_bits_the_renderer_sets, F, edge::Bac
 	struct
 	{
 		char const *name;
-		void (*give)(MaterialPtr const &, TexturePtr const &);
+		void (*give)(std::shared_ptr<Material> const &, std::shared_ptr<Texture> const &);
 		Rgba want;
 	} const cases[] = {
-		{"none", [](MaterialPtr const &, TexturePtr const &) {}, {0, 0, 0, 0}},
-		{"normal map", [](MaterialPtr const &m, TexturePtr const &t) { m->set_normal_map_texture(t); },
+		{"none", [](std::shared_ptr<Material> const &, std::shared_ptr<Texture> const &) {}, {0, 0, 0, 0}},
+		{"normal map", [](std::shared_ptr<Material> const &m, std::shared_ptr<Texture> const &t) { m->set_normal_map_texture(t); },
 			{1, 0, 0, float(shader::FLAG_NORMAL_MAP)}},
-		{"metallic-roughness", [](MaterialPtr const &m, TexturePtr const &t) { m->set_metallic_roughness_texture(t); },
+		{"metallic-roughness", [](std::shared_ptr<Material> const &m, std::shared_ptr<Texture> const &t) { m->set_metallic_roughness_texture(t); },
 			{0, 1, 0, float(shader::FLAG_METALLIC_ROUGHNESS_MAP)}},
-		{"emissive", [](MaterialPtr const &m, TexturePtr const &t) { m->set_emissive_texture(t); },
+		{"emissive", [](std::shared_ptr<Material> const &m, std::shared_ptr<Texture> const &t) { m->set_emissive_texture(t); },
 			{0, 0, 1, float(shader::FLAG_EMISSIVE_MAP)}},
 	};
 	for (auto const &c : cases)
 	{
-		MaterialPtr material = contract_material(renderer);
+		std::shared_ptr<Material> material = contract_material(renderer);
 		c.give(material, solid(renderer, 0xFF808080u));
 		Rgba got = probe(quad, renderer, material, PROBE_MATERIAL_FLAGS);
 		BOOST_CHECK_MESSAGE(near(got, c.want), c.name << ": (normal, metal-rough, emissive, flags) " << got
@@ -654,7 +654,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(flags_are_the_bits_the_renderer_sets, F, edge::Bac
 	}
 
 	// the flags only the uber draw call sets, by value
-	MaterialPtr material = contract_material(renderer);
+	std::shared_ptr<Material> material = contract_material(renderer);
 	Rgba got = probe(quad, renderer, material, PROBE_UBER_FLAG_VALUES);
 	BOOST_CHECK_MESSAGE(near(got, {float(shader::FLAG_TEXTURE_BLENDING_VERTEX), float(shader::FLAG_TEXTURE_BLENDING_TEXTURE),
 		float(shader::FLAG_SKELETAL), 0}), "blending vertex, blending texture, skeletal " << got);
@@ -684,7 +684,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(counts_draw_constants_and_frame_constants, F, edge
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
 	Quad quad(renderer);
-	MaterialPtr material = contract_material(renderer);
+	std::shared_ptr<Material> material = contract_material(renderer);
 
 	Rgba got = probe(quad, renderer, material, PROBE_COUNTS);
 	BOOST_CHECK_MESSAGE(near(got, {float(Renderer::GLOBAL_TEXTURES_COUNT), float(Material::EXTRA_PARAMETERS_COUNT),
