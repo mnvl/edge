@@ -1,7 +1,7 @@
 {
   "name": "edge",
   "version": "3.0.1",
-  "description": "Minimalistic C++20 rendering library with Vulkan, OpenGL ES 3.0 / WebGL 2 and Metal backends, and Python bindings",
+  "description": "Minimalist C++20 batch rendering library with Vulkan, OpenGL ES 3.0 / WebGL 2 and Metal backends, and Python bindings",
   "homepage": "https://github.com/mnvl/edge",
   "license": "MIT",
   "supports": "linux | osx",
