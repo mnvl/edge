@@ -196,7 +196,7 @@ def test_every_package_says_what_the_readme_says():
     import json
     import re
     root = Path(__file__).resolve().parents[1]
-    expected = "Minimalistic C++20 rendering library with Vulkan, OpenGL ES 3.0 / WebGL 2 and Metal backends, and Python bindings"
+    expected = "Minimalist C++20 batch rendering library with Vulkan, OpenGL ES 3.0 / WebGL 2 and Metal backends, and Python bindings"
     readme = (root / "README.md").read_text(encoding="utf-8").splitlines()
     assert readme[2].startswith(expected + " (`pyedge`)."), readme[2]
     pyproject = re.findall(r'^description = "([^"]*)"$', (root / "pyproject.toml").read_text(encoding="utf-8"), re.M)
