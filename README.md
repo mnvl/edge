@@ -1,6 +1,6 @@
 # edge
 
-Minimalistic C++20 rendering library with Vulkan, OpenGL ES 3.0 / WebGL 2 and Metal backends, and Python bindings (`pyedge`).
+Minimalist C++20 batch rendering library with Vulkan, OpenGL ES 3.0 / WebGL 2 and Metal backends, and Python bindings (`pyedge`).
 
 It has everything you need to load geometry, render it and develop your code in a platform and API independent manner.
 
@@ -8,13 +8,13 @@ It can read glTF and has an in-house fast-loading `.edge` format for models with
 
 It is meant to be read and changed: there is no scene editor, no scripting layer (except Python bindings) and no asset store.
 
-It was refactored from a game engine from 2004 to render many scenes in parallel for robotics simulation (cameras, depth
-and lidar images for training and testing), where a general-purpose engine was too slow. Much of the binding code, refactorings,
-new backends and documentation were written with Claude and curated by the author.
+It was refactored from a game [engine](https://github.com/mnvl/engine-legacy) from 2004 to render many scenes in parallel for
+robotics simulation (cameras, depth and lidar images for training and testing), where a general-purpose engine was too slow.
+Much of the binding code, refactorings, new backends and documentation were written with Claude and curated by the author.
 
 The library was also used successfully to build computer games which are running on MacOS, Windows, Linux, iOS, Android, and
-even web browsers. One of them is [Liga Football 11v11](https://liga.manvel.dev/), a free eleven-a-side football (soccer) game
-that plays in the browser on edge's WebGL 2 backend.
+web browsers:
+- [Advantage Football](https://manvel.dev/), a free eleven-a-side football (soccer) game.
 
 ## Features
 
