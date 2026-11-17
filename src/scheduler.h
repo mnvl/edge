@@ -36,6 +36,9 @@ public:
 	///               subsequent flush (e.g. rendering the same geometry to
 	///               a second render target).
 	void flush(bool clear = true);
+	/// The same into @p list, a part of a split pass (Renderer::begin_split_pass): a scheduler of the thread that records the
+	/// list, flushed on it.
+	void flush(DrawList &list, bool clear = true);
 	/// With @p sort, each flush draws a priority's opaque calls first, in the order they were added, then its blended ones (a material
 	/// with alpha blending) farthest first by DrawCall::view_depth(), so that what is seen through glass is drawn before the glass.
 	/// Off by default: a priority's calls are drawn in the order they were added.
@@ -66,6 +69,8 @@ private:
 	uint64_t executed_calls_ = 0, executed_triangles_ = 0, offered_calls_ = 0, offered_triangles_ = 0;
 
 	draw_calls_type draw_calls_;
+	/// flush(): sorted, culled, each visible call drawn by @p list, or through the renderer for none.
+	void flush_into(DrawList *list, bool clear);
 	bool sort_blended_ = false;
 };
 

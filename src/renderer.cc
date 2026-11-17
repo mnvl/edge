@@ -167,11 +167,105 @@ void Renderer::begin_pass(RenderTargetPtr const &target, RenderPassClearState co
 	pass_target_ = target;
 }
 
+DrawList::DrawList(Renderer &renderer, RenderTargetPtr const &target):
+	renderer_(renderer),
+	target_width_(target->width()),
+	target_height_(target->height())
+{
+}
+
+DrawList::~DrawList() = default;
+
+void DrawList::set_viewport(int x, int y, int width, int height)
+{
+	if (x < 0 || y < 0 || width <= 0 || height <= 0 || x + width > target_width_ || y + height > target_height_)
+	{
+		throw std::out_of_range("viewport " + std::to_string(x) + ", " + std::to_string(y) + ", " + std::to_string(width) + " x " +
+			std::to_string(height) + " is not inside the target of " + std::to_string(target_width_) + " x " +
+			std::to_string(target_height_));
+	}
+	do_set_viewport(x, y, width, height);
+}
+
+void DrawList::draw(DrawCall const &call)
+{
+	renderer_.check_draw(call);
+	do_draw(call);
+	resources_.push_back(call.vertex_buffer());
+	if (call.index_buffer())
+		resources_.push_back(call.index_buffer());
+	resources_.push_back(call.material());
+}
+
+std::vector<DrawList *> Renderer::begin_split_pass(RenderTargetPtr const &target, RenderPassClearState const &clear_state,
+	uint32_t pass_type, size_t lists)
+{
+	if (!can_split_pass())
+		throw std::logic_error("begin_split_pass() on a renderer that records a pass on one thread");
+	if (!in_frame())
+		throw std::logic_error("begin_split_pass() outside a frame");
+	if (in_pass())
+		throw std::logic_error("begin_split_pass() inside a pass");
+	if (!target)
+		throw std::invalid_argument("begin_split_pass() of no target");
+	if (target->layers() > 0 && target->layer_index() < 0)
+		throw std::invalid_argument("begin_split_pass() of a target of " + std::to_string(target->layers())
+			+ " layers: a pass draws one, begin_split_pass(target->layer(i))");
+	if (lists == 0)
+		throw std::invalid_argument("begin_split_pass() of no lists");
+	// (the pass's type and target are what the backend's lists read: set before it makes them, taken back if it throws)
+	pass_type_ = pass_type;
+	pass_target_ = target;
+	try
+	{
+		split_lists_ = do_begin_split_pass(target, clear_state, pass_type, lists);
+	}
+	catch (...)
+	{
+		pass_type_ = 0;
+		pass_target_.reset();
+		throw;
+	}
+	frame_resources_.push_back(target);
+	state_ = State::PASS;
+	split_pass_ = true;
+	return split_lists_;
+}
+
+std::vector<DrawList *> Renderer::do_begin_split_pass(RenderTargetPtr const &, RenderPassClearState const &, uint32_t, size_t)
+{
+	throw std::logic_error("this renderer records a pass on one thread");
+}
+
+void Renderer::wait_frame(uint64_t serial)
+{
+	if (serial == 0 || serial > frame_serial() || (in_frame() && serial == frame_serial()))
+		throw std::logic_error("wait_frame(" + std::to_string(serial) + "): not a frame submitted (the last begun is "
+			+ std::to_string(frame_serial()) + (in_frame() ? ", open)" : ")"));
+	do_wait_frame(serial);
+}
+
+bool Renderer::frame_drawn(uint64_t serial)
+{
+	if (serial == 0 || serial > frame_serial() || (in_frame() && serial == frame_serial()))
+		throw std::logic_error("frame_drawn(" + std::to_string(serial) + "): not a frame submitted (the last begun is "
+			+ std::to_string(frame_serial()) + (in_frame() ? ", open)" : ")"));
+	return do_frame_drawn(serial);
+}
+
 void Renderer::end_pass()
 {
 	if (!in_pass())
 		throw std::logic_error("end_pass() outside a pass");
+	if (split_pass_)
+	{
+		// what the lists drew with is the frame's to hold, as a draw through the renderer leaves it
+		for (DrawList *list : split_lists_)
+			frame_resources_.insert(frame_resources_.end(), list->resources_.begin(), list->resources_.end());
+		split_lists_.clear();
+	}
 	do_end_pass();
+	split_pass_ = false;
 	state_ = State::FRAME;
 	pass_type_ = 0;
 	pass_target_.reset();
@@ -181,6 +275,8 @@ void Renderer::set_viewport(int x, int y, int width, int height)
 {
 	if (!in_pass())
 		throw std::logic_error("set_viewport() outside a pass");
+	if (split_pass_)
+		throw std::logic_error("set_viewport() in a split pass: its lists set their own (DrawList::set_viewport)");
 	if (x < 0 || y < 0 || width <= 0 || height <= 0 || x + width > pass_target_->width() || y + height > pass_target_->height())
 	{
 		throw std::out_of_range("viewport " + std::to_string(x) + ", " + std::to_string(y) + ", " + std::to_string(width) + " x " +
@@ -274,6 +370,18 @@ void Renderer::check_ranges(DrawCall const &call) const
 
 void Renderer::draw(DrawCall const &call)
 {
+	if (split_pass_ && in_pass())
+		throw std::logic_error("a draw through the renderer in a split pass: its lists draw (DrawCall::execute(DrawList &))");
+	check_draw(call);
+	do_draw(call);
+	frame_resources_.push_back(call.vertex_buffer());
+	if (call.index_buffer())
+		frame_resources_.push_back(call.index_buffer());
+	frame_resources_.push_back(call.material());
+}
+
+void Renderer::check_draw(DrawCall const &call) const
+{
 	if (!in_pass())
 		throw std::logic_error("a draw outside a pass");
 	if (!call.vertex_buffer())
@@ -285,11 +393,6 @@ void Renderer::draw(DrawCall const &call)
 		throw std::invalid_argument("an instanced draw of no instances");
 	if (call.material()->occlusion() && !call.material()->metallic_roughness_texture())
 		throw std::logic_error("material '" + call.material()->name() + "' has occlusion and no metallic-roughness texture to hold it");
-	do_draw(call);
-	frame_resources_.push_back(call.vertex_buffer());
-	if (call.index_buffer())
-		frame_resources_.push_back(call.index_buffer());
-	frame_resources_.push_back(call.material());
 }
 
 namespace
@@ -309,6 +412,38 @@ void Renderer::batch_download_textures(std::vector<TexturePtr> const &textures)
 		throw std::logic_error("batch_download_textures() inside a frame: after finish_frame()");
 	refuse_null(textures, "batch_download_textures");
 	do_batch_download_textures(textures);
+}
+
+void Renderer::download_in_frame(std::vector<TexturePtr> const &textures)
+{
+	if (!can_download_in_frame())
+		throw std::logic_error("download_in_frame() on a renderer that downloads between frames (batch_download_textures)");
+	if (!in_frame())
+		throw std::logic_error("download_in_frame() outside a frame");
+	if (in_pass())
+		throw std::logic_error("download_in_frame() inside a pass");
+	refuse_null(textures, "download_in_frame");
+	do_download_in_frame(textures);
+	for (TexturePtr const &texture : textures)
+		frame_resources_.push_back(texture);
+}
+
+void Renderer::finish_downloads(std::vector<TexturePtr> const &textures)
+{
+	if (!can_download_in_frame())
+		throw std::logic_error("finish_downloads() on a renderer that downloads between frames (batch_download_textures)");
+	refuse_null(textures, "finish_downloads");
+	do_finish_downloads(textures);
+}
+
+void Renderer::do_download_in_frame(std::vector<TexturePtr> const &)
+{
+	throw std::logic_error("this renderer downloads between frames");
+}
+
+void Renderer::do_finish_downloads(std::vector<TexturePtr> const &)
+{
+	throw std::logic_error("this renderer downloads between frames");
 }
 
 void Renderer::batch_upload_textures(std::vector<TexturePtr> const &textures)

@@ -83,6 +83,8 @@ public:
 
 	/// Draws, in the renderer's pass (Renderer::draw); nothing for no triangles.  std::logic_error before commit().
 	void execute();
+	/// The same into @p list, a part of a split pass (Renderer::begin_split_pass).
+	void execute(DrawList &list);
 
 protected:
 	RendererPtr const renderer_;

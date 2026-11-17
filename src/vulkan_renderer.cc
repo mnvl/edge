@@ -138,6 +138,7 @@ VulkanRenderer::VulkanRenderer(int width, int height, std::string const &device_
 		render_pass_cache_.reset();
 		uploader_.reset();
 
+		destroy_list_pools();
 		if (command_pool_ != VK_NULL_HANDLE)
 		{
 			vkDestroyCommandPool(device_, command_pool_, nullptr);
@@ -178,6 +179,7 @@ VulkanRenderer::~VulkanRenderer()
 	render_pass_cache_.reset();
 	presenter_.reset();
 
+	destroy_list_pools();
 	if (command_pool_ != VK_NULL_HANDLE)
 	{
 		vkDestroyCommandPool(device_, command_pool_, nullptr);
@@ -243,6 +245,21 @@ void VulkanRenderer::init()
 
 	EDGE_LOG_INFO("Vulkan offscreen renderer created: {}x{}, {} frame{} in flight", screen_width_, screen_height_, slots,
 		slots == 1 ? "" : "s");
+}
+
+void VulkanRenderer::destroy_list_pools()
+{
+	split_lists_.clear();
+	for (std::vector<ListPool> &share : list_pools_)
+	{
+		for (ListPool &list_pool : share)
+		{
+			// (its buffers go with it)
+			if (list_pool.pool != VK_NULL_HANDLE)
+				vkDestroyCommandPool(device_, list_pool.pool, nullptr);
+		}
+	}
+	list_pools_.clear();
 }
 
 void VulkanRenderer::create_command_pool()
@@ -729,10 +746,171 @@ void VulkanRenderer::prepare_current()
 	draw_constants_ubo_->use_region(current);
 	frame_constants_ubo_->use_region(current);
 	uploader_->use_arena(current);
+	// the share's frame is drawn: what its lists recorded is free to be recorded over
+	if (current < list_pools_.size())
+	{
+		for (ListPool &list_pool : list_pools_[current])
+		{
+			check_vk_result(vkResetCommandPool(device_, list_pool.pool, 0), "vkResetCommandPool(list)");
+			list_pool.used = 0;
+		}
+	}
 	current_ready_ = true;
 }
 
+/// A list of a split pass: a secondary command buffer of the pass, recorded by one thread.
+class VulkanDrawList: public DrawList {
+public:
+	VulkanDrawList(VulkanRenderer &renderer, RenderTargetPtr const &target, VkCommandBuffer commands):
+		DrawList(renderer, target),
+		renderer_(renderer),
+		commands_(commands)
+	{
+	}
+
+	VkCommandBuffer commands() const { return commands_; }
+
+protected:
+	void do_set_viewport(int x, int y, int width, int height) override
+	{
+		VulkanRenderer::record_viewport(commands_, x, y, width, height);
+	}
+
+	void do_draw(DrawCall const &call) override
+	{
+		renderer_.record_draw(commands_, call);
+	}
+
+private:
+	VulkanRenderer &renderer_;
+	VkCommandBuffer commands_;
+};
+
 void VulkanRenderer::do_begin_pass(RenderTargetPtr const &target, RenderPassClearState const &clear_state, uint32_t pass_type)
+{
+	(void)pass_type;
+	begin_render_pass(target, clear_state, false);
+}
+
+std::vector<DrawList *> VulkanRenderer::do_begin_split_pass(RenderTargetPtr const &target, RenderPassClearState const &clear_state,
+	uint32_t pass_type, size_t lists)
+{
+	(void)pass_type;
+	// The lists' buffers first: what throws here leaves no pass open.
+	uint32_t const share = frames_->current();
+	if (list_pools_.size() <= share)
+		list_pools_.resize(share + 1);
+	std::vector<ListPool> &pools = list_pools_[share];
+	while (pools.size() < lists)
+	{
+		VkCommandPoolCreateInfo pool_info;
+		std::memset(&pool_info, 0, sizeof(pool_info));
+		pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+		pool_info.queueFamilyIndex = graphics_queue_family_;
+		ListPool list_pool;
+		check_vk_result(vkCreateCommandPool(device_, &pool_info, nullptr, &list_pool.pool), "vkCreateCommandPool(list)");
+		pools.push_back(list_pool);
+	}
+	std::vector<VkCommandBuffer> buffers;
+	for (size_t i = 0; i < lists; ++i)
+	{
+		ListPool &list_pool = pools[i];
+		if (list_pool.used == list_pool.buffers.size())
+		{
+			VkCommandBufferAllocateInfo allocate;
+			std::memset(&allocate, 0, sizeof(allocate));
+			allocate.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+			allocate.commandPool = list_pool.pool;
+			allocate.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
+			allocate.commandBufferCount = 1;
+			VkCommandBuffer buffer = VK_NULL_HANDLE;
+			check_vk_result(vkAllocateCommandBuffers(device_, &allocate, &buffer), "vkAllocateCommandBuffers(list)");
+			list_pool.buffers.push_back(buffer);
+		}
+		buffers.push_back(list_pool.buffers[list_pool.used++]);
+	}
+
+	begin_render_pass(target, clear_state, true);
+
+	VulkanRenderTarget const &vulkan_target = dynamic_cast<VulkanRenderTarget const &>(*target);
+	VkExtent2D const extent = vulkan_target.extent();
+	std::vector<DrawList *> result;
+	for (VkCommandBuffer buffer : buffers)
+	{
+		VkCommandBufferInheritanceInfo inheritance;
+		std::memset(&inheritance, 0, sizeof(inheritance));
+		inheritance.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
+		inheritance.renderPass = active_pass_render_pass_;
+		inheritance.subpass = 0;
+		inheritance.framebuffer = active_pass_framebuffer_;
+		VkCommandBufferBeginInfo begin;
+		std::memset(&begin, 0, sizeof(begin));
+		begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
+		begin.pInheritanceInfo = &inheritance;
+		check_vk_result(vkBeginCommandBuffer(buffer, &begin), "vkBeginCommandBuffer(list)");
+		// a list starts with the whole target, as a pass does (the viewport is not inherited)
+		record_viewport(buffer, 0, 0, static_cast<int>(extent.width), static_cast<int>(extent.height));
+		split_lists_.push_back(std::make_unique<VulkanDrawList>(*this, target, buffer));
+		result.push_back(split_lists_.back().get());
+	}
+	return result;
+}
+
+void VulkanRenderer::do_wait_frame(uint64_t serial)
+{
+	frames_->wait_serial(serial);
+}
+
+bool VulkanRenderer::do_frame_drawn(uint64_t serial)
+{
+	return frames_->drawn(serial);
+}
+
+void VulkanRenderer::do_download_in_frame(std::vector<TexturePtr> const &textures)
+{
+	std::vector<VulkanTexture *> batch;
+	for (TexturePtr const &texture : textures)
+	{
+		VulkanTexture *const vulkan_texture = dynamic_cast<VulkanTexture *>(texture.get());
+		if (!vulkan_texture || vulkan_texture->device() != device_)
+		{
+			throw std::invalid_argument("download_in_frame: not a texture of this renderer");
+		}
+		vulkan_texture->check_downloadable();
+		if (!vulkan_texture->written())
+		{
+			throw std::logic_error("download_in_frame: a texture never drawn into or uploaded has nothing to download");
+		}
+		batch.push_back(vulkan_texture);
+	}
+	for (VulkanTexture const *texture : batch)
+	{
+		texture->record_download(active_command_buffer_);
+	}
+}
+
+void VulkanRenderer::do_finish_downloads(std::vector<TexturePtr> const &textures)
+{
+	std::vector<VulkanTexture *> batch;
+	for (TexturePtr const &texture : textures)
+	{
+		VulkanTexture *const vulkan_texture = dynamic_cast<VulkanTexture *>(texture.get());
+		if (!vulkan_texture || vulkan_texture->device() != device_)
+		{
+			throw std::invalid_argument("finish_downloads: not a texture of this renderer");
+		}
+		vulkan_texture->check_downloadable();
+		batch.push_back(vulkan_texture);
+	}
+	for (VulkanTexture *texture : batch)
+	{
+		texture->finish_download();
+	}
+}
+
+void VulkanRenderer::begin_render_pass(RenderTargetPtr const &target, RenderPassClearState const &clear_state, bool split)
 {
 	VulkanRenderTarget *vulkan_target = dynamic_cast<VulkanRenderTarget *>(target.get());
 	if (!vulkan_target || vulkan_target->device_context() != device_context_)
@@ -799,36 +977,36 @@ void VulkanRenderer::do_begin_pass(RenderTargetPtr const &target, RenderPassClea
 
 	gpu_timer_->begin_pass(active_command_buffer_);
 
-	vkCmdBeginRenderPass(active_command_buffer_, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBeginRenderPass(active_command_buffer_, &render_pass_info,
+		split ? VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS : VK_SUBPASS_CONTENTS_INLINE);
 
-	VkViewport viewport;
-	std::memset(&viewport, 0, sizeof(viewport));
-	// Y-flip: map OpenGL Y-up NDC convention to Vulkan screen space.
-	// VK NDC Y=-1 = top, Y=+1 = bottom; by setting y=height and height=-height,
-	// we invert the mapping so Y=+1 in clip space goes to the top of the image.
-	// Core since Vulkan 1.1 (VK_KHR_maintenance1).
-	viewport.x = 0.0f;
-	viewport.y = static_cast<float>(selected_extent.height);
-	viewport.width = static_cast<float>(selected_extent.width);
-	viewport.height = -static_cast<float>(selected_extent.height);
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-	vkCmdSetViewport(active_command_buffer_, 0, 1, &viewport);
-
-	VkRect2D scissor;
-	std::memset(&scissor, 0, sizeof(scissor));
-	scissor.offset.x = 0;
-	scissor.offset.y = 0;
-	scissor.extent = selected_extent;
-	vkCmdSetScissor(active_command_buffer_, 0, 1, &scissor);
+	// (a split pass's commands are its lists': each sets its own, nothing may be recorded here)
+	if (!split)
+	{
+		record_viewport(active_command_buffer_, 0, 0, static_cast<int>(selected_extent.width),
+			static_cast<int>(selected_extent.height));
+	}
 
 	active_pass_render_pass_ = selected_render_pass;
+	active_pass_framebuffer_ = selected_framebuffer;
 	active_pass_color_attachments_ = static_cast<uint32_t>(colors);
 }
 
 void VulkanRenderer::do_end_pass()
 {
 	RenderTargetPtr const &finished_target = pass_target();
+	if (!split_lists_.empty())
+	{
+		// the lists, in their order: what each recorded is drawn after the ones before it
+		std::vector<VkCommandBuffer> buffers;
+		for (std::unique_ptr<VulkanDrawList> const &list : split_lists_)
+		{
+			check_vk_result(vkEndCommandBuffer(list->commands()), "vkEndCommandBuffer(list)");
+			buffers.push_back(list->commands());
+		}
+		vkCmdExecuteCommands(active_command_buffer_, static_cast<uint32_t>(buffers.size()), buffers.data());
+		split_lists_.clear();
+	}
 	vkCmdEndRenderPass(active_command_buffer_);
 
 	gpu_timer_->end_pass(active_command_buffer_);
@@ -863,6 +1041,7 @@ void VulkanRenderer::do_end_pass()
 	}
 
 	active_pass_render_pass_ = VK_NULL_HANDLE;
+	active_pass_framebuffer_ = VK_NULL_HANDLE;
 }
 
 void VulkanRenderer::do_finish_frame()
@@ -953,7 +1132,15 @@ TexturePtr VulkanRenderer::create_texture(int width, int height, PixelFormat pix
 
 void VulkanRenderer::do_set_viewport(int x, int y, int width, int height)
 {
-	// the same Y flip as begin_pass, over the rectangle
+	record_viewport(active_command_buffer_, x, y, width, height);
+}
+
+void VulkanRenderer::record_viewport(VkCommandBuffer command_buffer, int x, int y, int width, int height)
+{
+	// Y-flip: map OpenGL Y-up NDC convention to Vulkan screen space.
+	// VK NDC Y=-1 = top, Y=+1 = bottom; by setting y to the rectangle's bottom and the height negative,
+	// we invert the mapping so Y=+1 in clip space goes to the top of the rectangle.
+	// Core since Vulkan 1.1 (VK_KHR_maintenance1).
 	VkViewport viewport;
 	std::memset(&viewport, 0, sizeof(viewport));
 	viewport.x = static_cast<float>(x);
@@ -962,13 +1149,13 @@ void VulkanRenderer::do_set_viewport(int x, int y, int width, int height)
 	viewport.height = -static_cast<float>(height);
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
-	vkCmdSetViewport(active_command_buffer_, 0, 1, &viewport);
+	vkCmdSetViewport(command_buffer, 0, 1, &viewport);
 	VkRect2D scissor;
 	scissor.offset.x = x;
 	scissor.offset.y = y;
 	scissor.extent.width = static_cast<uint32_t>(width);
 	scissor.extent.height = static_cast<uint32_t>(height);
-	vkCmdSetScissor(active_command_buffer_, 0, 1, &scissor);
+	vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 }
 
 void VulkanRenderer::do_set_frame_constants(void const *data, size_t size)
@@ -1057,6 +1244,11 @@ MaterialPtr VulkanRenderer::create_material()
 
 void VulkanRenderer::do_draw(DrawCall const &call)
 {
+	record_draw(active_command_buffer_, call);
+}
+
+void VulkanRenderer::record_draw(VkCommandBuffer command_buffer, DrawCall const &call)
+{
 	VulkanVertexBuffer *const vertex_buffer = dynamic_cast<VulkanVertexBuffer *>(call.vertex_buffer().get());
 	if (!vertex_buffer || vertex_buffer->device() != device_)
 	{
@@ -1081,11 +1273,17 @@ void VulkanRenderer::do_draw(DrawCall const &call)
 	{
 		throw std::invalid_argument("a Vulkan draw of an index buffer of another renderer");
 	}
-	VkCommandBuffer const command_buffer = active_command_buffer();
 	VertexTraits const *const traits = vertex_buffer->vertex_traits();
 
-	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline(traits, call.material()));
-	VkDescriptorSet const descriptor_set = material_descriptor_set(call.material());
+	VkPipeline draw_pipeline;
+	VkDescriptorSet descriptor_set;
+	{
+		// (the lists of a split pass draw at once: the caches are one thread's at a time)
+		std::lock_guard<std::mutex> const lock(cache_mutex_);
+		draw_pipeline = pipeline(traits, call.material());
+		descriptor_set = material_descriptor_set(call.material());
+	}
+	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, draw_pipeline);
 	VkBuffer const vertex_buffers[] = {vertex_buffer->get()};
 	VkDeviceSize const offsets[] = {0};
 	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);

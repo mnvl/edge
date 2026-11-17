@@ -24,6 +24,36 @@ namespace edge
 {
 
 class GpuTimer;
+class Renderer;
+
+/// A part of a pass recorded apart from the pass's other parts (Renderer::begin_split_pass): its viewport and its draws, drawn
+/// after those of the lists before it.  One thread at a time uses a list; different lists are used by different threads at once.
+/// The renderer's until the pass ends.
+class DrawList {
+public:
+	DrawList(DrawList const &) = delete;
+	DrawList &operator=(DrawList const &) = delete;
+	virtual ~DrawList();
+
+	/// As Renderer::set_viewport(), for this list's draws from now on; a list starts with the whole target.  std::out_of_range for
+	/// a rectangle not inside the target.
+	void set_viewport(int x, int y, int width, int height);
+	/// Draws @p call (committed: DrawCall::execute(DrawList &) checks) in the pass, as Renderer's draw checks and draws it.
+	void draw(DrawCall const &call);
+
+protected:
+	/// @p target: the pass's.
+	DrawList(Renderer &renderer, RenderTargetPtr const &target);
+	virtual void do_set_viewport(int x, int y, int width, int height) = 0;
+	virtual void do_draw(DrawCall const &call) = 0;
+
+private:
+	friend class Renderer;
+	Renderer &renderer_;
+	int target_width_, target_height_;
+	/// What the list's draws draw with: the frame's to hold once the pass ends (Renderer::end_pass).
+	std::vector<std::shared_ptr<void const>> resources_;
+};
 
 class Renderer: public std::enable_shared_from_this<Renderer> {
 public:
@@ -54,6 +84,18 @@ public:
 	void begin_pass(RenderTargetPtr const &target,
 		RenderPassClearState const &clear_state = RenderPassClearState(),
 		uint32_t pass_type = 0);
+	/// Whether begin_split_pass() is there: a renderer that records a pass on several threads (Vulkan).
+	virtual bool can_split_pass() const { return false; }
+	/// As begin_pass(), the pass's draws recorded in @p lists parts instead of through the renderer: each DrawList by one thread at
+	/// a time, different lists by different threads at once, between this call and end_pass() (the caller's to wait for).  The
+	/// lists are drawn in the order returned, each one's draws in the order it was given them; they are the renderer's and gone
+	/// with end_pass().  Inside a split pass set_viewport() and a draw through the renderer (DrawCall::execute(),
+	/// Scheduler::flush() without a list) are std::logic_error.  Also std::logic_error where can_split_pass() is false;
+	/// std::invalid_argument for no lists.
+	std::vector<DrawList *> begin_split_pass(RenderTargetPtr const &target, RenderPassClearState const &clear_state,
+		uint32_t pass_type, size_t lists);
+	/// Whether the active pass is a split one.
+	bool in_split_pass() const { return state_ == State::PASS && split_pass_; }
 	/// std::logic_error outside a pass.
 	void end_pass();
 	/// Draws of the active pass from now on go to the rectangle of the target
@@ -65,6 +107,11 @@ public:
 
 	/// Frames begun since the renderer was made: the number of the frame open, or of the last one (0 before the first).
 	virtual uint64_t frame_serial() const = 0;
+	/// Waits until the GPU has drawn frame @p serial (a frame submitted with submit_frame()), and no other: what it downloaded
+	/// (download_in_frame) can be taken.  Nothing for a frame drawn already.  std::logic_error for the open frame or one not begun.
+	void wait_frame(uint64_t serial);
+	/// Whether frame @p serial is drawn, without waiting.  std::logic_error for the open frame or one not begun.
+	bool frame_drawn(uint64_t serial);
 
 	// GPU timing of the passes, the same on every renderer (gpu_timer.h): a frame's durations come once the GPU has drawn it, frames
 	// after it is ended where the renderer keeps frames in flight or the GPU answers late (WebGL 2), and are asked for by its number.
@@ -200,6 +247,19 @@ public:
 	/// Default implementation in the base class falls back to sending each in turn; VulkanRenderer overrides it.
 	void batch_upload_textures(std::vector<TexturePtr> const &textures);
 
+	/// Whether download_in_frame() is there (Vulkan).
+	virtual bool can_download_in_frame() const { return false; }
+	/// Downloads that ride in the open frame, after what it has drawn so far: no submit of their own and no wait, unlike
+	/// batch_download_textures().  The texels are in the textures' CPU copies after the frame is drawn (finish_frame(), or
+	/// submit_frame() and wait_frame()) and finish_downloads() of the same textures has taken them.  A texture is downloaded by
+	/// one frame in flight at a time (its staging memory is one).  std::logic_error outside a frame, inside a pass, where
+	/// can_download_in_frame() is false, or for a texture that cannot be downloaded (no CPU copy, an array) or was never drawn
+	/// into; std::invalid_argument for a null entry or a texture of another renderer.
+	void download_in_frame(std::vector<TexturePtr> const &textures);
+	/// Takes what download_in_frame() read back into the textures' CPU copies; the frame that carried the downloads is drawn
+	/// (the caller's to have waited for: the texels are otherwise an earlier frame's or part of this one's).
+	void finish_downloads(std::vector<TexturePtr> const &textures);
+
 	/// Uploads textures written through @ref Texture::write() and released without waiting for the GPU: inside a frame (and not in
 	/// a pass) the new texels ride in the frame's own command buffer, copied before anything the frame draws, so the frame
 	/// sees them; the texture's CPU copy is free to be written again at once.  Outside a frame there is nothing to ride in,
@@ -228,6 +288,17 @@ protected:
 	virtual void do_set_global_texture(unsigned slot, TexturePtr const &texture, bool compare) = 0;
 	/// In a pass, @p call committed.
 	virtual void do_draw(DrawCall const &call) = 0;
+	/// can_split_pass(): do_begin_pass() with @p lists (1 or more) lists to record the pass in, which do_end_pass() draws in order
+	/// and destroys.
+	virtual std::vector<DrawList *> do_begin_split_pass(RenderTargetPtr const &target, RenderPassClearState const &clear_state,
+		uint32_t pass_type, size_t lists);
+	/// The frame is neither open nor undrawn-and-unknown: waits for it / says whether it is drawn.  The defaults: every frame
+	/// submitted is drawn (a renderer without frames in flight).
+	virtual void do_wait_frame(uint64_t serial) { (void)serial; }
+	virtual bool do_frame_drawn(uint64_t serial) { (void)serial; return true; }
+	/// can_download_in_frame(): in a frame, not in a pass, no entry null.
+	virtual void do_download_in_frame(std::vector<TexturePtr> const &textures);
+	virtual void do_finish_downloads(std::vector<TexturePtr> const &textures);
 	/// A target of @p format as create_render_target() has checked it (the size positive, layers 0 or more, a cube square and of no
 	/// layers, something to draw into, no block-compressed colour, no more colours than max_color_attachments()); the backend
 	/// refuses what its device cannot make (std::invalid_argument naming the limit) and makes the layers' targets.
@@ -245,6 +316,10 @@ private:
 	void check_ranges(DrawCall const &call) const;
 
 	friend class DrawCall;
+	friend class DrawList;
+	/// What draw() refuses of @p call before the backend sees it; reads the call and the renderer's pass alone (any thread, in a
+	/// pass).
+	void check_draw(DrawCall const &call) const;
 	/// Draws @p call in the active pass (std::logic_error outside one): DrawCall::execute() gives it here once committed.
 	void draw(DrawCall const &call);
 
@@ -252,6 +327,8 @@ private:
 	State state_ = State::IDLE;
 	uint32_t pass_type_ = 0;
 	RenderTargetPtr pass_target_;
+	bool split_pass_ = false;
+	std::vector<DrawList *> split_lists_;
 	/// What the open frame draws with or into (targets, materials and their textures, buffers, streamed textures): held until the
 	/// frame is submitted, from when a resource's destructor waits for the GPU to be done with it.  Its last owner may let it go
 	/// inside the frame.
