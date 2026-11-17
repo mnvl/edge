@@ -6,6 +6,7 @@
 #include <vulkan/vulkan.h>
 #include <cstdint>
 #include <mutex>
+#include <shared_mutex>
 #include <optional>
 #include <vector>
 #include <memory>
@@ -213,8 +214,8 @@ protected:
 	void do_wait_frame(uint64_t serial) override;
 	bool do_frame_drawn(uint64_t serial) override;
 	/// Each texture's copy into its staging buffer, recorded into the frame's command buffer.
-	void do_download_in_frame(std::vector<TexturePtr> const &textures) override;
-	void do_finish_downloads(std::vector<TexturePtr> const &textures) override;
+	void do_download_in_frame(std::vector<TexturePtr> const &textures, std::vector<TextureRect> const &rects) override;
+	void do_finish_downloads(std::vector<TexturePtr> const &textures, std::vector<TextureRect> const &rects) override;
 	/// std::invalid_argument for a colour format the device cannot draw into, more layers than its maxImageArrayLayers, a cube larger than
 	/// its maxImageDimensionCube.
 	RenderTargetPtr do_create_render_target(int width, int height, RenderTargetFormat const &format) override;
@@ -279,7 +280,9 @@ private:
 	void begin_render_pass(RenderTargetPtr const &target, RenderPassClearState const &clear_state, bool split);
 	/// A draw of @p call recorded into @p command_buffer, the frame's own or a list's: any thread, one for each command buffer.
 	/// What the threads share is taken a block at a time (the uniform buffers) or under cache_mutex_ (pipelines, descriptor sets).
-	void record_draw(VkCommandBuffer command_buffer, DrawCall const &call);
+	/// @p list: the list the draw is of (none: the frame's own command buffer), which remembers each material's pipeline and
+	/// descriptor set so that only its first draw of a material takes the mutex.
+	void record_draw(VkCommandBuffer command_buffer, DrawCall const &call, VulkanDrawList *list);
 	static void record_viewport(VkCommandBuffer command_buffer, int x, int y, int width, int height);
 
 	/// The command pools the lists of split passes record from, for each share of the host's memory: pool i is the i-th list's of
@@ -294,8 +297,8 @@ private:
 	/// The open split pass's lists, in the order they are drawn; none outside one.
 	std::vector<std::unique_ptr<VulkanDrawList>> split_lists_;
 	VkFramebuffer active_pass_framebuffer_ = VK_NULL_HANDLE;
-	/// The pipelines and the materials' descriptor sets: looked up, and made, by one thread at a time.
-	std::mutex cache_mutex_;
+	/// The pipelines and the materials' descriptor sets: looked up by any number of threads at once (shared), made by one alone.
+	std::shared_mutex cache_mutex_;
 	void destroy_list_pools();
 
 	VkCommandBuffer active_command_buffer_;

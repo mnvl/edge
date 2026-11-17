@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <memory>
 #include <rove/matrix.h>
@@ -28,7 +29,8 @@ class Renderer;
 
 /// A part of a pass recorded apart from the pass's other parts (Renderer::begin_split_pass): its viewport and its draws, drawn
 /// after those of the lists before it.  One thread at a time uses a list; different lists are used by different threads at once.
-/// The renderer's until the pass ends.
+/// The renderer's until the pass ends.  A material a list has drawn is not changed (its textures, its shader program, its state)
+/// until the pass ends: the list looks up what the material draws with once.
 class DrawList {
 public:
 	DrawList(DrawList const &) = delete;
@@ -51,8 +53,15 @@ private:
 	friend class Renderer;
 	Renderer &renderer_;
 	int target_width_, target_height_;
-	/// What the list's draws draw with: the frame's to hold once the pass ends (Renderer::end_pass).
+	/// What the list's draws draw with, each once: the frame's to hold once the pass ends (Renderer::end_pass).
 	std::vector<std::shared_ptr<void const>> resources_;
+	std::unordered_set<void const *> held_;
+	template<class T> void hold(std::shared_ptr<T> const &resource)
+	{
+		// (once a list: a copy for every draw is a count every thread drawing the same buffer or material fights over)
+		if (held_.insert(resource.get()).second)
+			resources_.push_back(resource);
+	}
 };
 
 class Renderer: public std::enable_shared_from_this<Renderer> {
@@ -255,10 +264,14 @@ public:
 	/// one frame in flight at a time (its staging memory is one).  std::logic_error outside a frame, inside a pass, where
 	/// can_download_in_frame() is false, or for a texture that cannot be downloaded (no CPU copy, an array) or was never drawn
 	/// into; std::invalid_argument for a null entry or a texture of another renderer.
-	void download_in_frame(std::vector<TexturePtr> const &textures);
-	/// Takes what download_in_frame() read back into the textures' CPU copies; the frame that carried the downloads is drawn
-	/// (the caller's to have waited for: the texels are otherwise an earlier frame's or part of this one's).
-	void finish_downloads(std::vector<TexturePtr> const &textures);
+	///
+	/// With @p rects, only those rectangles of each texture are downloaded (an atlas of which the frame drew some tiles): the
+	/// rest of its CPU copy is left as it was.  std::out_of_range for a rectangle of no area or not inside a texture.
+	void download_in_frame(std::vector<TexturePtr> const &textures, std::vector<TextureRect> const &rects = {});
+	/// Takes what download_in_frame() read back into the textures' CPU copies -- with the same @p rects -- once the frame that
+	/// carried the downloads is drawn (the caller's to have waited for: the texels are otherwise an earlier frame's or part of
+	/// this one's).
+	void finish_downloads(std::vector<TexturePtr> const &textures, std::vector<TextureRect> const &rects = {});
 
 	/// Uploads textures written through @ref Texture::write() and released without waiting for the GPU: inside a frame (and not in
 	/// a pass) the new texels ride in the frame's own command buffer, copied before anything the frame draws, so the frame
@@ -297,8 +310,9 @@ protected:
 	virtual void do_wait_frame(uint64_t serial) { (void)serial; }
 	virtual bool do_frame_drawn(uint64_t serial) { (void)serial; return true; }
 	/// can_download_in_frame(): in a frame, not in a pass, no entry null.
-	virtual void do_download_in_frame(std::vector<TexturePtr> const &textures);
-	virtual void do_finish_downloads(std::vector<TexturePtr> const &textures);
+	/// (each of @p rects has area and is inside every texture; none: the whole of each)
+	virtual void do_download_in_frame(std::vector<TexturePtr> const &textures, std::vector<TextureRect> const &rects);
+	virtual void do_finish_downloads(std::vector<TexturePtr> const &textures, std::vector<TextureRect> const &rects);
 	/// A target of @p format as create_render_target() has checked it (the size positive, layers 0 or more, a cube square and of no
 	/// layers, something to draw into, no block-compressed colour, no more colours than max_color_attachments()); the backend
 	/// refuses what its device cannot make (std::invalid_argument naming the limit) and makes the layers' targets.

@@ -197,6 +197,50 @@ void VulkanDescriptorCache::destroy()
 	}
 }
 
+void VulkanDescriptorCache::texture_keys_of(MaterialPtr const &material, TexturePtr const (&global_textures)[GLOBAL_TEXTURES_COUNT],
+	TexturePtr const &default_texture, Texture const *keys[DESCRIPTOR_TEXTURES])
+{
+	for (size_t i = 0; i < DESCRIPTOR_TEXTURES; ++i)
+	{
+		keys[i] = nullptr;
+	}
+	if (material)
+	{
+		for (size_t i = 0; i < 4 && i < material->diffuse_textures_count(); ++i)
+		{
+			keys[i] = material->diffuse_texture(i).get();
+		}
+		keys[4] = material->texture_blending_weights_texture().get();
+		keys[5] = material->normal_map_texture().get();
+		keys[6] = material->metallic_roughness_texture().get();
+		keys[7] = material->emissive_texture().get();
+	}
+	for (size_t i = 0; i < GLOBAL_TEXTURES_COUNT; ++i)
+	{
+		keys[MATERIAL_TEXTURES + i] = global_textures[i].get();
+	}
+	for (size_t i = 0; i < DESCRIPTOR_TEXTURES; ++i)
+	{
+		if (!keys[i])
+		{
+			keys[i] = default_texture.get();
+		}
+	}
+}
+
+VkDescriptorSet VulkanDescriptorCache::find(MaterialPtr const &material, TexturePtr const (&global_textures)[GLOBAL_TEXTURES_COUNT],
+	bool const (&global_compare)[GLOBAL_TEXTURES_COUNT], TexturePtr const &default_texture) const
+{
+	auto const found = sets_.find(material.get());
+	if (found == sets_.end() || found->second.descriptor_set == VK_NULL_HANDLE)
+	{
+		return VK_NULL_HANDLE;
+	}
+	Texture const *texture_keys[DESCRIPTOR_TEXTURES];
+	texture_keys_of(material, global_textures, default_texture, texture_keys);
+	return found->second.matches(material.get(), texture_keys, global_compare) ? found->second.descriptor_set : VK_NULL_HANDLE;
+}
+
 VkDescriptorSet VulkanDescriptorCache::get(MaterialPtr const &material, TexturePtr const (&global_textures)[GLOBAL_TEXTURES_COUNT],
 	bool const (&global_compare)[GLOBAL_TEXTURES_COUNT], TexturePtr const &default_texture, uint64_t frame)
 {
@@ -249,6 +293,7 @@ VkDescriptorSet VulkanDescriptorCache::get(MaterialPtr const &material, TextureP
 
 	std::tie(entry.descriptor_set, entry.pool) = allocate();
 	entry.material = material;
+	entry.material_key = material.get();
 
 	VulkanTexture *fallback_texture = dynamic_cast<VulkanTexture *>(default_texture.get());
 	if (!fallback_texture)
@@ -325,6 +370,7 @@ VkDescriptorSet VulkanDescriptorCache::get(MaterialPtr const &material, TextureP
 	for (size_t i = 0; i < DESCRIPTOR_TEXTURES; ++i)
 	{
 		entry.bound_textures[i] = textures[i];
+		entry.texture_keys[i] = textures[i].get();
 	}
 	for (size_t i = 0; i < GLOBAL_TEXTURES_COUNT; ++i)
 	{
@@ -343,18 +389,16 @@ bool VulkanDescriptorCache::Entry::matches(Material const *material_key,
 			return false;
 		}
 	}
-	// lock() rather than expired(): a weak_ptr to a dead object compares
-	// equal to nothing, and a live object at the same address is a different
-	// object precisely when the old one has expired.
-	std::shared_ptr<Material const> live_material = material.lock();
-	if (live_material.get() != material_key)
+	// Alive, and where it was: a live object at an address is the one the set was written for precisely while that one has not
+	// expired (a dead one's address goes to the next object made).  expired() and not lock(): a look takes no reference, so
+	// the threads that record a split pass do not fight over the counts of the textures they share.
+	if (material.expired() || this->material_key != material_key)
 	{
 		return false;
 	}
 	for (size_t i = 0; i < DESCRIPTOR_TEXTURES; ++i)
 	{
-		std::shared_ptr<Texture const> live_texture = bound_textures[i].lock();
-		if (live_texture.get() != texture_keys[i])
+		if (bound_textures[i].expired() || this->texture_keys[i] != texture_keys[i])
 		{
 			return false;
 		}

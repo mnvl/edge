@@ -192,14 +192,13 @@ BlendFactors blend_factors(Material::BlendMode src_mode, Material::BlendMode des
 	return f;
 }
 
-VkPipeline VulkanPipelineBuilder::pipeline(VkDevice device, VkPipelineLayout pipeline_layout,
-	VkRenderPass render_pass, uint32_t color_attachments, uint32_t pass_type,
+VulkanPipelineBuilder::PipelineKey VulkanPipelineBuilder::key_of(VkRenderPass render_pass, uint32_t pass_type,
 	VertexTraits const *traits, MaterialPtr const &material)
 {
 	PipelineKey key;
-	ShaderProgramPtr shader_program = material
-		? material->shader_program(pass_type)
-		: ShaderProgramPtr();
+	// (by reference: a look takes no count of a program every material of a pass shares)
+	static ShaderProgramPtr const none;
+	ShaderProgramPtr const &shader_program = material ? material->shader_program(pass_type) : none;
 	key.render_pass = render_pass;
 	key.traits = traits;
 	if (shader_program)
@@ -214,6 +213,24 @@ VkPipeline VulkanPipelineBuilder::pipeline(VkDevice device, VkPipelineLayout pip
 	key.preserve_destination_alpha = material ? material->preserve_destination_alpha() : false;
 	key.src_blend_mode = material ? material->src_blend_mode() : Material::BlendMode::ONE;
 	key.dest_blend_mode = material ? material->dest_blend_mode() : Material::BlendMode::ZERO;
+	return key;
+}
+
+VkPipeline VulkanPipelineBuilder::find(VkRenderPass render_pass, uint32_t pass_type, VertexTraits const *traits,
+	MaterialPtr const &material) const
+{
+	auto const found = pipelines_.find(key_of(render_pass, pass_type, traits, material));
+	return found == pipelines_.end() ? VK_NULL_HANDLE : found->second;
+}
+
+VkPipeline VulkanPipelineBuilder::pipeline(VkDevice device, VkPipelineLayout pipeline_layout,
+	VkRenderPass render_pass, uint32_t color_attachments, uint32_t pass_type,
+	VertexTraits const *traits, MaterialPtr const &material)
+{
+	PipelineKey const key = key_of(render_pass, pass_type, traits, material);
+	ShaderProgramPtr shader_program = material
+		? material->shader_program(pass_type)
+		: ShaderProgramPtr();
 
 	std::map<PipelineKey, VkPipeline>::const_iterator found = pipelines_.find(key);
 	if (found != pipelines_.end())

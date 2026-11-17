@@ -586,6 +586,67 @@ void VulkanTexture::record_download(VkCommandBuffer command_buffer) const
 	}
 }
 
+void VulkanTexture::record_download(VkCommandBuffer command_buffer, std::vector<TextureRect> const &rects) const
+{
+	if (rects.empty())
+	{
+		record_download(command_buffer);
+		return;
+	}
+	size_t const texels = static_cast<size_t>(width_) * static_cast<size_t>(height_);
+	if (clone_.size() % texels != 0)
+	{
+		throw std::logic_error("rectangles of a texture whose CPU copy is not a whole number of bytes a texel (block-compressed, or with levels)");
+	}
+	size_t const texel = clone_.size() / texels;
+	std::vector<VkBufferImageCopy> regions(rects.size());
+	for (size_t i = 0; i < rects.size(); ++i)
+	{
+		TextureRect const &r = rects[i];
+		VkBufferImageCopy &region = regions[i];
+		std::memset(&region, 0, sizeof(region));
+		// where the rectangle lies in a buffer laid out as the whole level
+		region.bufferOffset = (static_cast<VkDeviceSize>(r.y) * static_cast<VkDeviceSize>(width_) + static_cast<VkDeviceSize>(r.x)) * texel;
+		region.bufferRowLength = static_cast<uint32_t>(width_);
+		region.bufferImageHeight = static_cast<uint32_t>(height_);
+		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		region.imageSubresource.layerCount = 1;
+		region.imageOffset.x = r.x;
+		region.imageOffset.y = r.y;
+		region.imageExtent.width = static_cast<uint32_t>(r.width);
+		region.imageExtent.height = static_cast<uint32_t>(r.height);
+		region.imageExtent.depth = 1;
+	}
+	if (current_layout_ != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+	{
+		record_image_layout_transition(command_buffer, image_, current_layout_, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+	}
+	vkCmdCopyImageToBuffer(command_buffer, image_, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging_buffer_,
+		static_cast<uint32_t>(regions.size()), regions.data());
+	if (current_layout_ != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+	{
+		record_image_layout_transition(command_buffer, image_, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, current_layout_);
+	}
+}
+
+void VulkanTexture::finish_download(std::vector<TextureRect> const &rects)
+{
+	if (rects.empty())
+	{
+		finish_download();
+		return;
+	}
+	size_t const texel = clone_.size() / (static_cast<size_t>(width_) * static_cast<size_t>(height_));
+	for (TextureRect const &r : rects)
+	{
+		for (int row = 0; row < r.height; ++row)
+		{
+			size_t const offset = (static_cast<size_t>(r.y + row) * static_cast<size_t>(width_) + static_cast<size_t>(r.x)) * texel;
+			std::memcpy(&clone_[offset], static_cast<char const *>(staging_mapped_) + offset, static_cast<size_t>(r.width) * texel);
+		}
+	}
+}
+
 void VulkanTexture::finish_download()
 {
 	// the staging memory is host-coherent: once the command buffer has run, the host sees what the copy wrote

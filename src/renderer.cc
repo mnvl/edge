@@ -191,10 +191,10 @@ void DrawList::draw(DrawCall const &call)
 {
 	renderer_.check_draw(call);
 	do_draw(call);
-	resources_.push_back(call.vertex_buffer());
+	hold(call.vertex_buffer());
 	if (call.index_buffer())
-		resources_.push_back(call.index_buffer());
-	resources_.push_back(call.material());
+		hold(call.index_buffer());
+	hold(call.material());
 }
 
 std::vector<DrawList *> Renderer::begin_split_pass(RenderTargetPtr const &target, RenderPassClearState const &clear_state,
@@ -414,7 +414,23 @@ void Renderer::batch_download_textures(std::vector<TexturePtr> const &textures)
 	do_batch_download_textures(textures);
 }
 
-void Renderer::download_in_frame(std::vector<TexturePtr> const &textures)
+namespace
+{
+
+void check_rects(std::vector<TexturePtr> const &textures, std::vector<TextureRect> const &rects, char const *what)
+{
+	for (TextureRect const &r : rects)
+		for (TexturePtr const &texture : textures)
+			if (r.x < 0 || r.y < 0 || r.width <= 0 || r.height <= 0 || r.x + r.width > texture->width()
+				|| r.y + r.height > texture->height())
+				throw std::out_of_range(std::string(what) + ": rectangle " + std::to_string(r.x) + ", " + std::to_string(r.y) + ", "
+					+ std::to_string(r.width) + " x " + std::to_string(r.height) + " is not inside a texture of "
+					+ std::to_string(texture->width()) + " x " + std::to_string(texture->height()));
+}
+
+}
+
+void Renderer::download_in_frame(std::vector<TexturePtr> const &textures, std::vector<TextureRect> const &rects)
 {
 	if (!can_download_in_frame())
 		throw std::logic_error("download_in_frame() on a renderer that downloads between frames (batch_download_textures)");
@@ -423,25 +439,27 @@ void Renderer::download_in_frame(std::vector<TexturePtr> const &textures)
 	if (in_pass())
 		throw std::logic_error("download_in_frame() inside a pass");
 	refuse_null(textures, "download_in_frame");
-	do_download_in_frame(textures);
+	check_rects(textures, rects, "download_in_frame");
+	do_download_in_frame(textures, rects);
 	for (TexturePtr const &texture : textures)
 		frame_resources_.push_back(texture);
 }
 
-void Renderer::finish_downloads(std::vector<TexturePtr> const &textures)
+void Renderer::finish_downloads(std::vector<TexturePtr> const &textures, std::vector<TextureRect> const &rects)
 {
 	if (!can_download_in_frame())
 		throw std::logic_error("finish_downloads() on a renderer that downloads between frames (batch_download_textures)");
 	refuse_null(textures, "finish_downloads");
-	do_finish_downloads(textures);
+	check_rects(textures, rects, "finish_downloads");
+	do_finish_downloads(textures, rects);
 }
 
-void Renderer::do_download_in_frame(std::vector<TexturePtr> const &)
+void Renderer::do_download_in_frame(std::vector<TexturePtr> const &, std::vector<TextureRect> const &)
 {
 	throw std::logic_error("this renderer downloads between frames");
 }
 
-void Renderer::do_finish_downloads(std::vector<TexturePtr> const &)
+void Renderer::do_finish_downloads(std::vector<TexturePtr> const &, std::vector<TextureRect> const &)
 {
 	throw std::logic_error("this renderer downloads between frames");
 }

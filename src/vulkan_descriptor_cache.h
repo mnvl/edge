@@ -72,6 +72,10 @@ public:
 	/// `frame`, the frame being recorded) and a new one made.
 	VkDescriptorSet get(MaterialPtr const &material, TexturePtr const (&global_textures)[GLOBAL_TEXTURES_COUNT],
 		bool const (&global_compare)[GLOBAL_TEXTURES_COUNT], TexturePtr const &default_texture, uint64_t frame);
+	/// The set get() would reuse, or VK_NULL_HANDLE where it would make one.  It changes nothing and takes no reference: several
+	/// threads may ask at once, while none is in get().
+	VkDescriptorSet find(MaterialPtr const &material, TexturePtr const (&global_textures)[GLOBAL_TEXTURES_COUNT],
+		bool const (&global_compare)[GLOBAL_TEXTURES_COUNT], TexturePtr const &default_texture) const;
 
 	/// Retires the sets of materials that have died (frames up to `recorded`, the last one recorded, may hold them), then frees every
 	/// retired set no frame after `completed`, the last one the GPU is known to have finished, can still hold.
@@ -105,8 +109,15 @@ private:
 		VkDescriptorPool pool = VK_NULL_HANDLE;   // descriptor_set's
 		std::weak_ptr<Material const> material;
 		std::weak_ptr<Texture const> bound_textures[DESCRIPTOR_TEXTURES];
+		/// Where the material and the textures were when the set was written: what they are compared by while they live.
+		Material const *material_key = nullptr;
+		Texture const *texture_keys[DESCRIPTOR_TEXTURES] = {};
 		bool bound_compare[GLOBAL_TEXTURES_COUNT] = {};
 	};
+
+	/// What get() and find() key a set by: the material's textures 0-7, then the global ones, each the default where missing.
+	static void texture_keys_of(MaterialPtr const &material, TexturePtr const (&global_textures)[GLOBAL_TEXTURES_COUNT],
+		TexturePtr const &default_texture, Texture const *keys[DESCRIPTOR_TEXTURES]);
 
 	void destroy();
 	VkDescriptorPool create_pool();

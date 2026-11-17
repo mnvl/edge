@@ -86,17 +86,17 @@ public:
 	/// Pass type 0 clears the default program.
 	void clear_shader_program(uint32_t pass_type = 0);
 	size_t diffuse_textures_count() const { return diffuse_textures_.size(); }
-	TexturePtr diffuse_texture(size_t index = 0) const { return diffuse_textures_.at(index); }
-	TexturePtr texture_blending_weights_texture() const { return texture_blending_weights_texture_; }
-	TexturePtr normal_map_texture() const {	return normal_map_texture_; }
+	TexturePtr const &diffuse_texture(size_t index = 0) const { return diffuse_textures_.at(index); }
+	TexturePtr const &texture_blending_weights_texture() const { return texture_blending_weights_texture_; }
+	TexturePtr const &normal_map_texture() const {	return normal_map_texture_; }
 
 	// PBR metal/rough (glTF's meaning and defaults).  The uber shader ignores
 	// them; a material's own shaders read the textures at bindings 10 (green
 	// roughness, blue metallic) and 11, and the factors from the push
 	// constants (material_pbr: metallic, roughness, alpha cutoff; and
 	// emissive_factor), flags 32 and 64 telling whether the textures are set.
-	TexturePtr metallic_roughness_texture() const { return metallic_roughness_texture_; }
-	TexturePtr emissive_texture() const { return emissive_texture_; }
+	TexturePtr const &metallic_roughness_texture() const { return metallic_roughness_texture_; }
+	TexturePtr const &emissive_texture() const { return emissive_texture_; }
 	float metallic_factor() const { return metallic_factor_; }
 	float roughness_factor() const { return roughness_factor_; }
 	/// Emitted radiance, linear RGB, glTF's emissiveFactor times its

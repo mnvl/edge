@@ -770,6 +770,27 @@ public:
 
 	VkCommandBuffer commands() const { return commands_; }
 
+	/// What a material draws with in this pass, for vertices of one layout: looked up once a list (VulkanRenderer::record_draw).
+	struct Bound
+	{
+		VkPipeline pipeline;
+		VkDescriptorSet descriptor_set;
+	};
+	struct BoundKey
+	{
+		Material const *material;
+		VertexTraits const *traits;
+		bool operator==(BoundKey const &o) const { return material == o.material && traits == o.traits; }
+	};
+	struct BoundKeyHash
+	{
+		size_t operator()(BoundKey const &k) const
+		{
+			return std::hash<void const *>()(k.material) * 31 + std::hash<void const *>()(k.traits);
+		}
+	};
+	std::unordered_map<BoundKey, Bound, BoundKeyHash> bound;
+
 protected:
 	void do_set_viewport(int x, int y, int width, int height) override
 	{
@@ -778,7 +799,7 @@ protected:
 
 	void do_draw(DrawCall const &call) override
 	{
-		renderer_.record_draw(commands_, call);
+		renderer_.record_draw(commands_, call, this);
 	}
 
 private:
@@ -868,7 +889,7 @@ bool VulkanRenderer::do_frame_drawn(uint64_t serial)
 	return frames_->drawn(serial);
 }
 
-void VulkanRenderer::do_download_in_frame(std::vector<TexturePtr> const &textures)
+void VulkanRenderer::do_download_in_frame(std::vector<TexturePtr> const &textures, std::vector<TextureRect> const &rects)
 {
 	std::vector<VulkanTexture *> batch;
 	for (TexturePtr const &texture : textures)
@@ -887,11 +908,11 @@ void VulkanRenderer::do_download_in_frame(std::vector<TexturePtr> const &texture
 	}
 	for (VulkanTexture const *texture : batch)
 	{
-		texture->record_download(active_command_buffer_);
+		texture->record_download(active_command_buffer_, rects);
 	}
 }
 
-void VulkanRenderer::do_finish_downloads(std::vector<TexturePtr> const &textures)
+void VulkanRenderer::do_finish_downloads(std::vector<TexturePtr> const &textures, std::vector<TextureRect> const &rects)
 {
 	std::vector<VulkanTexture *> batch;
 	for (TexturePtr const &texture : textures)
@@ -906,7 +927,7 @@ void VulkanRenderer::do_finish_downloads(std::vector<TexturePtr> const &textures
 	}
 	for (VulkanTexture *texture : batch)
 	{
-		texture->finish_download();
+		texture->finish_download(rects);
 	}
 }
 
@@ -1244,10 +1265,10 @@ MaterialPtr VulkanRenderer::create_material()
 
 void VulkanRenderer::do_draw(DrawCall const &call)
 {
-	record_draw(active_command_buffer_, call);
+	record_draw(active_command_buffer_, call, nullptr);
 }
 
-void VulkanRenderer::record_draw(VkCommandBuffer command_buffer, DrawCall const &call)
+void VulkanRenderer::record_draw(VkCommandBuffer command_buffer, DrawCall const &call, VulkanDrawList *list)
 {
 	VulkanVertexBuffer *const vertex_buffer = dynamic_cast<VulkanVertexBuffer *>(call.vertex_buffer().get());
 	if (!vertex_buffer || vertex_buffer->device() != device_)
@@ -1277,11 +1298,38 @@ void VulkanRenderer::record_draw(VkCommandBuffer command_buffer, DrawCall const 
 
 	VkPipeline draw_pipeline;
 	VkDescriptorSet descriptor_set;
+	VulkanDrawList::BoundKey const bound_key{call.material().get(), traits};
+	auto const bound = list ? list->bound.find(bound_key) : decltype(list->bound.end())();
+	if (list && bound != list->bound.end())
 	{
-		// (the lists of a split pass draw at once: the caches are one thread's at a time)
-		std::lock_guard<std::mutex> const lock(cache_mutex_);
-		draw_pipeline = pipeline(traits, call.material());
-		descriptor_set = material_descriptor_set(call.material());
+		draw_pipeline = bound->second.pipeline;
+		descriptor_set = bound->second.descriptor_set;
+	}
+	else
+	{
+		if (!in_pass() || active_pass_render_pass_ == VK_NULL_HANDLE)
+		{
+			throw std::logic_error("vulkan pipeline lookup requires an active render pass");
+		}
+		draw_pipeline = VK_NULL_HANDLE;
+		descriptor_set = VK_NULL_HANDLE;
+		{
+			// What was drawn before is found, by every list's thread at once ...
+			std::shared_lock<std::shared_mutex> const look(cache_mutex_);
+			draw_pipeline = pipeline_builder_->find(active_pass_render_pass_, pass_type(), traits, call.material());
+			// (no default texture yet: nothing was drawn before)
+			if (default_texture_)
+				descriptor_set = descriptors_->find(call.material(), global_textures_, global_compare_, default_texture_);
+		}
+		if (draw_pipeline == VK_NULL_HANDLE || descriptor_set == VK_NULL_HANDLE)
+		{
+			// ... and what was not is made by one alone.
+			std::unique_lock<std::shared_mutex> const make(cache_mutex_);
+			draw_pipeline = pipeline(traits, call.material());
+			descriptor_set = material_descriptor_set(call.material());
+		}
+		if (list)
+			list->bound.emplace(bound_key, VulkanDrawList::Bound{draw_pipeline, descriptor_set});
 	}
 	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, draw_pipeline);
 	VkBuffer const vertex_buffers[] = {vertex_buffer->get()};

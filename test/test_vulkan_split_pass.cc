@@ -390,6 +390,57 @@ BOOST_AUTO_TEST_CASE(frames_in_flight_are_downloaded_each_when_it_is_drawn)
 	BOOST_CHECK(same(rig.downloaded(rig.other), first));
 }
 
+BOOST_AUTO_TEST_CASE(a_download_of_rectangles_takes_them_and_leaves_the_rest)
+{
+	Rig rig;
+	std::vector<TexturePtr> const textures{rig.target->color_texture()};
+	rig.renderer->begin_frame();
+	rig.inline_pass(rig.target, 0);
+	rig.renderer->finish_frame();
+	std::vector<Rgba> const first = rig.downloaded(rig.target);
+	rig.renderer->begin_frame();
+	rig.inline_pass(rig.other, 1);
+	rig.renderer->finish_frame();
+	std::vector<Rgba> const second = rig.downloaded(rig.other);
+
+	// The target is drawn over with the second picture; only two rectangles of it are downloaded -- a tile, and a strip across
+	// tiles that ends at the target's last pixel -- so its CPU copy is the second picture there and still the first elsewhere.
+	std::vector<TextureRect> const rects{{3 * TILE, 5 * TILE, TILE, TILE}, {SIZE - 100, SIZE - 7, 100, 7}};
+	auto const inside = [&](int x, int y) {
+		for (TextureRect const &r : rects)
+			if (x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height)
+				return true;
+		return false;
+	};
+	rig.renderer->begin_frame();
+	rig.split_pass(rig.target, 4, 1);
+	rig.renderer->download_in_frame(textures, rects);
+	rig.renderer->submit_frame();
+	rig.renderer->wait_frame(rig.renderer->frame_serial());
+	rig.renderer->finish_downloads(textures, rects);
+	std::vector<Rgba> const mixed = rig.pixels(rig.target);
+	int taken = 0, left = 0, differing_inside = 0;
+	for (int y = 0; y < SIZE; ++y)
+		for (int x = 0; x < SIZE; ++x)
+		{
+			size_t const i = static_cast<size_t>(y) * SIZE + static_cast<size_t>(x);
+			std::vector<Rgba> const &expected = inside(x, y) ? second : first;
+			bool const ok = std::memcmp(&mixed[i], &expected[i], sizeof(Rgba)) == 0;
+			(inside(x, y) ? taken : left) += ok;
+			differing_inside += inside(x, y) && std::memcmp(&first[i], &second[i], sizeof(Rgba)) != 0;
+		}
+	BOOST_CHECK_EQUAL(taken, TILE * TILE + 100 * 7);
+	BOOST_CHECK_EQUAL(left, SIZE * SIZE - TILE * TILE - 100 * 7);
+	BOOST_REQUIRE_GT(differing_inside, 0);       // the pictures differ where the rectangles are: taking them showed
+
+	rig.renderer->begin_frame();
+	BOOST_CHECK_THROW(rig.renderer->download_in_frame(textures, {{0, 0, SIZE + 1, 1}}), std::out_of_range);
+	BOOST_CHECK_THROW(rig.renderer->download_in_frame(textures, {{0, SIZE - 1, 1, 2}}), std::out_of_range);
+	BOOST_CHECK_THROW(rig.renderer->download_in_frame(textures, {{0, 0, 0, 1}}), std::out_of_range);
+	BOOST_CHECK_THROW(rig.renderer->download_in_frame(textures, {{-1, 0, 1, 1}}), std::out_of_range);
+	rig.renderer->finish_frame();
+}
+
 BOOST_AUTO_TEST_CASE(downloads_and_waits_out_of_place_are_refused)
 {
 	Rig rig;

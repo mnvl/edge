@@ -16,6 +16,12 @@
 namespace edge
 {
 
+/// A rectangle of a texture's level 0, from its top left corner, in pixels.
+struct TextureRect
+{
+	int x = 0, y = 0, width = 0, height = 0;
+};
+
 /// How a texture is created beyond its size and format.
 struct TextureUsage
 {
