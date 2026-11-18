@@ -13,8 +13,8 @@ namespace
 
 std::shared_ptr<edge::ModelBuilder> make_model()
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
-	edge::SchedulerPtr scheduler(new edge::Scheduler(renderer));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Scheduler> scheduler(new edge::Scheduler(renderer));
 	return std::make_shared<edge::ModelBuilder>(renderer);
 }
 
@@ -25,7 +25,7 @@ BOOST_AUTO_TEST_SUITE(mesh)
 BOOST_AUTO_TEST_CASE(bind_shape_matrix_defaults_to_identity)
 {
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = model->add_mesh_builder();
+	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
 
 	rove::matrix<4,4> identity;
 	identity.identity();
@@ -42,14 +42,14 @@ BOOST_AUTO_TEST_CASE(bind_shape_matrix_defaults_to_identity)
 BOOST_AUTO_TEST_CASE(morph_targets_count_defaults_to_zero)
 {
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = model->add_mesh_builder();
+	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
 	BOOST_CHECK_EQUAL(mesh->morph_targets_count(), 0u);
 }
 
 BOOST_AUTO_TEST_CASE(set_morph_weights_no_op_without_targets)
 {
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = model->add_mesh_builder();
+	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
 	std::vector<float> weights = {1.0f, 0.5f};
 	mesh->set_morph_weights(weights);
 	BOOST_CHECK_EQUAL(mesh->morph_targets_count(), 0u);
@@ -58,7 +58,7 @@ BOOST_AUTO_TEST_CASE(set_morph_weights_no_op_without_targets)
 BOOST_AUTO_TEST_CASE(set_morph_targets_no_op_without_vertices)
 {
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = model->add_mesh_builder();
+	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
 
 	edge::GenericVertex delta;
 	std::memset(&delta, 0, sizeof(delta));
@@ -73,14 +73,14 @@ BOOST_AUTO_TEST_CASE(set_morph_targets_no_op_without_vertices)
 BOOST_AUTO_TEST_CASE(triangles_list_initially_empty)
 {
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = model->add_mesh_builder();
+	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
 	BOOST_CHECK(mesh->triangles().empty());
 }
 
 BOOST_AUTO_TEST_CASE(serialization_type)
 {
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = model->add_mesh_builder();
+	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
 	std::string const type = mesh->serialization_type();
 	BOOST_CHECK(!type.empty());
 	BOOST_CHECK(type.find("static_mesh:") == 0);
@@ -89,7 +89,7 @@ BOOST_AUTO_TEST_CASE(serialization_type)
 BOOST_AUTO_TEST_CASE(id_and_name_settable)
 {
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = model->add_mesh_builder("test_id", "test_name");
+	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder("test_id", "test_name");
 	BOOST_CHECK_EQUAL(mesh->id(), "test_id");
 	BOOST_CHECK_EQUAL(mesh->name(), "test_name");
 }
@@ -97,7 +97,7 @@ BOOST_AUTO_TEST_CASE(id_and_name_settable)
 BOOST_AUTO_TEST_CASE(model_pointer)
 {
 	auto model = make_model();
-	edge::MeshBuilderPtr mesh = model->add_mesh_builder();
+	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
 	BOOST_CHECK(mesh->model() != nullptr);
 	BOOST_CHECK_EQUAL(mesh->model(), model.get());
 }

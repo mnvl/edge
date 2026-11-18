@@ -179,8 +179,8 @@ BOOST_AUTO_TEST_CASE(presenting_without_a_surface_is_a_logic_error)
 {
 	VulkanFixture f;
 	BOOST_REQUIRE_MESSAGE(f.renderer, f.error);
-	RenderTargetPtr const target = f.renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
-	BOOST_CHECK_THROW(f.renderer->present(target->color_texture(), 64, 64), std::logic_error);
+	std::shared_ptr<RenderTarget> const target = f.renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
+	BOOST_CHECK_THROW(f.renderer->present(*target->color_texture(), 64, 64), std::logic_error);
 }
 
 BOOST_AUTO_TEST_CASE(a_null_surface_cannot_be_attached)
@@ -197,7 +197,7 @@ namespace
 // A surface with no window: what present() can be driven through without a window system.
 struct HeadlessWindow
 {
-	VulkanRendererPtr renderer;
+	std::shared_ptr<VulkanRenderer> renderer;
 	VkSurfaceKHR surface = VK_NULL_HANDLE;
 
 	// Which device's graphics queue can present to a headless surface (NVIDIA's cannot, the CPU rasteriser's can) does
@@ -254,9 +254,9 @@ struct HeadlessWindow
 		BOOST_REQUIRE_EQUAL(create(renderer->instance(), &info, nullptr, &surface), VK_SUCCESS);
 	}
 
-	TexturePtr rendered_frame(int size, float red)
+	std::shared_ptr<Texture> rendered_frame(int size, float red)
 	{
-		RenderTargetPtr const target = renderer->create_render_target(size, size, PixelFormat::A8R8G8B8);
+		std::shared_ptr<RenderTarget> const target = renderer->create_render_target(size, size, PixelFormat::A8R8G8B8);
 		RenderPassClearState clear;
 		clear.clear_color = true;
 		clear.clear_color_r = red;
@@ -277,12 +277,12 @@ BOOST_AUTO_TEST_CASE(a_rendered_frame_is_presented_and_the_frame_stays_usable)
 {
 	HeadlessWindow w;
 	w.renderer->attach_surface(w.surface, true);
-	TexturePtr const frame = w.rendered_frame(64, 1.0f);
-	BOOST_CHECK(w.renderer->present(frame, 64, 64));
-	BOOST_CHECK(w.renderer->present(frame, 64, 64));
+	std::shared_ptr<Texture> const frame = w.rendered_frame(64, 1.0f);
+	BOOST_CHECK(w.renderer->present(*frame, 64, 64));
+	BOOST_CHECK(w.renderer->present(*frame, 64, 64));
 	// the frame is as it was left: it can be rendered into again at once
-	TexturePtr const again = w.rendered_frame(64, 0.0f);
-	BOOST_CHECK(w.renderer->present(again, 64, 64));
+	std::shared_ptr<Texture> const again = w.rendered_frame(64, 0.0f);
+	BOOST_CHECK(w.renderer->present(*again, 64, 64));
 }
 
 BOOST_AUTO_TEST_CASE(frames_submitted_without_waiting_are_presented_and_drawn_into_again_at_once)
@@ -291,7 +291,7 @@ BOOST_AUTO_TEST_CASE(frames_submitted_without_waiting_are_presented_and_drawn_in
 	// copies first; a presented texture can be dropped at once
 	HeadlessWindow w(3);
 	w.renderer->attach_surface(w.surface, false);
-	RenderTargetPtr const target = w.renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const target = w.renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
 	for (int k = 0; k < 12; ++k)
 	{
 		RenderPassClearState clear;
@@ -302,23 +302,23 @@ BOOST_AUTO_TEST_CASE(frames_submitted_without_waiting_are_presented_and_drawn_in
 		w.renderer->begin_pass(target, clear);
 		w.renderer->end_pass();
 		w.renderer->submit_frame();
-		BOOST_CHECK(w.renderer->present(target->color_texture(), 64, 64));
+		BOOST_CHECK(w.renderer->present(*target->color_texture(), 64, 64));
 	}
-	TexturePtr const color = target->color_texture();
+	std::shared_ptr<Texture> const color = target->color_texture();
 	color->download();
 	auto color_mapping = color->read();
 	uint32_t const pixel = color_mapping.as<uint32_t const>().data()[32 * 64 + 32];
 	color_mapping.unmap();
 	BOOST_CHECK_MESSAGE(((pixel >> 16) & 0xFFu) > 200 && ((pixel >> 8) & 0xFFu) < 50, "the last frame (11: red) shows 0x" << std::hex << pixel);
 	{
-		RenderTargetPtr const dropped = w.renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
+		std::shared_ptr<RenderTarget> const dropped = w.renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
 		w.renderer->begin_frame();
 		w.renderer->begin_pass(dropped);
 		w.renderer->end_pass();
 		w.renderer->submit_frame();
-		BOOST_CHECK(w.renderer->present(dropped->color_texture(), 64, 64));
+		BOOST_CHECK(w.renderer->present(*dropped->color_texture(), 64, 64));
 	}
-	BOOST_CHECK(w.renderer->present(target->color_texture(), 64, 64));
+	BOOST_CHECK(w.renderer->present(*target->color_texture(), 64, 64));
 	w.renderer->wait_frames();
 }
 
@@ -326,11 +326,11 @@ BOOST_AUTO_TEST_CASE(a_window_of_another_size_gets_the_frame_scaled)
 {
 	HeadlessWindow w;
 	w.renderer->attach_surface(w.surface, false);
-	TexturePtr const frame = w.rendered_frame(64, 1.0f);
-	BOOST_CHECK(w.renderer->present(frame, 64, 64));
-	BOOST_CHECK(w.renderer->present(frame, 128, 96));
-	BOOST_CHECK(w.renderer->present(frame, 32, 32));
-	BOOST_CHECK(w.renderer->present(frame, 64, 64));
+	std::shared_ptr<Texture> const frame = w.rendered_frame(64, 1.0f);
+	BOOST_CHECK(w.renderer->present(*frame, 64, 64));
+	BOOST_CHECK(w.renderer->present(*frame, 128, 96));
+	BOOST_CHECK(w.renderer->present(*frame, 32, 32));
+	BOOST_CHECK(w.renderer->present(*frame, 64, 64));
 }
 
 BOOST_AUTO_TEST_CASE(vsync_can_be_switched_while_presenting)
@@ -338,14 +338,14 @@ BOOST_AUTO_TEST_CASE(vsync_can_be_switched_while_presenting)
 	HeadlessWindow w;
 	w.renderer->attach_surface(w.surface, true);
 	BOOST_CHECK(w.renderer->vsync());
-	TexturePtr const frame = w.rendered_frame(64, 1.0f);
-	BOOST_CHECK(w.renderer->present(frame, 64, 64));
+	std::shared_ptr<Texture> const frame = w.rendered_frame(64, 1.0f);
+	BOOST_CHECK(w.renderer->present(*frame, 64, 64));
 	for (bool on : {false, false, true, false, true})
 	{
 		w.renderer->set_vsync(on);
 		BOOST_CHECK_EQUAL(w.renderer->vsync(), on);
-		BOOST_CHECK(w.renderer->present(frame, 64, 64));
-		BOOST_CHECK(w.renderer->present(frame, 64, 64));
+		BOOST_CHECK(w.renderer->present(*frame, 64, 64));
+		BOOST_CHECK(w.renderer->present(*frame, 64, 64));
 	}
 }
 
@@ -359,32 +359,31 @@ BOOST_AUTO_TEST_CASE(a_window_without_area_shows_nothing)
 {
 	HeadlessWindow w;
 	w.renderer->attach_surface(w.surface, true);
-	TexturePtr const frame = w.rendered_frame(64, 1.0f);
-	BOOST_CHECK(!w.renderer->present(frame, 0, 64));
-	BOOST_CHECK(!w.renderer->present(frame, 64, 0));
-	BOOST_CHECK(w.renderer->present(frame, 64, 64));
+	std::shared_ptr<Texture> const frame = w.rendered_frame(64, 1.0f);
+	BOOST_CHECK(!w.renderer->present(*frame, 0, 64));
+	BOOST_CHECK(!w.renderer->present(*frame, 64, 0));
+	BOOST_CHECK(w.renderer->present(*frame, 64, 64));
 }
 
 BOOST_AUTO_TEST_CASE(present_refuses_what_it_cannot_show)
 {
 	HeadlessWindow w;
 	w.renderer->attach_surface(w.surface, true);
-	TexturePtr const frame = w.rendered_frame(64, 1.0f);
-	BOOST_CHECK_THROW(w.renderer->present(frame, -1, 64), std::invalid_argument);
-	BOOST_CHECK_THROW(w.renderer->present(TexturePtr(), 64, 64), std::invalid_argument);
+	std::shared_ptr<Texture> const frame = w.rendered_frame(64, 1.0f);
+	BOOST_CHECK_THROW(w.renderer->present(*frame, -1, 64), std::invalid_argument);
 	// never rendered into: its image has no layout to be copied from
-	TexturePtr const blank = w.renderer->create_texture(16, 16, PixelFormat::A8R8G8B8, TextureUsage());
-	BOOST_CHECK_THROW(w.renderer->present(blank, 64, 64), std::logic_error);
+	std::shared_ptr<Texture> const blank = w.renderer->create_texture(16, 16, PixelFormat::A8R8G8B8, TextureUsage());
+	BOOST_CHECK_THROW(w.renderer->present(*blank, 64, 64), std::logic_error);
 	// a frame another renderer drew is an image on another device
-	VulkanRendererPtr other(new VulkanRenderer(64, 64));
-	RenderTargetPtr const foreign = other->create_render_target(64, 64, PixelFormat::A8R8G8B8);
+	std::shared_ptr<VulkanRenderer> other(new VulkanRenderer(64, 64));
+	std::shared_ptr<RenderTarget> const foreign = other->create_render_target(64, 64, PixelFormat::A8R8G8B8);
 	other->begin_frame();
 	other->begin_pass(foreign);
 	other->end_pass();
 	other->finish_frame();
-	BOOST_CHECK_THROW(w.renderer->present(foreign->color_texture(), 64, 64), std::invalid_argument);
+	BOOST_CHECK_THROW(w.renderer->present(*foreign->color_texture(), 64, 64), std::invalid_argument);
 	// refusing left the window usable
-	BOOST_CHECK(w.renderer->present(frame, 64, 64));
+	BOOST_CHECK(w.renderer->present(*frame, 64, 64));
 }
 
 BOOST_AUTO_TEST_CASE(a_second_surface_cannot_be_attached_over_the_first)
@@ -408,13 +407,13 @@ BOOST_AUTO_TEST_CASE(detaching_frees_the_window_and_a_surface_can_be_attached_ag
 	HeadlessWindow w;
 	BOOST_CHECK_THROW(w.renderer->detach_surface(), std::logic_error);
 	w.renderer->attach_surface(w.surface, true);
-	TexturePtr const frame = w.rendered_frame(64, 1.0f);
-	BOOST_CHECK(w.renderer->present(frame, 64, 64));
+	std::shared_ptr<Texture> const frame = w.rendered_frame(64, 1.0f);
+	BOOST_CHECK(w.renderer->present(*frame, 64, 64));
 	w.renderer->detach_surface();
-	BOOST_CHECK_THROW(w.renderer->present(frame, 64, 64), std::logic_error);
+	BOOST_CHECK_THROW(w.renderer->present(*frame, 64, 64), std::logic_error);
 	w.make_surface();
 	w.renderer->attach_surface(w.surface, true);
-	BOOST_CHECK(w.renderer->present(frame, 64, 64));
+	BOOST_CHECK(w.renderer->present(*frame, 64, 64));
 }
 
 /// The swapchain and the surface go with the renderer: what the destructor does is all there is to see, so run it.
@@ -422,8 +421,8 @@ BOOST_AUTO_TEST_CASE(a_renderer_with_a_surface_attached_is_destroyed_cleanly)
 {
 	HeadlessWindow w;
 	w.renderer->attach_surface(w.surface, true);
-	TexturePtr const frame = w.rendered_frame(64, 1.0f);
-	BOOST_CHECK(w.renderer->present(frame, 64, 64));
+	std::shared_ptr<Texture> const frame = w.rendered_frame(64, 1.0f);
+	BOOST_CHECK(w.renderer->present(*frame, 64, 64));
 	w.renderer.reset();
 }
 

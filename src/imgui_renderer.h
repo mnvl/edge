@@ -44,7 +44,7 @@ class ImGuiRenderer
 public:
 	/// The renderer backend of the current ImGui context: builds its font atlas into a texture.  std::invalid_argument for no
 	/// renderer; std::logic_error without a current context or for one that has a renderer backend already.
-	explicit ImGuiRenderer(RendererPtr const &renderer);
+	explicit ImGuiRenderer(std::shared_ptr<Renderer> const &renderer);
 	/// Gives the context its backend back (when it is current), so that another can take it.
 	~ImGuiRenderer();
 	ImGuiRenderer(ImGuiRenderer const &) = delete;
@@ -52,7 +52,7 @@ public:
 
 	/// Makes @p texture something ImGui draws (ImGui::Image, AddImage): the id to pass, another than the font's and each other's.
 	/// Its texels are multiplied by the vertex colour, so a white tint draws them as they are.  std::invalid_argument for none.
-	std::uint64_t add_texture(TexturePtr const &texture);
+	std::uint64_t add_texture(std::shared_ptr<Texture> const &texture);
 
 	/// Takes the draw data of the frame just rendered (ImGui::Render()) for a target of @p target_width x @p target_height pixels.
 	/// std::logic_error inside a frame or with a frame queued and not drawn; std::invalid_argument, nothing queued, for no draw
@@ -74,29 +74,29 @@ private:
 	/// An atlas texture ImGui asked for: made, and the id its draws carry.
 	struct Atlas
 	{
-		TexturePtr texture;
+		std::shared_ptr<Texture> texture;
 		std::uint64_t id;
 	};
 
 	/// ImGui's requests of the backend (ImDrawData::Textures): the atlas's textures made, sent again when they changed, let go.
 	void update_textures(ImDrawData const *data);
 
-	RendererPtr renderer_;
+	std::shared_ptr<Renderer> renderer_;
 	ImGuiContext *context_;
-	ShaderProgramPtr program_;
-	std::map<std::uint64_t, MaterialPtr> materials_;      // by the texture id ImGui draws with
+	std::shared_ptr<ShaderProgram> program_;
+	std::map<std::uint64_t, std::shared_ptr<Material>> materials_;      // by the texture id ImGui draws with
 	std::map<int, Atlas> atlas_;                          // by ImTextureData::UniqueID
 	std::uint64_t next_texture_ = 1;
-	CameraPtr camera_;
-	VertexBufferPtr vertices_;
-	IndexBufferPtr indices_;
+	std::shared_ptr<Camera> camera_;
+	std::shared_ptr<VertexBuffer> vertices_;
+	std::shared_ptr<IndexBuffer> indices_;
 	std::size_t vertex_capacity_ = 0, index_capacity_ = 0;
-	std::vector<DrawCallPtr> calls_;                      // one a command, kept for the next frames
+	std::vector<std::shared_ptr<DrawCall>> calls_;                      // one a command, kept for the next frames
 	std::vector<Command> commands_;
 	int target_width_ = 0, target_height_ = 0;
 	bool queued_ = false;
 
-	MaterialPtr make_material(TexturePtr const &texture) const;
+	std::shared_ptr<Material> make_material(std::shared_ptr<Texture> const &texture) const;
 };
 
 }
@@ -120,7 +120,7 @@ inline rove::matrix<4, 4> to_clip(int x, int y, int w, int h)
 	return shift * scale;
 }
 
-inline RendererPtr const &not_null(RendererPtr const &renderer)
+inline std::shared_ptr<Renderer> const &not_null(std::shared_ptr<Renderer> const &renderer)
 {
 	if (!renderer)
 		throw std::invalid_argument("ImGuiRenderer: no renderer");
@@ -129,7 +129,7 @@ inline RendererPtr const &not_null(RendererPtr const &renderer)
 
 } // namespace detail::imgui_renderer
 
-inline ImGuiRenderer::ImGuiRenderer(RendererPtr const &renderer):
+inline ImGuiRenderer::ImGuiRenderer(std::shared_ptr<Renderer> const &renderer):
 	renderer_(detail::imgui_renderer::not_null(renderer)),
 	context_(ImGui::GetCurrentContext()),
 	camera_(std::make_shared<Camera>())
@@ -165,9 +165,9 @@ inline ImGuiRenderer::~ImGuiRenderer()
 	io.BackendFlags &= ~(ImGuiBackendFlags_RendererHasVtxOffset | ImGuiBackendFlags_RendererHasTextures);
 }
 
-inline MaterialPtr ImGuiRenderer::make_material(TexturePtr const &texture) const
+inline std::shared_ptr<Material> ImGuiRenderer::make_material(std::shared_ptr<Texture> const &texture) const
 {
-	MaterialPtr material = renderer_->create_material();
+	std::shared_ptr<Material> material = renderer_->create_material();
 	material->set_shader_program(program_);
 	material->set_diffuse_texture(texture);
 	material->set_cull_mode(Material::CullMode::NONE);
@@ -178,7 +178,7 @@ inline MaterialPtr ImGuiRenderer::make_material(TexturePtr const &texture) const
 	return material;
 }
 
-inline std::uint64_t ImGuiRenderer::add_texture(TexturePtr const &texture)
+inline std::uint64_t ImGuiRenderer::add_texture(std::shared_ptr<Texture> const &texture)
 {
 	if (!texture)
 		throw std::invalid_argument("ImGuiRenderer::add_texture: no texture");
@@ -202,7 +202,7 @@ inline void ImGuiRenderer::update_textures(ImDrawData const *data)
 			// changes when a glyph is new (a texture is written once without a CPU copy of its own).
 			TextureUsage usage;
 			usage.keep_cpu_copy = false;
-			TexturePtr made = renderer_->create_texture(texture->Width, texture->Height, PixelFormat::A8R8G8B8, usage);
+			std::shared_ptr<Texture> made = renderer_->create_texture(texture->Width, texture->Height, PixelFormat::A8R8G8B8, usage);
 			auto const known = atlas_.find(texture->UniqueID);
 			std::uint64_t const id = known != atlas_.end() ? known->second.id : next_texture_++;
 			materials_[id] = make_material(made);
@@ -338,7 +338,7 @@ inline void ImGuiRenderer::draw()
 		throw std::logic_error("ImGuiRenderer::draw outside a pass");
 	if (!queued_)
 		return;
-	RenderTargetPtr const &target = renderer_->pass_target();
+	std::shared_ptr<RenderTarget> const &target = renderer_->pass_target();
 	if (target->width() != target_width_ || target->height() != target_height_)
 		throw std::logic_error("ImGuiRenderer::draw: a frame queued for " + std::to_string(target_width_) + " x " +
 			std::to_string(target_height_) + " pixels in a pass of " + std::to_string(target->width()) + " x " +
@@ -346,7 +346,7 @@ inline void ImGuiRenderer::draw()
 	queued_ = false;
 	while (calls_.size() < commands_.size())
 	{
-		DrawCallPtr call = renderer_->create_draw_call();
+		std::shared_ptr<DrawCall> call = renderer_->create_draw_call();
 		call->set_vertex_buffer(vertices_);
 		call->set_index_buffer(indices_);
 		call->set_camera(camera_);
@@ -356,7 +356,7 @@ inline void ImGuiRenderer::draw()
 	for (std::size_t i = 0; i < commands_.size(); ++i)
 	{
 		Command const &c = commands_[i];
-		DrawCallPtr const &call = calls_[i];
+		std::shared_ptr<DrawCall> const &call = calls_[i];
 		call->set_material(materials_.at(c.texture));
 		call->set_first_index_offset(c.first_index);
 		call->set_triangles_count(c.indices / 3);

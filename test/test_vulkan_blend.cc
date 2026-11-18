@@ -37,9 +37,9 @@ struct Rgba
 
 /// A quad over the whole target of colour (1, 0.5, 0) at alpha 0.5, blended source alpha over one minus source alpha into a target
 /// cleared to black at alpha 0.25: the pixel in the middle.
-Rgba blended(RendererPtr const &renderer, bool preserve_destination_alpha)
+Rgba blended(std::shared_ptr<Renderer> const &renderer, bool preserve_destination_alpha)
 {
-	VertexBufferPtr vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PTBNTC>(), sizeof(VERTEX_PTBNTC) * 4);
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PTBNTC>(), sizeof(VERTEX_PTBNTC) * 4);
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	VERTEX_PTBNTC *v = vb_mapping.as<VERTEX_PTBNTC>().data();
 	BOOST_REQUIRE(v);
@@ -51,18 +51,18 @@ Rgba blended(RendererPtr const &renderer, bool preserve_destination_alpha)
 		v[k].color.set(1.0f, 0.5f, 0.0f, 0.5f);
 	}
 	vb_mapping.unmap();
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
 	auto ib_mapping = ib->write(Contents::DISCARD);
 	INDEX_U16 *idx = ib_mapping.as<INDEX_U16>().data();
 	BOOST_REQUIRE(idx);
 	idx[0] = 0; idx[1] = 1; idx[2] = 2; idx[3] = 0; idx[4] = 2; idx[5] = 3;
 	ib_mapping.unmap();
-	CameraPtr camera(new Camera());
+	std::shared_ptr<Camera> camera(new Camera());
 	camera->set_orthographic_projection(2.0f, 2.0f, 0.0f, 2.0f);
 	camera->look_at(rove::vec<3>(0, 0, 1), rove::vec<3>(0, 0, 0), rove::vec<3>(0, 1, 0));
-	RenderTargetPtr target = renderer->create_render_target(TARGET_SIZE, TARGET_SIZE, PixelFormat::R32G32B32A32F);
+	std::shared_ptr<RenderTarget> target = renderer->create_render_target(TARGET_SIZE, TARGET_SIZE, PixelFormat::R32G32B32A32F);
 
-	MaterialPtr material = renderer->create_material();
+	std::shared_ptr<Material> material = renderer->create_material();
 	material->set_cull_mode(Material::CullMode::NONE);
 	material->set_shader_program(renderer->create_shader_program(edge::test_shader("test_vertex_color.vert"), edge::test_shader("test_vertex_color.frag")));
 	material->set_alpha_blend_enabled(true);
@@ -70,7 +70,7 @@ Rgba blended(RendererPtr const &renderer, bool preserve_destination_alpha)
 	material->set_dest_blend_mode(Material::BlendMode::INV_SRC_ALPHA);
 	material->set_preserve_destination_alpha(preserve_destination_alpha);
 
-	DrawCallPtr draw_call = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> draw_call = renderer->create_draw_call();
 	draw_call->set_vertex_buffer(vb);
 	draw_call->set_index_buffer(ib);
 	draw_call->set_material(material);
@@ -87,7 +87,7 @@ Rgba blended(RendererPtr const &renderer, bool preserve_destination_alpha)
 	renderer->end_pass();
 	renderer->finish_frame();
 
-	TexturePtr color = target->color_texture();
+	std::shared_ptr<Texture> color = target->color_texture();
 	color->download();
 	auto color_mapping = color->read();
 	Rgba const *pixels = color_mapping.as<Rgba const>().data();

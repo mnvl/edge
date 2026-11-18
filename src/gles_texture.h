@@ -27,17 +27,17 @@ struct GLESTextureLayers
 class GLESTexture: public Texture
 {
 public:
-	GLESTexture(GLESContextPtr const &context, int width, int height, PixelFormat pixel_format, TextureUsage const &usage);
+	GLESTexture(std::shared_ptr<GLESContext> const &context, int width, int height, PixelFormat pixel_format, TextureUsage const &usage);
 	/// The layers of a render target's texture (RenderTargetFormat): none, an array of @p count, or a cube (@p count 6).
 	using Layers = GLESTextureLayers;
 	/// A colour texture of a render target of layers: a GL_TEXTURE_2D_ARRAY of @p layers layers, or a GL_TEXTURE_CUBE_MAP.  The GPU
 	/// writes it and shaders read it: no CPU copy to lock or download.
-	GLESTexture(GLESContextPtr const &context, int width, int height, PixelFormat pixel_format, Layers layers);
+	GLESTexture(std::shared_ptr<GLESContext> const &context, int width, int height, PixelFormat pixel_format, Layers layers);
 	/// A render target's readable depth (Renderer::create_render_target): 24-bit depth, sampled as one value in red, 0 near to 1 far,
 	/// with nearest filtering (OpenGL ES 3.0 filters no depth texture), of @p layers layers.  The GPU writes it: no CPU copy to lock or
 	/// download.
 	struct Depth {};
-	GLESTexture(GLESContextPtr const &context, int width, int height, Depth, Layers layers = Layers());
+	GLESTexture(std::shared_ptr<GLESContext> const &context, int width, int height, Depth, Layers layers = Layers());
 	~GLESTexture() override;
 
 	GLuint get() const { return id_; }
@@ -46,7 +46,7 @@ public:
 	/// Whether this is a render target's depth (Depth), which is sampled with nearest filtering.
 	bool is_depth() const override { return depth_; }
 	/// The context the texture is in: a texture is its renderer's own.
-	GLESContextPtr const &context() const { return context_; }
+	std::shared_ptr<GLESContext> const &context() const { return context_; }
 
 	void download() override;
 
@@ -57,7 +57,7 @@ protected:
 	void do_unlock() override;
 
 private:
-	GLESContextPtr context_;
+	std::shared_ptr<GLESContext> context_;
 	GLuint id_ = 0;
 	GLenum target_ = GL_TEXTURE_2D;
 	mutable std::vector<unsigned char> cpu_;

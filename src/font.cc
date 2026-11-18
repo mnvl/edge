@@ -197,7 +197,7 @@ TextMask Font::rasterise(std::string const &line) const
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"          // the deprecated helpers' own definitions, one calling the other
-TexturePtr make_text_texture(RendererPtr const &renderer, Font const &font, std::string const &line,
+std::shared_ptr<Texture> make_text_texture(std::shared_ptr<Renderer> const &renderer, Font const &font, std::string const &line,
 	rove::vec<4> const &text_color, rove::vec<4> const &background_color)
 {
 	// the colours are (r, g, b, a); the texture's bytes B, G, R, A
@@ -208,7 +208,7 @@ TexturePtr make_text_texture(RendererPtr const &renderer, Font const &font, std:
 
 	if (line.empty())
 	{
-		TexturePtr texture = renderer->create_texture(1, 1, DEFAULT_PIXEL_FORMAT);
+		std::shared_ptr<Texture> texture = renderer->create_texture(1, 1, DEFAULT_PIXEL_FORMAT);
 		auto texels = texture->write(Contents::DISCARD);
 		std::copy(bg, bg + 4, texels.as<unsigned char>().begin());
 		texels.unmap();
@@ -217,7 +217,7 @@ TexturePtr make_text_texture(RendererPtr const &renderer, Font const &font, std:
 
 	TextMask const mask = font.rasterise(line);
 	int const width = mask.coverage.width(), height = mask.coverage.height();
-	TexturePtr texture = renderer->create_texture(width, height, DEFAULT_PIXEL_FORMAT);
+	std::shared_ptr<Texture> texture = renderer->create_texture(width, height, DEFAULT_PIXEL_FORMAT);
 	auto texels = texture->write(Contents::DISCARD);
 	unsigned char *dst = texels.as<unsigned char>().data();
 	for (int y = 0; y < height; ++y)
@@ -232,13 +232,13 @@ TexturePtr make_text_texture(RendererPtr const &renderer, Font const &font, std:
 	return texture;
 }
 
-DrawCallPtr make_text_draw_call(RendererPtr const &renderer, Font const &font, rove::vec<3> const &p1,
+std::shared_ptr<DrawCall> make_text_draw_call(std::shared_ptr<Renderer> const &renderer, Font const &font, rove::vec<3> const &p1,
 	rove::vec<3> const &p2, rove::vec<3> const &p3, rove::vec<3> const &p4, std::string const &line,
 	rove::vec<4> const &text_color, rove::vec<4> const &background_color)
 {
-	TexturePtr texture = make_text_texture(renderer, font, line, text_color, background_color);
+	std::shared_ptr<Texture> texture = make_text_texture(renderer, font, line, text_color, background_color);
 
-	MaterialPtr material = renderer->create_material();
+	std::shared_ptr<Material> material = renderer->create_material();
 	material->set_diffuse_texture(texture);
 
 	std::shared_ptr<VertexArrayPT> vertex_array = renderer->create_vertex_array<VERTEX_PT>(4);
@@ -263,7 +263,7 @@ DrawCallPtr make_text_draw_call(RendererPtr const &renderer, Font const &font, r
 		indices.unmap();
 	}
 
-	UberDrawCallPtr draw_call = renderer->create_uber_draw_call();
+	std::shared_ptr<UberDrawCall> draw_call = renderer->create_uber_draw_call();
 	draw_call->set_always_visible(true);
 	draw_call->set_vertex_buffer(vertex_array->vertex_buffer());
 	draw_call->set_index_buffer(index_array->index_buffer());

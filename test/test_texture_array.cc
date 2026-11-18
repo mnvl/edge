@@ -100,9 +100,9 @@ std::span<std::byte const> bytes(std::vector<char> const &v)
 
 /// The 64 x 64 picture of a quad over the whole target, the array sampled by test_sample_array_frag with `parameter` (layer, level, layers
 /// across or 0).
-std::vector<Rgba> draw(VulkanRendererPtr const &renderer, TexturePtr const &texture, rove::vec<4> const &parameter)
+std::vector<Rgba> draw(std::shared_ptr<VulkanRenderer> const &renderer, std::shared_ptr<Texture> const &texture, rove::vec<4> const &parameter)
 {
-	VertexBufferPtr vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	VERTEX_PT *v = vb_mapping.as<VERTEX_PT>().data();
 	float const xy[4][2] = {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}}, uv[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
@@ -112,22 +112,22 @@ std::vector<Rgba> draw(VulkanRendererPtr const &renderer, TexturePtr const &text
 		v[i].texcoords = rove::vec<2>(uv[i][0], uv[i][1]);
 	}
 	vb_mapping.unmap();
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
 	auto ib_mapping = ib->write(Contents::DISCARD);
 	INDEX_U16 *idx = ib_mapping.as<INDEX_U16>().data();
 	INDEX_U16 const q[6] = {0, 1, 2, 0, 2, 3};
 	std::copy(q, q + 6, idx);
 	ib_mapping.unmap();
-	CameraPtr camera(new Camera());
+	std::shared_ptr<Camera> camera(new Camera());
 	camera->set_orthographic_projection(2, 2, 0, 2);
 	camera->look_at(rove::vec<3>(0, 0, 1), rove::vec<3>(0, 0, 0), rove::vec<3>(0, 1, 0));
-	RenderTargetPtr target = renderer->create_render_target(TARGET, TARGET, PixelFormat::R32G32B32A32F);
-	MaterialPtr material = renderer->create_material();
+	std::shared_ptr<RenderTarget> target = renderer->create_render_target(TARGET, TARGET, PixelFormat::R32G32B32A32F);
+	std::shared_ptr<Material> material = renderer->create_material();
 	material->set_cull_mode(Material::CullMode::NONE);
 	material->set_shader_program(renderer->create_shader_program(edge::test_shader("test_frame.vert"), edge::test_shader("test_sample_array.frag")));
 	material->set_diffuse_texture(texture);
 	material->set_extra_parameter(0, parameter);
-	DrawCallPtr call = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> call = renderer->create_draw_call();
 	call->set_vertex_buffer(vb);
 	call->set_index_buffer(ib);
 	call->set_material(material);
@@ -140,7 +140,7 @@ std::vector<Rgba> draw(VulkanRendererPtr const &renderer, TexturePtr const &text
 	call->execute();
 	renderer->end_pass();
 	renderer->finish_frame();
-	TexturePtr picture = target->color_texture();
+	std::shared_ptr<Texture> picture = target->color_texture();
 	picture->download();
 	auto picture_mapping = picture->read();
 	Rgba const *px = picture_mapping.as<Rgba const>().data();
@@ -150,7 +150,7 @@ std::vector<Rgba> draw(VulkanRendererPtr const &renderer, TexturePtr const &text
 }
 
 /// The middle of the picture of `layer` at `level`.
-Rgba sample(VulkanRendererPtr const &renderer, TexturePtr const &texture, int layer, int level)
+Rgba sample(std::shared_ptr<VulkanRenderer> const &renderer, std::shared_ptr<Texture> const &texture, int layer, int level)
 {
 	return draw(renderer, texture, rove::vec<4>(float(layer), float(level), 0, 0))[TARGET / 2 * TARGET + TARGET / 2];
 }
@@ -192,7 +192,7 @@ BOOST_AUTO_TEST_CASE(every_layer_and_every_mip_level_of_an_array_dds_is_where_it
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 	std::vector<char> const file = dds(16, 16, 3, 3, 71);
-	TexturePtr t = Texture::load_dds(renderer, file.data(), file.size());
+	std::shared_ptr<Texture> t = Texture::load_dds(renderer, file.data(), file.size());
 	BOOST_CHECK_EQUAL(t->array_layers(), 3);
 	BOOST_CHECK_EQUAL(t->mip_levels(), 3);
 	BOOST_CHECK_EQUAL(t->width(), 16);
@@ -209,7 +209,7 @@ BOOST_AUTO_TEST_CASE(a_dds_of_one_layer_is_still_a_plain_texture)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 	std::vector<char> const file = dds(8, 8, 2, 1, 72);
-	TexturePtr t = Texture::load_dds(renderer, file.data(), file.size());
+	std::shared_ptr<Texture> t = Texture::load_dds(renderer, file.data(), file.size());
 	BOOST_CHECK_EQUAL(t->array_layers(), 0);
 	BOOST_CHECK_EQUAL(t->mip_levels(), 2);
 	BOOST_CHECK(t->is_srgb());
@@ -222,7 +222,7 @@ BOOST_AUTO_TEST_CASE(an_array_assembled_from_single_dds_files_has_each_file_as_i
 	std::vector<std::vector<char>> files;
 	for (int k = 0; k < 3; ++k)
 		files.push_back(dds(16, 16, 3, 1, 71, [k](int, int level) { return colour(2 - k, level); }));
-	TexturePtr t = Texture::load_dds_array(renderer, {bytes(files[0]), bytes(files[1]), bytes(files[2])});
+	std::shared_ptr<Texture> t = Texture::load_dds_array(renderer, {bytes(files[0]), bytes(files[1]), bytes(files[2])});
 	BOOST_CHECK_EQUAL(t->array_layers(), 3);
 	BOOST_CHECK_EQUAL(t->mip_levels(), 3);
 	BOOST_CHECK_EQUAL(t->pixel_format(), PixelFormat::BC1);
@@ -245,7 +245,7 @@ BOOST_AUTO_TEST_CASE(a_layer_chosen_per_pixel_is_the_layer_sampled)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 	std::vector<char> const file = dds(8, 8, 1, 4, 71);
-	TexturePtr t = Texture::load_dds(renderer, file.data(), file.size());
+	std::shared_ptr<Texture> t = Texture::load_dds(renderer, file.data(), file.size());
 	std::vector<Rgba> const picture = draw(renderer, t, rove::vec<4>(0, 0, 4, 0));      // four layers across: a quarter each
 	for (int quarter = 0; quarter < 4; ++quarter)
 	{
@@ -258,7 +258,7 @@ BOOST_AUTO_TEST_CASE(an_array_of_one_file_is_an_array_of_one_layer)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 	std::vector<char> const file = dds(8, 8, 1, 1, 71);
-	TexturePtr t = Texture::load_dds_array(renderer, {bytes(file)});
+	std::shared_ptr<Texture> t = Texture::load_dds_array(renderer, {bytes(file)});
 	BOOST_CHECK_EQUAL(t->array_layers(), 1);
 	Rgba const c = sample(renderer, t, 0, 0);
 	BOOST_CHECK_MESSAGE(near(c, colour(0, 0)), text(c));
@@ -299,7 +299,7 @@ BOOST_AUTO_TEST_CASE(an_array_made_by_hand_takes_every_layer_through_lock_and_ma
 	usage.array_layers = 3;
 	usage.mipmaps = true;
 	int const side = 8;
-	TexturePtr t = renderer->create_texture(side, side, PixelFormat::A8R8G8B8, usage);
+	std::shared_ptr<Texture> t = renderer->create_texture(side, side, PixelFormat::A8R8G8B8, usage);
 	BOOST_CHECK_EQUAL(t->array_layers(), 3);
 	BOOST_CHECK_EQUAL(t->mip_levels(), 4);
 	// layer k all one colour: BGRA bytes, red, green, blue
@@ -325,7 +325,7 @@ BOOST_AUTO_TEST_CASE(an_array_does_not_pass_for_one_image)
 	BOOST_REQUIRE_MESSAGE(renderer, "Vulkan renderer unavailable: " << error);
 	TextureUsage usage;
 	usage.array_layers = 2;
-	TexturePtr t = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, usage);
+	std::shared_ptr<Texture> t = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8, usage);
 	BOOST_CHECK_THROW(t->download(), std::logic_error);
 	BOOST_CHECK_THROW(t->pixels<rove::bgra<uint8_t>>(), std::logic_error);
 	BOOST_CHECK_THROW(read_image<rove::bgra<uint8_t>>(*t), std::logic_error);
@@ -335,9 +335,9 @@ BOOST_AUTO_TEST_SUITE_END()
 
 BOOST_AUTO_TEST_CASE(an_array_without_a_gpu_holds_every_layer_and_a_negative_count_is_refused)
 {
-	RendererPtr renderer(new NullRenderer(320, 200));
+	std::shared_ptr<Renderer> renderer(new NullRenderer(320, 200));
 	std::vector<char> const file = dds(16, 16, 3, 4, 71);
-	TexturePtr t = Texture::load_dds(renderer, file.data(), file.size());
+	std::shared_ptr<Texture> t = Texture::load_dds(renderer, file.data(), file.size());
 	BOOST_CHECK_EQUAL(t->array_layers(), 4);
 	// the CPU copy is the file's data, all four layers of it
 	auto t_mapping = t->read();

@@ -164,7 +164,7 @@ std::shared_ptr<MetalProgram> MetalRenderer::Impl::program(Renderer &, std::stri
 	return result;
 }
 
-MetalRenderer::MetalRenderer(int width, int height, std::string const &shader_dir, MetalContextPtr const &context):
+MetalRenderer::MetalRenderer(int width, int height, std::string const &shader_dir, std::shared_ptr<MetalContext> const &context):
 	impl_(new Impl),
 	width_(width),
 	height_(height)
@@ -176,7 +176,6 @@ MetalRenderer::MetalRenderer(int width, int height, std::string const &shader_di
 	Impl &impl = *impl_;
 	impl.context = context;
 	impl.shader_dir = shader_dir;
-	impl.slots = dispatch_semaphore_create(2);
 	id<MTLDevice> device = context->impl().device;
 	impl.frame_constants = [device newBufferWithLength:FRAME_CONSTANTS_SIZE options:MTLResourceStorageModeShared];
 	impl.zeros = [device newBufferWithLength:16384 options:MTLResourceStorageModeShared];
@@ -248,7 +247,7 @@ MetalRenderer::~MetalRenderer()
 
 int MetalRenderer::screen_width() const { return width_; }
 int MetalRenderer::screen_height() const { return height_; }
-MetalContextPtr const &MetalRenderer::context() const { return impl_->context; }
+std::shared_ptr<MetalContext> const &MetalRenderer::context() const { return impl_->context; }
 uint64_t MetalRenderer::frame_serial() const { return impl_->frame_serial; }
 GpuTimer &MetalRenderer::gpu_timer() const { return *impl_->timer; }
 
@@ -288,7 +287,7 @@ void commit(MetalRenderer::Impl &impl)
 {
 	id<MTLCommandBuffer> commands = impl.commands;
 	impl.commands = nil;
-	MetalContextPtr const context = impl.context;
+	std::shared_ptr<MetalContext> const context = impl.context;
 	uint64_t const serial = impl.frame_serial;
 	dispatch_semaphore_t slots = impl.slots;
 	impl.timer->end_frame((__bridge void *)commands);
@@ -321,7 +320,7 @@ void MetalRenderer::do_finish_frame()
 	impl.context->throw_gpu_error();
 }
 
-void MetalRenderer::do_begin_pass(RenderTargetPtr const &target, RenderPassClearState const &clear, uint32_t)
+void MetalRenderer::do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear, uint32_t)
 {
 	Impl &impl = *impl_;
 	auto *metal_target = dynamic_cast<MetalRenderTarget *>(target.get());
@@ -368,21 +367,21 @@ void MetalRenderer::do_set_viewport(int x, int y, int width, int height)
 	[impl_->encoder setScissorRect:MTLScissorRect{NSUInteger(x), NSUInteger(y), NSUInteger(width), NSUInteger(height)}];
 }
 
-VertexBufferPtr MetalRenderer::create_vertex_buffer(VertexTraits const *vertex_traits, size_t size, BufferUsage)
+std::shared_ptr<VertexBuffer> MetalRenderer::create_vertex_buffer(VertexTraits const *vertex_traits, size_t size, BufferUsage)
 {
 	auto buffer = std::make_shared<MetalVertexBuffer>(impl_->context, vertex_traits, size);
 	buffer->set_owner(this);
 	return buffer;
 }
 
-IndexBufferPtr MetalRenderer::create_index_buffer(IndexFormat index_format, size_t size, BufferUsage)
+std::shared_ptr<IndexBuffer> MetalRenderer::create_index_buffer(IndexFormat index_format, size_t size, BufferUsage)
 {
 	auto buffer = std::make_shared<MetalIndexBuffer>(impl_->context, index_format, size);
 	buffer->set_owner(this);
 	return buffer;
 }
 
-TexturePtr MetalRenderer::create_texture(int width, int height, PixelFormat pixel_format, TextureUsage const &usage)
+std::shared_ptr<Texture> MetalRenderer::create_texture(int width, int height, PixelFormat pixel_format, TextureUsage const &usage)
 {
 	auto texture = std::make_shared<MetalTexture>(impl_->context, width, height, pixel_format, usage);
 	texture->set_owner(this);
@@ -403,7 +402,7 @@ void MetalRenderer::do_set_frame_constants(void const *data, size_t size)
 	impl.frame_constants = block;
 }
 
-void MetalRenderer::do_set_global_texture(unsigned slot, TexturePtr const &texture, bool compare)
+void MetalRenderer::do_set_global_texture(unsigned slot, std::shared_ptr<Texture> const &texture, bool compare)
 {
 	if (texture)
 	{
@@ -415,19 +414,19 @@ void MetalRenderer::do_set_global_texture(unsigned slot, TexturePtr const &textu
 	impl_->global_compare[slot] = compare;
 }
 
-RenderTargetPtr MetalRenderer::default_render_target()
+std::shared_ptr<RenderTarget> MetalRenderer::default_render_target()
 {
 	if (!default_render_target_)
 		default_render_target_ = create_render_target(width_, height_, PixelFormat::A8R8G8B8);
 	return default_render_target_;
 }
 
-MaterialPtr MetalRenderer::create_material()
+std::shared_ptr<Material> MetalRenderer::create_material()
 {
 	return std::make_shared<Material>(shared_from_this());
 }
 
-RenderTargetPtr MetalRenderer::do_create_render_target(int width, int height, RenderTargetFormat const &format)
+std::shared_ptr<RenderTarget> MetalRenderer::do_create_render_target(int width, int height, RenderTargetFormat const &format)
 {
 	Impl &impl = *impl_;
 	// (Apple GPUs: 16384 texels a side, 2048 layers)
@@ -520,14 +519,14 @@ void MetalRenderer::show_frame(void const *frame, int width, int height, int win
 	show_texture(impl, impl.frame_texture, window_width, window_height);
 }
 
-void MetalRenderer::show_frame(TexturePtr const &frame, int window_width, int window_height)
+void MetalRenderer::show_frame(Texture &frame, int window_width, int window_height)
 {
 	Impl &impl = *impl_;
 	if (!impl.context->hosted())
 		throw std::logic_error("Metal show_frame without a host window");
 	if (in_frame())
 		throw std::logic_error("Metal show_frame inside a frame");
-	auto *texture = dynamic_cast<MetalTexture *>(frame.get());
+	auto *texture = dynamic_cast<MetalTexture *>(&frame);
 	if (!texture || texture->context() != impl.context)
 		throw std::invalid_argument("Metal show_frame: a texture of this renderer's");
 	if (window_width <= 0 || window_height <= 0)

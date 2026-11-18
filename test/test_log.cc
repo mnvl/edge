@@ -255,8 +255,8 @@ BOOST_AUTO_TEST_CASE(logging_from_many_threads_loses_no_line)
 BOOST_AUTO_TEST_CASE(a_gltf_load_is_in_the_log)
 {
 	std::string const asset = edge::TestFixture::graphic_sources_path() + "test/data/test_gltf_loder_plane.glb";
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
-	edge::SchedulerPtr scheduler(new edge::Scheduler(renderer));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Scheduler> scheduler(new edge::Scheduler(renderer));
 	{
 		RecordingSink sink(edge::LogLevel::info);
 		std::make_shared<edge::StaticModelPTBNT>(renderer)->load_from_gltf(asset);

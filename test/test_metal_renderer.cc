@@ -40,18 +40,18 @@ namespace
 
 using Rgba = rove::rgba<float>;
 
-CameraPtr view()
+std::shared_ptr<Camera> view()
 {
-	CameraPtr camera = std::make_shared<Camera>();
+	std::shared_ptr<Camera> camera = std::make_shared<Camera>();
 	camera->set_orthographic_projection(2.0f, 2.0f, 0.0f, 2.0f);
 	camera->look_at(rove::vec<3>(0, 0, 1), rove::vec<3>(0, 0, 0), rove::vec<3>(0, 1, 0));
 	return camera;
 }
 
 /// A quad over the whole target (or over a part of it: @p x0..x1, @p y0..y1 in clip space) with texture coordinates 0 to 1.
-VertexBufferPtr quad_buffer(RendererPtr const &renderer, float x0 = -1, float y0 = -1, float x1 = 1, float y1 = 1)
+std::shared_ptr<VertexBuffer> quad_buffer(std::shared_ptr<Renderer> const &renderer, float x0 = -1, float y0 = -1, float x1 = 1, float y1 = 1)
 {
-	VertexBufferPtr vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	VERTEX_PT *v = vb_mapping.as<VERTEX_PT>().data();
 	float const xy[4][2] = {{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}}, uv[4][2] = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
@@ -64,9 +64,9 @@ VertexBufferPtr quad_buffer(RendererPtr const &renderer, float x0 = -1, float y0
 	return vb;
 }
 
-IndexBufferPtr quad_indices(RendererPtr const &renderer)
+std::shared_ptr<IndexBuffer> quad_indices(std::shared_ptr<Renderer> const &renderer)
 {
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
 	auto ib_mapping = ib->write(Contents::DISCARD);
 	INDEX_U16 *i = ib_mapping.as<INDEX_U16>().data();
 	INDEX_U16 const order[6] = {0, 1, 2, 0, 2, 3};
@@ -75,9 +75,9 @@ IndexBufferPtr quad_indices(RendererPtr const &renderer)
 	return ib;
 }
 
-DrawCallPtr quad_draw(RendererPtr const &renderer, VertexBufferPtr const &vb, IndexBufferPtr const &ib, MaterialPtr const &material)
+std::shared_ptr<DrawCall> quad_draw(std::shared_ptr<Renderer> const &renderer, std::shared_ptr<VertexBuffer> const &vb, std::shared_ptr<IndexBuffer> const &ib, std::shared_ptr<Material> const &material)
 {
-	DrawCallPtr draw = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> draw = renderer->create_draw_call();
 	draw->set_vertex_buffer(vb);
 	draw->set_index_buffer(ib);
 	draw->set_material(material);
@@ -88,9 +88,9 @@ DrawCallPtr quad_draw(RendererPtr const &renderer, VertexBufferPtr const &vb, In
 	return draw;
 }
 
-MaterialPtr material_of(RendererPtr const &renderer, char const *vertex, char const *fragment, bool blend = false)
+std::shared_ptr<Material> material_of(std::shared_ptr<Renderer> const &renderer, char const *vertex, char const *fragment, bool blend = false)
 {
-	MaterialPtr m = renderer->create_material();
+	std::shared_ptr<Material> m = renderer->create_material();
 	m->set_cull_mode(Material::CullMode::NONE);
 	m->set_shader_program(renderer->create_shader_program(test_shader(vertex), test_shader(fragment)));
 	if (blend)
@@ -102,7 +102,7 @@ MaterialPtr material_of(RendererPtr const &renderer, char const *vertex, char co
 	return m;
 }
 
-void fill_colored(VertexBufferPtr const &vb, rove::vec<4> const &color, float offset)
+void fill_colored(std::shared_ptr<VertexBuffer> const &vb, rove::vec<4> const &color, float offset)
 {
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	VERTEX_PTBNTC *v = vb_mapping.as<VERTEX_PTBNTC>().data();
@@ -120,16 +120,16 @@ void fill_colored(VertexBufferPtr const &vb, rove::vec<4> const &color, float of
 }
 
 /// A quad over the whole target (shifted along x by @p offset) of one color, vertex 10 of a draw by test_vertex_color.vert.
-VertexBufferPtr colored_quad(RendererPtr const &renderer, rove::vec<4> const &color, float offset = 0.0f)
+std::shared_ptr<VertexBuffer> colored_quad(std::shared_ptr<Renderer> const &renderer, rove::vec<4> const &color, float offset = 0.0f)
 {
-	VertexBufferPtr vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PTBNTC>(), sizeof(VERTEX_PTBNTC) * 4);
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PTBNTC>(), sizeof(VERTEX_PTBNTC) * 4);
 	fill_colored(vb, color, offset);
 	return vb;
 }
 
-TexturePtr colored_texture(RendererPtr const &renderer, uint32_t bgra)
+std::shared_ptr<Texture> colored_texture(std::shared_ptr<Renderer> const &renderer, uint32_t bgra)
 {
-	TexturePtr texture = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8);
+	std::shared_ptr<Texture> texture = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8);
 	auto texture_mapping = texture->write(Contents::DISCARD);
 	uint32_t *texels = texture_mapping.as<uint32_t>().data();
 	std::fill(texels, texels + 16, bgra);
@@ -138,7 +138,7 @@ TexturePtr colored_texture(RendererPtr const &renderer, uint32_t bgra)
 }
 
 /// Passes over a big target that take the GPU a while (a few ms): the CPU is ahead of the GPU after it hands them over.
-void keep_the_gpu_busy(RendererPtr const &renderer, RenderTargetPtr const &big, DrawCallPtr const &blended)
+void keep_the_gpu_busy(std::shared_ptr<Renderer> const &renderer, std::shared_ptr<RenderTarget> const &big, std::shared_ptr<DrawCall> const &blended)
 {
 	renderer->begin_pass(big);
 	for (int i = 0; i < 300; ++i)
@@ -146,7 +146,7 @@ void keep_the_gpu_busy(RendererPtr const &renderer, RenderTargetPtr const &big, 
 	renderer->end_pass();
 }
 
-Rgba pixel_of(RenderTargetPtr const &target, int x, int y)
+Rgba pixel_of(std::shared_ptr<RenderTarget> const &target, int x, int y)
 {
 	Image<Rgba> const image = read_image<Rgba>(*target->color_texture());
 	return image.at(x, y);
@@ -154,9 +154,9 @@ Rgba pixel_of(RenderTargetPtr const &target, int x, int y)
 
 struct Bgra { uint8_t b, g, r, a; };
 
-Bgra bgra_pixel_of(RenderTargetPtr const &target, int x, int y)
+Bgra bgra_pixel_of(std::shared_ptr<RenderTarget> const &target, int x, int y)
 {
-	TexturePtr color = target->color_texture();
+	std::shared_ptr<Texture> color = target->color_texture();
 	color->download();
 	auto color_mapping = color->read();
 	Bgra const *p = color_mapping.as<Bgra const>().data();
@@ -172,16 +172,16 @@ BOOST_AUTO_TEST_SUITE(metal_renderer)
 BOOST_FIXTURE_TEST_CASE(a_vertex_buffer_rewritten_after_its_frame_was_submitted_does_not_change_that_frame, MetalFixture)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << error);
-	RenderTargetPtr const big = renderer->create_render_target(2048, 2048, PixelFormat::A8R8G8B8);
-	RenderTargetPtr const small = renderer->create_render_target(16, 16, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const big = renderer->create_render_target(2048, 2048, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const small = renderer->create_render_target(16, 16, PixelFormat::A8R8G8B8);
 	// 300 translucent squares over 2048 x 2048, then the small pass: it is drawn some milliseconds after the CPU has given it away
-	MaterialPtr const blended = material_of(renderer, "test_vertex_color.vert", "test_vertex_color.frag", true);
-	VertexBufferPtr const heavy_vb = colored_quad(renderer, rove::vec<4>(1, 1, 1, 0.01f));
-	DrawCallPtr const heavy = quad_draw(renderer, heavy_vb, quad_indices(renderer), blended);
+	std::shared_ptr<Material> const blended = material_of(renderer, "test_vertex_color.vert", "test_vertex_color.frag", true);
+	std::shared_ptr<VertexBuffer> const heavy_vb = colored_quad(renderer, rove::vec<4>(1, 1, 1, 0.01f));
+	std::shared_ptr<DrawCall> const heavy = quad_draw(renderer, heavy_vb, quad_indices(renderer), blended);
 
-	MaterialPtr const red = material_of(renderer, "test_vertex_color.vert", "test_vertex_color.frag");
-	VertexBufferPtr const vb = colored_quad(renderer, rove::vec<4>(1, 0, 0, 1));
-	DrawCallPtr const small_draw = quad_draw(renderer, vb, quad_indices(renderer), red);
+	std::shared_ptr<Material> const red = material_of(renderer, "test_vertex_color.vert", "test_vertex_color.frag");
+	std::shared_ptr<VertexBuffer> const vb = colored_quad(renderer, rove::vec<4>(1, 0, 0, 1));
+	std::shared_ptr<DrawCall> const small_draw = quad_draw(renderer, vb, quad_indices(renderer), red);
 
 	renderer->begin_frame();
 	keep_the_gpu_busy(renderer, big, heavy);
@@ -199,17 +199,17 @@ BOOST_FIXTURE_TEST_CASE(a_vertex_buffer_rewritten_after_its_frame_was_submitted_
 BOOST_FIXTURE_TEST_CASE(a_texture_rewritten_after_its_frame_was_submitted_does_not_change_that_frame, MetalFixture)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << error);
-	RenderTargetPtr const big = renderer->create_render_target(2048, 2048, PixelFormat::A8R8G8B8);
-	RenderTargetPtr const small = renderer->create_render_target(16, 16, PixelFormat::A8R8G8B8);
-	MaterialPtr const blended = material_of(renderer, "test_vertex_color.vert", "test_vertex_color.frag", true);
-	VertexBufferPtr const heavy_vb = colored_quad(renderer, rove::vec<4>(1, 1, 1, 0.01f));
-	IndexBufferPtr const ib = quad_indices(renderer);
-	DrawCallPtr const heavy = quad_draw(renderer, heavy_vb, ib, blended);
+	std::shared_ptr<RenderTarget> const big = renderer->create_render_target(2048, 2048, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const small = renderer->create_render_target(16, 16, PixelFormat::A8R8G8B8);
+	std::shared_ptr<Material> const blended = material_of(renderer, "test_vertex_color.vert", "test_vertex_color.frag", true);
+	std::shared_ptr<VertexBuffer> const heavy_vb = colored_quad(renderer, rove::vec<4>(1, 1, 1, 0.01f));
+	std::shared_ptr<IndexBuffer> const ib = quad_indices(renderer);
+	std::shared_ptr<DrawCall> const heavy = quad_draw(renderer, heavy_vb, ib, blended);
 
-	TexturePtr const texture = colored_texture(renderer, 0xFFFF0000u);       // B, G, R, A: red
-	MaterialPtr const sampled = material_of(renderer, "test_frame.vert", "test_sample.frag");
+	std::shared_ptr<Texture> const texture = colored_texture(renderer, 0xFFFF0000u);       // B, G, R, A: red
+	std::shared_ptr<Material> const sampled = material_of(renderer, "test_frame.vert", "test_sample.frag");
 	sampled->set_diffuse_texture(texture);
-	DrawCallPtr const small_draw = quad_draw(renderer, quad_buffer(renderer), ib, sampled);
+	std::shared_ptr<DrawCall> const small_draw = quad_draw(renderer, quad_buffer(renderer), ib, sampled);
 
 	renderer->begin_frame();
 	keep_the_gpu_busy(renderer, big, heavy);
@@ -242,13 +242,13 @@ BOOST_FIXTURE_TEST_CASE(thousands_of_draws_in_a_frame_each_read_their_own_unifor
 	// 70 x 70 draws, each into a pixel of its own by a viewport, each with a material block of its own: the draws' blocks (a kilobyte
 	// each) and constants add up to more than one chunk of the arena they are written into
 	int const side = 70;
-	RenderTargetPtr const target = renderer->create_render_target(side, side, PixelFormat::R32G32B32A32F);
-	VertexBufferPtr const vb = quad_buffer(renderer);
-	IndexBufferPtr const ib = quad_indices(renderer);
-	std::vector<DrawCallPtr> draws;
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(side, side, PixelFormat::R32G32B32A32F);
+	std::shared_ptr<VertexBuffer> const vb = quad_buffer(renderer);
+	std::shared_ptr<IndexBuffer> const ib = quad_indices(renderer);
+	std::vector<std::shared_ptr<DrawCall>> draws;
 	for (int i = 0; i < side * side; ++i)
 	{
-		MaterialPtr m = material_of(renderer, "test_frame.vert", "test_material_parameters.frag");
+		std::shared_ptr<Material> m = material_of(renderer, "test_frame.vert", "test_material_parameters.frag");
 		m->set_extra_parameter(0, rove::vec<4>(3, 0, 0, 0));
 		std::vector<float> block(Material::PARAMETERS_SIZE / 4, 0.0f);
 		for (int k = 0; k < 4; ++k)
@@ -281,17 +281,17 @@ BOOST_FIXTURE_TEST_CASE(thousands_of_draws_in_a_frame_each_read_their_own_unifor
 BOOST_FIXTURE_TEST_CASE(an_attribute_the_vertex_lacks_reads_as_gl_has_it_zeros_and_a_one, MetalFixture)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << error);
-	RenderTargetPtr const target = renderer->create_render_target(8, 8, PixelFormat::R32G32B32A32F);
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(8, 8, PixelFormat::R32G32B32A32F);
 	// test_vertex_color.vert reads a color at location 10, which a position-only vertex does not have
-	VertexBufferPtr const vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_P>(), sizeof(VERTEX_P) * 3);
+	std::shared_ptr<VertexBuffer> const vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_P>(), sizeof(VERTEX_P) * 3);
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	VERTEX_P *v = vb_mapping.as<VERTEX_P>().data();
 	v[0].position = rove::vec<3>(-1, -1, 0);
 	v[1].position = rove::vec<3>(3, -1, 0);
 	v[2].position = rove::vec<3>(-1, 3, 0);
 	vb_mapping.unmap();
-	MaterialPtr const m = material_of(renderer, "test_vertex_color.vert", "test_vertex_color.frag");
-	DrawCallPtr draw = renderer->create_draw_call();
+	std::shared_ptr<Material> const m = material_of(renderer, "test_vertex_color.vert", "test_vertex_color.frag");
+	std::shared_ptr<DrawCall> draw = renderer->create_draw_call();
 	draw->set_vertex_buffer(vb);
 	draw->set_material(m);
 	draw->set_camera(view());
@@ -312,10 +312,10 @@ BOOST_FIXTURE_TEST_CASE(an_attribute_the_vertex_lacks_reads_as_gl_has_it_zeros_a
 BOOST_FIXTURE_TEST_CASE(a_shader_without_its_translation_is_refused_naming_the_file, MetalFixture)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << error);
-	RenderTargetPtr const target = renderer->create_render_target(8, 8, PixelFormat::A8R8G8B8);
-	MaterialPtr const m = renderer->create_material();
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(8, 8, PixelFormat::A8R8G8B8);
+	std::shared_ptr<Material> const m = renderer->create_material();
 	m->set_shader_program(renderer->create_shader_program("no_such_shader.vert.spv", "no_such_shader.frag.spv"));
-	DrawCallPtr const draw = quad_draw(renderer, quad_buffer(renderer), quad_indices(renderer), m);
+	std::shared_ptr<DrawCall> const draw = quad_draw(renderer, quad_buffer(renderer), quad_indices(renderer), m);
 	renderer->begin_frame();
 	renderer->begin_pass(target);
 	try
@@ -330,9 +330,9 @@ BOOST_FIXTURE_TEST_CASE(a_shader_without_its_translation_is_refused_naming_the_f
 	renderer->end_pass();
 	renderer->finish_frame();
 	// GLSL ES sources are another backend's: a name that is not SPIR-V is not a Metal program
-	MaterialPtr const glsl = renderer->create_material();
+	std::shared_ptr<Material> const glsl = renderer->create_material();
 	glsl->set_shader_program(renderer->create_shader_program("x.vert", "x.frag"));
-	DrawCallPtr const bad = quad_draw(renderer, quad_buffer(renderer), quad_indices(renderer), glsl);
+	std::shared_ptr<DrawCall> const bad = quad_draw(renderer, quad_buffer(renderer), quad_indices(renderer), glsl);
 	renderer->begin_frame();
 	renderer->begin_pass(target);
 	BOOST_CHECK_THROW(bad->execute(), std::invalid_argument);
@@ -344,14 +344,14 @@ BOOST_AUTO_TEST_CASE(the_things_of_another_renderer_are_refused)
 {
 	MetalFixture one, other;
 	BOOST_REQUIRE_MESSAGE(one.renderer && other.renderer, "renderer unavailable: " << one.error << other.error);
-	RenderTargetPtr const foreign_target = other.renderer->create_render_target(8, 8, PixelFormat::A8R8G8B8);
-	RenderTargetPtr const target = one.renderer->create_render_target(8, 8, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const foreign_target = other.renderer->create_render_target(8, 8, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const target = one.renderer->create_render_target(8, 8, PixelFormat::A8R8G8B8);
 	one.renderer->begin_frame();
 	BOOST_CHECK_THROW(one.renderer->begin_pass(foreign_target), std::invalid_argument);
 	one.renderer->begin_pass(target);
-	MaterialPtr const m = material_of(one.renderer, "test_vertex_color.vert", "test_vertex_color.frag");
-	VertexBufferPtr const foreign_vb = colored_quad(other.renderer, rove::vec<4>(1, 0, 0, 1));
-	DrawCallPtr const draw = quad_draw(one.renderer, foreign_vb, quad_indices(one.renderer), m);
+	std::shared_ptr<Material> const m = material_of(one.renderer, "test_vertex_color.vert", "test_vertex_color.frag");
+	std::shared_ptr<VertexBuffer> const foreign_vb = colored_quad(other.renderer, rove::vec<4>(1, 0, 0, 1));
+	std::shared_ptr<DrawCall> const draw = quad_draw(one.renderer, foreign_vb, quad_indices(one.renderer), m);
 	BOOST_CHECK_THROW(draw->execute(), std::invalid_argument);
 	one.renderer->end_pass();
 	one.renderer->finish_frame();
@@ -364,18 +364,26 @@ BOOST_FIXTURE_TEST_CASE(showing_a_frame_needs_the_hosts_window, MetalFixture)
 	BOOST_CHECK(!renderer->context()->hosted());
 	std::vector<uint8_t> const frame(4 * 4 * 4, 0);
 	BOOST_CHECK_THROW(renderer->show_frame(frame.data(), 4, 4, 8, 8), std::logic_error);
-	BOOST_CHECK_THROW(renderer->show_frame(colored_texture(renderer, 0xFFFFFFFFu), 8, 8), std::logic_error);
+	BOOST_CHECK_THROW(renderer->show_frame(*colored_texture(renderer, 0xFFFFFFFFu), 8, 8), std::logic_error);
 	BOOST_CHECK_THROW(renderer->swap_window(), std::logic_error);
 	BOOST_CHECK_THROW(MetalContext(static_cast<void *>(nullptr)), std::invalid_argument);
+}
+
+/// The constructor throws before it has made anything of its own: what is half made goes without waiting on what was never made.
+BOOST_AUTO_TEST_CASE(a_renderer_of_no_size_is_refused_and_leaves_nothing_behind)
+{
+	auto const context = std::make_shared<MetalContext>();
+	for (auto const [width, height] : {std::pair{0, 0}, {-1, 5}, {5, 0}})
+		BOOST_CHECK_THROW(MetalRenderer(width, height, EDGE_METAL_SHADER_DIR, context), std::invalid_argument);
 }
 
 BOOST_FIXTURE_TEST_CASE(the_gpu_timer_reads_in_microseconds_of_the_clock_the_frame_ran_by, MetalFixture)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << error);
-	RenderTargetPtr const big = renderer->create_render_target(2048, 2048, PixelFormat::A8R8G8B8);
-	MaterialPtr const blended = material_of(renderer, "test_vertex_color.vert", "test_vertex_color.frag", true);
-	VertexBufferPtr const vb = colored_quad(renderer, rove::vec<4>(1, 1, 1, 0.01f));
-	DrawCallPtr const heavy = quad_draw(renderer, vb, quad_indices(renderer), blended);
+	std::shared_ptr<RenderTarget> const big = renderer->create_render_target(2048, 2048, PixelFormat::A8R8G8B8);
+	std::shared_ptr<Material> const blended = material_of(renderer, "test_vertex_color.vert", "test_vertex_color.frag", true);
+	std::shared_ptr<VertexBuffer> const vb = colored_quad(renderer, rove::vec<4>(1, 1, 1, 0.01f));
+	std::shared_ptr<DrawCall> const heavy = quad_draw(renderer, vb, quad_indices(renderer), blended);
 	renderer->set_gpu_trace_enabled(true);
 	renderer->begin_frame();
 	uint64_t const frame = renderer->frame_serial();
@@ -394,11 +402,11 @@ BOOST_FIXTURE_TEST_CASE(the_gpu_timer_reads_in_microseconds_of_the_clock_the_fra
 BOOST_FIXTURE_TEST_CASE(many_frames_in_flight_are_drawn_in_order_and_a_renderer_dropped_with_some_ends_well, MetalFixture)
 {
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << error);
-	RenderTargetPtr const target = renderer->create_render_target(16, 16, PixelFormat::A8R8G8B8);
-	MaterialPtr const m = material_of(renderer, "test_vertex_color.vert", "test_vertex_color.frag");
-	VertexBufferPtr const vb = colored_quad(renderer, rove::vec<4>(0, 0, 0, 1));
-	IndexBufferPtr const ib = quad_indices(renderer);
-	DrawCallPtr const draw = quad_draw(renderer, vb, ib, m);
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(16, 16, PixelFormat::A8R8G8B8);
+	std::shared_ptr<Material> const m = material_of(renderer, "test_vertex_color.vert", "test_vertex_color.frag");
+	std::shared_ptr<VertexBuffer> const vb = colored_quad(renderer, rove::vec<4>(0, 0, 0, 1));
+	std::shared_ptr<IndexBuffer> const ib = quad_indices(renderer);
+	std::shared_ptr<DrawCall> const draw = quad_draw(renderer, vb, ib, m);
 	// 40 frames submitted one after the other, each a different color; the last one is what the target holds
 	for (int i = 0; i < 40; ++i)
 	{
@@ -414,7 +422,7 @@ BOOST_FIXTURE_TEST_CASE(many_frames_in_flight_are_drawn_in_order_and_a_renderer_
 	{
 		MetalFixture short_lived;
 		BOOST_REQUIRE(short_lived.renderer);
-		RenderTargetPtr const t = short_lived.renderer->create_render_target(256, 256, PixelFormat::A8R8G8B8);
+		std::shared_ptr<RenderTarget> const t = short_lived.renderer->create_render_target(256, 256, PixelFormat::A8R8G8B8);
 		for (int i = 0; i < 3; ++i)
 		{
 			short_lived.renderer->begin_frame();
@@ -437,7 +445,7 @@ BOOST_AUTO_TEST_CASE(a_renderer_dropped_inside_a_frame_or_a_pass_does_not_wait_f
 				MetalFixture fixture;
 				if (fixture.renderer)
 				{
-					RenderTargetPtr const target = fixture.renderer->create_render_target(16, 16, PixelFormat::A8R8G8B8);
+					std::shared_ptr<RenderTarget> const target = fixture.renderer->create_render_target(16, 16, PixelFormat::A8R8G8B8);
 					fixture.renderer->begin_frame();
 					if (in_pass)
 						fixture.renderer->begin_pass(target);

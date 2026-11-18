@@ -26,22 +26,22 @@ Renderer::Renderer() = default;
 
 Renderer::~Renderer() = default;
 
-DrawCallPtr Renderer::create_draw_call()
+std::shared_ptr<DrawCall> Renderer::create_draw_call()
 {
 	return std::make_shared<DrawCall>(shared_from_this());
 }
 
-UberDrawCallPtr Renderer::create_uber_draw_call()
+std::shared_ptr<UberDrawCall> Renderer::create_uber_draw_call()
 {
 	return std::make_shared<UberDrawCall>(shared_from_this());
 }
 
-ShaderProgramPtr Renderer::create_shader_program(std::string const &vertex_shader_filename, std::string const &fragment_shader_filename)
+std::shared_ptr<ShaderProgram> Renderer::create_shader_program(std::string const &vertex_shader_filename, std::string const &fragment_shader_filename)
 {
 	return std::make_shared<ShaderProgram>(vertex_shader_filename, fragment_shader_filename);
 }
 
-ShaderProgramPtr Renderer::load_shader_program(std::filesystem::path const &dir, std::string const &name)
+std::shared_ptr<ShaderProgram> Renderer::load_shader_program(std::filesystem::path const &dir, std::string const &name)
 {
 	std::filesystem::path const vertex = dir / (name + ".vert.spv"), fragment = dir / (name + ".frag.spv");
 	for (std::filesystem::path const &file : {vertex, fragment})
@@ -50,7 +50,7 @@ ShaderProgramPtr Renderer::load_shader_program(std::filesystem::path const &dir,
 	return create_shader_program(vertex.string(), fragment.string());
 }
 
-RenderTargetPtr Renderer::create_render_target(int width, int height, PixelFormat pixel_format, bool readable_depth)
+std::shared_ptr<RenderTarget> Renderer::create_render_target(int width, int height, PixelFormat pixel_format, bool readable_depth)
 {
 	RenderTargetFormat format;
 	format.color_formats = {pixel_format};
@@ -58,7 +58,7 @@ RenderTargetPtr Renderer::create_render_target(int width, int height, PixelForma
 	return create_render_target(width, height, format);
 }
 
-RenderTargetPtr Renderer::create_render_target(int width, int height, RenderTargetFormat const &format)
+std::shared_ptr<RenderTarget> Renderer::create_render_target(int width, int height, RenderTargetFormat const &format)
 {
 	if (width <= 0 || height <= 0)
 		throw std::invalid_argument("a render target of " + std::to_string(width) + " x " + std::to_string(height) + " pixels");
@@ -149,7 +149,7 @@ void Renderer::submit_frame()
 	frame_resources_.clear();
 }
 
-void Renderer::begin_pass(RenderTargetPtr const &target, RenderPassClearState const &clear_state, uint32_t pass_type)
+void Renderer::begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state, uint32_t pass_type)
 {
 	if (!in_frame())
 		throw std::logic_error("begin_pass() outside a frame");
@@ -167,7 +167,7 @@ void Renderer::begin_pass(RenderTargetPtr const &target, RenderPassClearState co
 	pass_target_ = target;
 }
 
-DrawList::DrawList(Renderer &renderer, RenderTargetPtr const &target):
+DrawList::DrawList(Renderer &renderer, std::shared_ptr<RenderTarget> const &target):
 	renderer_(renderer),
 	target_width_(target->width()),
 	target_height_(target->height())
@@ -197,7 +197,7 @@ void DrawList::draw(DrawCall const &call)
 	hold(call.material());
 }
 
-std::vector<DrawList *> Renderer::begin_split_pass(RenderTargetPtr const &target, RenderPassClearState const &clear_state,
+std::vector<DrawList *> Renderer::begin_split_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state,
 	uint32_t pass_type, size_t lists)
 {
 	if (!can_split_pass())
@@ -232,7 +232,7 @@ std::vector<DrawList *> Renderer::begin_split_pass(RenderTargetPtr const &target
 	return split_lists_;
 }
 
-std::vector<DrawList *> Renderer::do_begin_split_pass(RenderTargetPtr const &, RenderPassClearState const &, uint32_t, size_t)
+std::vector<DrawList *> Renderer::do_begin_split_pass(std::shared_ptr<RenderTarget> const &, RenderPassClearState const &, uint32_t, size_t)
 {
 	throw std::logic_error("this renderer records a pass on one thread");
 }
@@ -297,7 +297,7 @@ void Renderer::set_frame_constants(void const *data, size_t size)
 	do_set_frame_constants(data, size);
 }
 
-void Renderer::set_global_texture(unsigned slot, TexturePtr const &texture)
+void Renderer::set_global_texture(unsigned slot, std::shared_ptr<Texture> const &texture)
 {
 	if (in_frame())
 		throw std::logic_error("set_global_texture() inside a frame");
@@ -306,7 +306,7 @@ void Renderer::set_global_texture(unsigned slot, TexturePtr const &texture)
 	do_set_global_texture(slot, texture, false);
 }
 
-void Renderer::set_global_shadow_texture(unsigned slot, TexturePtr const &depth)
+void Renderer::set_global_shadow_texture(unsigned slot, std::shared_ptr<Texture> const &depth)
 {
 	if (in_frame())
 		throw std::logic_error("set_global_shadow_texture() inside a frame");
@@ -356,7 +356,7 @@ void Renderer::check_ranges(DrawCall const &call) const
 
 	// the textures the material brings: a descriptor of another device's image is a crash there
 	Material const &material = *call.material();
-	auto const check_texture = [&](TexturePtr const &texture) {
+	auto const check_texture = [&](std::shared_ptr<Texture> const &texture) {
 		if (texture && texture->owner() && texture->owner() != this)
 			throw std::invalid_argument("a draw of texture '" + texture->filename() + "' of another renderer");
 	};
@@ -398,15 +398,15 @@ void Renderer::check_draw(DrawCall const &call) const
 namespace
 {
 
-void refuse_null(std::vector<TexturePtr> const &textures, char const *what)
+void refuse_null(std::vector<std::shared_ptr<Texture>> const &textures, char const *what)
 {
-	if (std::find(textures.begin(), textures.end(), TexturePtr()) != textures.end())
+	if (std::find(textures.begin(), textures.end(), std::shared_ptr<Texture>()) != textures.end())
 		throw std::invalid_argument(std::string(what) + ": no texture");
 }
 
 }
 
-void Renderer::batch_download_textures(std::vector<TexturePtr> const &textures)
+void Renderer::batch_download_textures(std::vector<std::shared_ptr<Texture>> const &textures)
 {
 	if (in_frame())
 		throw std::logic_error("batch_download_textures() inside a frame: after finish_frame()");
@@ -417,10 +417,10 @@ void Renderer::batch_download_textures(std::vector<TexturePtr> const &textures)
 namespace
 {
 
-void check_rects(std::vector<TexturePtr> const &textures, std::vector<TextureRect> const &rects, char const *what)
+void check_rects(std::vector<std::shared_ptr<Texture>> const &textures, std::vector<TextureRect> const &rects, char const *what)
 {
 	for (TextureRect const &r : rects)
-		for (TexturePtr const &texture : textures)
+		for (std::shared_ptr<Texture> const &texture : textures)
 			if (r.x < 0 || r.y < 0 || r.width <= 0 || r.height <= 0 || r.x + r.width > texture->width()
 				|| r.y + r.height > texture->height())
 				throw std::out_of_range(std::string(what) + ": rectangle " + std::to_string(r.x) + ", " + std::to_string(r.y) + ", "
@@ -430,7 +430,7 @@ void check_rects(std::vector<TexturePtr> const &textures, std::vector<TextureRec
 
 }
 
-void Renderer::download_in_frame(std::vector<TexturePtr> const &textures, std::vector<TextureRect> const &rects)
+void Renderer::download_in_frame(std::vector<std::shared_ptr<Texture>> const &textures, std::vector<TextureRect> const &rects)
 {
 	if (!can_download_in_frame())
 		throw std::logic_error("download_in_frame() on a renderer that downloads between frames (batch_download_textures)");
@@ -441,11 +441,11 @@ void Renderer::download_in_frame(std::vector<TexturePtr> const &textures, std::v
 	refuse_null(textures, "download_in_frame");
 	check_rects(textures, rects, "download_in_frame");
 	do_download_in_frame(textures, rects);
-	for (TexturePtr const &texture : textures)
+	for (std::shared_ptr<Texture> const &texture : textures)
 		frame_resources_.push_back(texture);
 }
 
-void Renderer::finish_downloads(std::vector<TexturePtr> const &textures, std::vector<TextureRect> const &rects)
+void Renderer::finish_downloads(std::vector<std::shared_ptr<Texture>> const &textures, std::vector<TextureRect> const &rects)
 {
 	if (!can_download_in_frame())
 		throw std::logic_error("finish_downloads() on a renderer that downloads between frames (batch_download_textures)");
@@ -454,17 +454,17 @@ void Renderer::finish_downloads(std::vector<TexturePtr> const &textures, std::ve
 	do_finish_downloads(textures, rects);
 }
 
-void Renderer::do_download_in_frame(std::vector<TexturePtr> const &, std::vector<TextureRect> const &)
+void Renderer::do_download_in_frame(std::vector<std::shared_ptr<Texture>> const &, std::vector<TextureRect> const &)
 {
 	throw std::logic_error("this renderer downloads between frames");
 }
 
-void Renderer::do_finish_downloads(std::vector<TexturePtr> const &, std::vector<TextureRect> const &)
+void Renderer::do_finish_downloads(std::vector<std::shared_ptr<Texture>> const &, std::vector<TextureRect> const &)
 {
 	throw std::logic_error("this renderer downloads between frames");
 }
 
-void Renderer::batch_upload_textures(std::vector<TexturePtr> const &textures)
+void Renderer::batch_upload_textures(std::vector<std::shared_ptr<Texture>> const &textures)
 {
 	refuse_null(textures, "batch_upload_textures");
 	for (size_t i = 0; i < textures.size(); ++i)
@@ -473,7 +473,7 @@ void Renderer::batch_upload_textures(std::vector<TexturePtr> const &textures)
 	do_batch_upload_textures(textures);
 }
 
-void Renderer::stream_textures(std::vector<TexturePtr> const &textures)
+void Renderer::stream_textures(std::vector<std::shared_ptr<Texture>> const &textures)
 {
 	if (in_pass())
 		throw std::logic_error("stream_textures() inside a pass");
@@ -486,19 +486,19 @@ void Renderer::stream_textures(std::vector<TexturePtr> const &textures)
 		frame_resources_.insert(frame_resources_.end(), textures.begin(), textures.end());
 }
 
-void Renderer::do_batch_download_textures(std::vector<TexturePtr> const &textures)
+void Renderer::do_batch_download_textures(std::vector<std::shared_ptr<Texture>> const &textures)
 {
 	for (auto const &texture : textures)
 		texture->download();
 }
 
-void Renderer::do_batch_upload_textures(std::vector<TexturePtr> const &textures)
+void Renderer::do_batch_upload_textures(std::vector<std::shared_ptr<Texture>> const &textures)
 {
 	for (auto const &texture : textures)
 		texture->do_unlock();
 }
 
-void Renderer::do_stream_textures(std::vector<TexturePtr> const &textures)
+void Renderer::do_stream_textures(std::vector<std::shared_ptr<Texture>> const &textures)
 {
 	do_batch_upload_textures(textures);
 }

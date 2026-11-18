@@ -22,7 +22,7 @@ bool has_stencil_component(VkFormat format)
 	return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT || format == VK_FORMAT_D16_UNORM_S8_UINT;
 }
 
-VulkanDeviceContextPtr require_device_context(VulkanRenderer *renderer)
+std::shared_ptr<VulkanDeviceContext> require_device_context(VulkanRenderer *renderer)
 {
 	if (!renderer)
 	{
@@ -33,11 +33,11 @@ VulkanDeviceContextPtr require_device_context(VulkanRenderer *renderer)
 }
 
 /// A plain target's readable depth's stencil, where its format has one; none for a target of layers.
-TexturePtr stencil_view_of(TexturePtr const &depth_texture)
+std::shared_ptr<Texture> stencil_view_of(std::shared_ptr<Texture> const &depth_texture)
 {
 	std::shared_ptr<VulkanTexture> const readable = std::dynamic_pointer_cast<VulkanTexture>(depth_texture);
 	if (!readable || readable->array_layers() > 0 || !has_stencil_component(readable->vk_format()))
-		return TexturePtr();
+		return std::shared_ptr<Texture>();
 	return std::make_shared<VulkanTexture>(readable, VulkanTexture::Stencil());
 }
 
@@ -45,12 +45,12 @@ TexturePtr stencil_view_of(TexturePtr const &depth_texture)
 
 struct VulkanRenderTarget::DepthImage
 {
-	VulkanDeviceContextPtr context;
+	std::shared_ptr<VulkanDeviceContext> context;
 	VkImage image = VK_NULL_HANDLE;
 	VkDeviceMemory memory = VK_NULL_HANDLE;
 
 	/// An image of @p format and @p extent in memory of its own.
-	DepthImage(VulkanDeviceContextPtr const &device_context, VkExtent2D extent, VkFormat format):
+	DepthImage(std::shared_ptr<VulkanDeviceContext> const &device_context, VkExtent2D extent, VkFormat format):
 		context(device_context)
 	{
 		VkDevice const device = context->device();
@@ -109,15 +109,15 @@ struct VulkanRenderTarget::DepthImage
 	}
 };
 
-VulkanRenderTarget::VulkanRenderTarget(VulkanRenderer *renderer, int width, int height, std::vector<TexturePtr> const &color_textures,
-	TexturePtr const &depth_texture, int layer):
+VulkanRenderTarget::VulkanRenderTarget(VulkanRenderer *renderer, int width, int height, std::vector<std::shared_ptr<Texture>> const &color_textures,
+	std::shared_ptr<Texture> const &depth_texture, int layer):
 	VulkanRenderTarget(renderer, width, height, color_textures, depth_texture, layer, nullptr)
 {
 }
 
-VulkanRenderTarget::VulkanRenderTarget(VulkanRenderer *renderer, int width, int height, std::vector<TexturePtr> const &color_textures,
-	TexturePtr const &depth_texture, int layer, std::shared_ptr<DepthImage> const &depth_image):
-	RenderTarget(width, height, color_textures, depth_texture, layer < 0 ? stencil_view_of(depth_texture) : TexturePtr(), layer),
+VulkanRenderTarget::VulkanRenderTarget(VulkanRenderer *renderer, int width, int height, std::vector<std::shared_ptr<Texture>> const &color_textures,
+	std::shared_ptr<Texture> const &depth_texture, int layer, std::shared_ptr<DepthImage> const &depth_image):
+	RenderTarget(width, height, color_textures, depth_texture, layer < 0 ? stencil_view_of(depth_texture) : std::shared_ptr<Texture>(), layer),
 	context_(require_device_context(renderer)),
 	render_pass_(VK_NULL_HANDLE),
 	framebuffer_(VK_NULL_HANDLE),
@@ -139,7 +139,7 @@ VulkanRenderTarget::VulkanRenderTarget(VulkanRenderer *renderer, int width, int 
 			std::shared_ptr<DepthImage> const shared = depth_texture ? nullptr
 				: std::make_shared<DepthImage>(context_, extent_, renderer->depth_format());
 			for (int i = 0; i < layers(); ++i)
-				layer_targets_.push_back(RenderTargetPtr(new VulkanRenderTarget(renderer, width, height, color_textures, depth_texture, i,
+				layer_targets_.push_back(std::shared_ptr<RenderTarget>(new VulkanRenderTarget(renderer, width, height, color_textures, depth_texture, i,
 					shared)));
 		}
 	}
@@ -170,7 +170,7 @@ void VulkanRenderTarget::create_offscreen_resources()
 
 	std::vector<VulkanTexture *> colors;
 	std::vector<VkFormat> color_formats;
-	for (TexturePtr const &texture : color_textures())
+	for (std::shared_ptr<Texture> const &texture : color_textures())
 	{
 		VulkanTexture *const color = dynamic_cast<VulkanTexture *>(texture.get());
 		if (!color || color->is_depth() || color->width() != width_ || color->height() != height_)

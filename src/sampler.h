@@ -35,13 +35,13 @@ private:
 	using samples_type = std::vector<Sample>;
 
 	std::string sid_;
-	JointWeakPtr joint_;
+	std::weak_ptr<Joint> joint_;
 	/// The keyframes, shared by every copy of the sampler (an instance of a model holds its clips' keys once with every other instance);
 	/// add_sample copies them first when they are shared.
 	std::shared_ptr<samples_type> samples_ = std::make_shared<samples_type>();
 
 public:
-	void set_target(JointPtr joint_ptr, std::string const &sid) { joint_ = joint_ptr; sid_ = sid; }
+	void set_target(std::shared_ptr<Joint> joint_ptr, std::string const &sid) { joint_ = joint_ptr; sid_ = sid; }
 
 	/// Appends a keyframe; std::invalid_argument for one not after the last.
 	void add_sample(Key const &key);
@@ -50,7 +50,7 @@ public:
 	rove::matrix<4,4> get(rove::scalar time) const;
 
 	void apply(rove::scalar t) const {
-		if (JointPtr joint_ptr = joint_.lock())
+		if (std::shared_ptr<Joint> joint_ptr = joint_.lock())
 			joint_ptr->transform_by_sid(sid_) = get(t);
 	}
 
@@ -66,8 +66,8 @@ public:
 	std::size_t samples_count() const { return samples_->size(); }
 	Key const &sample(std::size_t index) const { return samples_->at(index).key; }
 	// stores joint as weak ptr
-	JointPtr joint() const { return joint_.lock(); }
-	void set_joint(JointPtr const &joint) { joint_ = joint; }
+	std::shared_ptr<Joint> joint() const { return joint_.lock(); }
+	void set_joint(std::shared_ptr<Joint> const &joint) { joint_ = joint; }
 };
 
 }

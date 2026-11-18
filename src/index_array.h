@@ -17,7 +17,7 @@ class IndexArray {
 public:
 	using index_type = T;
 
-	IndexArray(IndexBufferPtr const &index_buffer):
+	IndexArray(std::shared_ptr<IndexBuffer> const &index_buffer):
 		index_buffer_(index_buffer)
 	{
 	}
@@ -28,10 +28,10 @@ public:
 	Mapping<IndexBuffer const> read() const { return std::as_const(*index_buffer_).read(); }
 	Mapping<IndexBuffer> write(Contents contents = Contents::KEEP) { return index_buffer_->write(contents); }
 
-	IndexBufferPtr const &index_buffer() { return index_buffer_; }
+	std::shared_ptr<IndexBuffer> const &index_buffer() { return index_buffer_; }
 
 protected:
-	IndexBufferPtr const index_buffer_;
+	std::shared_ptr<IndexBuffer> const index_buffer_;
 };
 
 using IndexArray16 = IndexArray<INDEX_U16>;

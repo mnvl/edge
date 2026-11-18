@@ -118,7 +118,7 @@ BOOST_AUTO_TEST_CASE(a_turned_over_projection_spans_the_same_and_a_picture_of_no
 #if defined(EDGE_TEST_ASSET_TOOLS)
 BOOST_AUTO_TEST_CASE(a_models_and_a_meshs_levels_are_chosen_as_they_stray_where_the_model_is_placed)
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
 	auto scheduler = std::make_shared<edge::Scheduler>(renderer);
 	std::filesystem::path const file = std::filesystem::temp_directory_path() / "edge_lod_choice.edge";
 	edge::convert_gltf_to_edge(edge::TestFixture::graphic_sources_path() + "test/data/test_figure.glb", file.string(), edge::GltfOptions(),

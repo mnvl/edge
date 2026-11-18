@@ -14,7 +14,7 @@
 namespace edge
 {
 
-DrawCall::DrawCall(RendererPtr const &renderer):
+DrawCall::DrawCall(std::shared_ptr<Renderer> const &renderer):
 	renderer_(renderer),
 	priority_(0),
 	always_visible_(false),
@@ -42,17 +42,17 @@ void DrawCall::set_obb(rove::obb<3> const &bounds)
 	bounds_ = bounds;
 }
 
-void DrawCall::set_vertex_buffer(VertexBufferPtr const &vertex_buffer)
+void DrawCall::set_vertex_buffer(std::shared_ptr<VertexBuffer> const &vertex_buffer)
 {
 	vertex_buffer_ = vertex_buffer;
 }
 
-void DrawCall::set_index_buffer(IndexBufferPtr const &index_buffer)
+void DrawCall::set_index_buffer(std::shared_ptr<IndexBuffer> const &index_buffer)
 {
 	index_buffer_ = index_buffer;
 }
 
-void DrawCall::set_material(MaterialPtr const &material)
+void DrawCall::set_material(std::shared_ptr<Material> const &material)
 {
 	material_ = material;
 }
@@ -95,7 +95,7 @@ void DrawCall::set_instances(SharedMatrices const &instances)
 	instances_ = instances;
 }
 
-void DrawCall::set_camera(CameraPtr const &camera)
+void DrawCall::set_camera(std::shared_ptr<Camera> const &camera)
 {
 	camera_ = camera;
 }

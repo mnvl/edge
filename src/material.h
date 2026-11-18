@@ -44,14 +44,14 @@ public:
 	};
 
 	/// std::invalid_argument without a renderer.
-	explicit Material(RendererPtr const &renderer_ptr);
+	explicit Material(std::shared_ptr<Renderer> const &renderer_ptr);
 	virtual ~Material();
 
 	/// A new material with this one's settings, sharing its textures and
 	/// shader programs; changing either material leaves the other as it was.
-	MaterialPtr clone() const;
+	std::shared_ptr<Material> clone() const;
 
-	RendererPtr const &renderer() const { return renderer_; }
+	std::shared_ptr<Renderer> const &renderer() const { return renderer_; }
 
 	enum
 	{
@@ -71,32 +71,32 @@ public:
 	bool preserve_destination_alpha() const { return preserve_destination_alpha_; }
 	BlendMode src_blend_mode() const { return src_blend_mode_; }
 	BlendMode dest_blend_mode() const { return dest_blend_mode_; }
-	ShaderProgramPtr const &shader_program() const { return shader_program_; }
+	std::shared_ptr<ShaderProgram> const &shader_program() const { return shader_program_; }
 
 	/// Return the shader program for a specific pass type.
 	/// Falls back to the default program (pass type 0) if the
 	/// requested pass type has no override.
-	ShaderProgramPtr const &shader_program(uint32_t pass_type) const;
+	std::shared_ptr<ShaderProgram> const &shader_program(uint32_t pass_type) const;
 
 	/// Assign a shader program for a specific pass type.
 	/// Pass type 0 sets the default program.
-	void set_shader_program(uint32_t pass_type, ShaderProgramPtr const &shader_program);
+	void set_shader_program(uint32_t pass_type, std::shared_ptr<ShaderProgram> const &shader_program);
 
 	/// Remove the shader override for a specific pass type.
 	/// Pass type 0 clears the default program.
 	void clear_shader_program(uint32_t pass_type = 0);
 	size_t diffuse_textures_count() const { return diffuse_textures_.size(); }
-	TexturePtr const &diffuse_texture(size_t index = 0) const { return diffuse_textures_.at(index); }
-	TexturePtr const &texture_blending_weights_texture() const { return texture_blending_weights_texture_; }
-	TexturePtr const &normal_map_texture() const {	return normal_map_texture_; }
+	std::shared_ptr<Texture> const &diffuse_texture(size_t index = 0) const { return diffuse_textures_.at(index); }
+	std::shared_ptr<Texture> const &texture_blending_weights_texture() const { return texture_blending_weights_texture_; }
+	std::shared_ptr<Texture> const &normal_map_texture() const {	return normal_map_texture_; }
 
 	// PBR metal/rough (glTF's meaning and defaults).  The uber shader ignores
 	// them; a material's own shaders read the textures at bindings 10 (green
 	// roughness, blue metallic) and 11, and the factors from the push
 	// constants (material_pbr: metallic, roughness, alpha cutoff; and
 	// emissive_factor), flags 32 and 64 telling whether the textures are set.
-	TexturePtr const &metallic_roughness_texture() const { return metallic_roughness_texture_; }
-	TexturePtr const &emissive_texture() const { return emissive_texture_; }
+	std::shared_ptr<Texture> const &metallic_roughness_texture() const { return metallic_roughness_texture_; }
+	std::shared_ptr<Texture> const &emissive_texture() const { return emissive_texture_; }
 	float metallic_factor() const { return metallic_factor_; }
 	float roughness_factor() const { return roughness_factor_; }
 	/// Emitted radiance, linear RGB, glTF's emissiveFactor times its
@@ -106,8 +106,8 @@ public:
 	float alpha_cutoff() const { return alpha_cutoff_; }
 	/// glTF's normalTexture.scale: the normal map's x and y times this (1: as the map has them).
 	float normal_scale() const { return normal_scale_; }
-	void set_metallic_roughness_texture(TexturePtr const &texture) { metallic_roughness_texture_ = texture; }
-	void set_emissive_texture(TexturePtr const &texture) { emissive_texture_ = texture; }
+	void set_metallic_roughness_texture(std::shared_ptr<Texture> const &texture) { metallic_roughness_texture_ = texture; }
+	void set_emissive_texture(std::shared_ptr<Texture> const &texture) { emissive_texture_ = texture; }
 	void set_metallic_factor(float factor) { metallic_factor_ = factor; }
 	void set_roughness_factor(float factor) { roughness_factor_ = factor; }
 	void set_emissive_factor(rove::vec<3> const &factor) { emissive_factor_ = factor; }
@@ -140,22 +140,22 @@ public:
 	void set_preserve_destination_alpha(bool preserve) { preserve_destination_alpha_ = preserve; }
 	void set_src_blend_mode(BlendMode src_blend_mode) { src_blend_mode_ = src_blend_mode; }
 	void set_dest_blend_mode(BlendMode dest_blend_mode) { dest_blend_mode_ = dest_blend_mode; }
-	void set_shader_program(ShaderProgramPtr const &shader_program) { shader_program_ = shader_program; }
+	void set_shader_program(std::shared_ptr<ShaderProgram> const &shader_program) { shader_program_ = shader_program; }
 	void set_extra_parameter(size_t index, rove::vec<4> const &value);
 	void set_base_color_factor(rove::vec<4> const &factor) { base_color_factor_ = factor; }
 
 	/// Diffuse texture @p index (0 is the colour texture, 1 to 3 the texture-blending layers): @p texture, or the one in @p filename.
-	void set_diffuse_texture(TexturePtr const &texture, size_t index = 0);
+	void set_diffuse_texture(std::shared_ptr<Texture> const &texture, size_t index = 0);
 	void set_diffuse_texture(std::string const &filename, size_t index = 0);
 	void set_texture_blending_weights_texture(std::string const &filename);
-	void set_texture_blending_weights_texture(TexturePtr const &texture);
+	void set_texture_blending_weights_texture(std::shared_ptr<Texture> const &texture);
 	void set_normal_map_texture(std::string const &filename);
-	void set_normal_map_texture(TexturePtr const &texture);
+	void set_normal_map_texture(std::shared_ptr<Texture> const &texture);
 
 protected:
 	std::string name_;
 
-	RendererPtr renderer_;
+	std::shared_ptr<Renderer> renderer_;
 
 	CullMode cull_mode_;
 	bool zwrite_enabled_;
@@ -163,18 +163,18 @@ protected:
 	bool alpha_blend_enabled_;
 	bool preserve_destination_alpha_;
 	BlendMode src_blend_mode_, dest_blend_mode_;
-	ShaderProgramPtr shader_program_;
-	std::unordered_map<uint32_t, ShaderProgramPtr> pass_shader_programs_;
+	std::shared_ptr<ShaderProgram> shader_program_;
+	std::unordered_map<uint32_t, std::shared_ptr<ShaderProgram>> pass_shader_programs_;
 	std::array<rove::vec<4>, EXTRA_PARAMETERS_COUNT> extra_parameters_;
 	std::vector<unsigned char> parameters_;
 
 	rove::vec<4> base_color_factor_;
 
-	std::vector<TexturePtr> diffuse_textures_;
-	TexturePtr texture_blending_weights_texture_;
-	TexturePtr normal_map_texture_;
-	TexturePtr metallic_roughness_texture_;
-	TexturePtr emissive_texture_;
+	std::vector<std::shared_ptr<Texture>> diffuse_textures_;
+	std::shared_ptr<Texture> texture_blending_weights_texture_;
+	std::shared_ptr<Texture> normal_map_texture_;
+	std::shared_ptr<Texture> metallic_roughness_texture_;
+	std::shared_ptr<Texture> emissive_texture_;
 	float metallic_factor_ = 1.0f;
 	float roughness_factor_ = 1.0f;
 	rove::vec<3> emissive_factor_ = rove::vec<3>(0.0f, 0.0f, 0.0f);

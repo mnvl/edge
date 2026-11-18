@@ -11,7 +11,7 @@
 namespace edge
 {
 
-Scheduler::Scheduler(RendererPtr const &renderer):
+Scheduler::Scheduler(std::shared_ptr<Renderer> const &renderer):
 	renderer_(renderer)
 {
 	draw_calls_.reserve(4096);
@@ -19,12 +19,12 @@ Scheduler::Scheduler(RendererPtr const &renderer):
 
 Scheduler::~Scheduler() = default;
 
-void Scheduler::add(DrawCallPtr const &draw_call)
+void Scheduler::add(std::shared_ptr<DrawCall> const &draw_call)
 {
 	draw_calls_.push_back(draw_call);
 }
 
-void Scheduler::change_draw_calls_camera(CameraPtr const &camera)
+void Scheduler::change_draw_calls_camera(std::shared_ptr<Camera> const &camera)
 {
 	for (auto &dc : draw_calls_)
 	{
@@ -53,18 +53,18 @@ void Scheduler::flush_into(DrawList *list, bool clear)
 	// that follows the heap makes the same scene render differently run to
 	// run.
 	std::stable_sort(draw_calls_.begin(), draw_calls_.end(),
-		[](DrawCallPtr const &a, DrawCallPtr const &b) { return a->priority() < b->priority(); });
+		[](std::shared_ptr<DrawCall> const &a, std::shared_ptr<DrawCall> const &b) { return a->priority() < b->priority(); });
 	if (sort_blended_)
 	{
 		for (draw_calls_type::iterator run = draw_calls_.begin(); run != draw_calls_.end();)
 		{
 			int const priority = (*run)->priority();
 			draw_calls_type::iterator const end = std::find_if(run, draw_calls_.end(),
-				[priority](DrawCallPtr const &dc) { return dc->priority() != priority; });
+				[priority](std::shared_ptr<DrawCall> const &dc) { return dc->priority() != priority; });
 			draw_calls_type::iterator const blended = std::stable_partition(run, end,
-				[](DrawCallPtr const &dc) { return !dc->material()->alpha_blend_enabled(); });
+				[](std::shared_ptr<DrawCall> const &dc) { return !dc->material()->alpha_blend_enabled(); });
 			std::stable_sort(blended, end,
-				[](DrawCallPtr const &a, DrawCallPtr const &b) { return a->view_depth() > b->view_depth(); });
+				[](std::shared_ptr<DrawCall> const &a, std::shared_ptr<DrawCall> const &b) { return a->view_depth() > b->view_depth(); });
 			run = end;
 		}
 	}

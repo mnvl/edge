@@ -9,7 +9,7 @@ BOOST_AUTO_TEST_SUITE(renderer)
 
 BOOST_AUTO_TEST_CASE(basic)
 {
-	edge::VulkanRendererPtr renderer(new edge::VulkanRenderer(800, 600));
+	std::shared_ptr<edge::VulkanRenderer> renderer(new edge::VulkanRenderer(800, 600));
 
 	for (int i = 0; i < 10; ++i)
 	{

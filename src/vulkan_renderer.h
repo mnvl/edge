@@ -18,7 +18,6 @@ namespace edge
 
 // The renderer's own parts, edge's business: their headers are not installed, and nothing here needs more than their names.
 class VulkanDeviceContext;
-using VulkanDeviceContextPtr = std::shared_ptr<VulkanDeviceContext>;
 class VulkanDescriptorCache;
 class VulkanDrawList;
 class VulkanDynamicUniformBuffer;
@@ -34,7 +33,7 @@ class VulkanUploader;
 // instance, which they share (vulkan_instance.h).
 class VulkanRenderer: public Renderer {
 public:
-	VulkanRendererPtr shared_from_this()
+	std::shared_ptr<VulkanRenderer> shared_from_this()
 	{
 		return std::static_pointer_cast<VulkanRenderer>(Renderer::shared_from_this());
 	}
@@ -100,7 +99,7 @@ public:
 	/// no area (minimised), and when the surface is lost (surface_lost()).
 	/// std::logic_error without a surface, on a lost one, inside a frame, or for an image in a layout it cannot be copied from (never
 	/// rendered into); std::invalid_argument for a texture that is not this renderer's or a negative size.
-	bool present(TexturePtr const &frame, int width, int height);
+	bool present(Texture &frame, int width, int height);
 	/// Whether the surface attached was lost presenting: its window was taken back (a phone's is when its app goes to the background, and
 	/// a pause and a resume close together can take it between a frame and its present).  Nothing is presented on it: it is to be
 	/// detached (detach_surface()) and the window's next attached.  False without a surface.
@@ -117,15 +116,15 @@ public:
 	/// Milliseconds the host has spent waiting for frames the GPU had not drawn yet, since the renderer was made.
 	double gpu_wait_ms() const;
 
-	VertexBufferPtr create_vertex_buffer(VertexTraits const *vertex_traits, size_t size,
+	std::shared_ptr<VertexBuffer> create_vertex_buffer(VertexTraits const *vertex_traits, size_t size,
 		BufferUsage usage = BufferUsage::STATIC) override;
-	IndexBufferPtr create_index_buffer(IndexFormat index_format, size_t size, BufferUsage usage = BufferUsage::STATIC) override;
+	std::shared_ptr<IndexBuffer> create_index_buffer(IndexFormat index_format, size_t size, BufferUsage usage = BufferUsage::STATIC) override;
 
-	TexturePtr create_texture(int width, int height, PixelFormat pixel_format, TextureUsage const &usage = TextureUsage()) override;
-	RenderTargetPtr default_render_target() override;
+	std::shared_ptr<Texture> create_texture(int width, int height, PixelFormat pixel_format, TextureUsage const &usage = TextureUsage()) override;
+	std::shared_ptr<RenderTarget> default_render_target() override;
 	/// The device's maxColorAttachments, or its maxFragmentOutputAttachments where that is fewer.
 	unsigned max_color_attachments() const override;
-	MaterialPtr create_material() override;
+	std::shared_ptr<Material> create_material() override;
 
 
 
@@ -136,7 +135,7 @@ public:
 	VkDevice device() const { return device_; }
 	/// Shared instance/device owner; every resource created here keeps a
 	/// reference so the device outlives it whatever the destruction order.
-	VulkanDeviceContextPtr const &device_context() const { return device_context_; }
+	std::shared_ptr<VulkanDeviceContext> const &device_context() const { return device_context_; }
 	uint32_t graphics_queue_family() const { return graphics_queue_family_; }
 	VkCommandBuffer active_command_buffer() const { return active_command_buffer_; }
 	VkPipelineLayout pipeline_layout() const;
@@ -178,8 +177,8 @@ public:
 
 	uint32_t update_joint_matrices(std::vector<rove::matrix<4,4>> const &joint_matrices);
 	uint32_t update_draw_constants(rove::matrix<4,4> const &world_view_projection, rove::matrix<4,4> const &world_matrix);
-	VkPipeline pipeline(VertexTraits const *traits, MaterialPtr const &material);
-	VkDescriptorSet material_descriptor_set(MaterialPtr const &material);
+	VkPipeline pipeline(VertexTraits const *traits, std::shared_ptr<Material> const &material);
+	VkDescriptorSet material_descriptor_set(std::shared_ptr<Material> const &material);
 	/// Binds a material's set for a draw: its blocks of the joint matrices (none: not skinned) and of the instances (none: not
 	/// instanced), of the draw constants and of the material parameters, and the frame's region of the frame constants.
 	void bind_descriptor_set(VkCommandBuffer command_buffer, VkDescriptorSet set, std::optional<uint32_t> joint_matrices_offset,
@@ -201,29 +200,29 @@ protected:
 	/// Ends the frame and submits it with no wait: the GPU draws it while the host builds the next frames, each in a share of
 	/// the host's memory of its own.  A download, a texture written, or wait_frames() waits for it.  One submit, as finish_frame().
 	void do_submit_frame() override;
-	void do_begin_pass(RenderTargetPtr const &target, RenderPassClearState const &clear_state, uint32_t pass_type) override;
+	void do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state, uint32_t pass_type) override;
 	void do_end_pass() override;
 	void do_set_viewport(int x, int y, int width, int height) override;
 	void do_set_frame_constants(void const *data, size_t size) override;
-	void do_set_global_texture(unsigned slot, TexturePtr const &texture, bool compare) override;
+	void do_set_global_texture(unsigned slot, std::shared_ptr<Texture> const &texture, bool compare) override;
 	void do_draw(DrawCall const &call) override;
 	/// The pass begun for secondary command buffers, one for each list: each from a pool of its own (a thread records it), of the
 	/// frame's share of the host's memory, reset when the share is taken again.
-	std::vector<DrawList *> do_begin_split_pass(RenderTargetPtr const &target, RenderPassClearState const &clear_state,
+	std::vector<DrawList *> do_begin_split_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state,
 		uint32_t pass_type, size_t lists) override;
 	void do_wait_frame(uint64_t serial) override;
 	bool do_frame_drawn(uint64_t serial) override;
 	/// Each texture's copy into its staging buffer, recorded into the frame's command buffer.
-	void do_download_in_frame(std::vector<TexturePtr> const &textures, std::vector<TextureRect> const &rects) override;
-	void do_finish_downloads(std::vector<TexturePtr> const &textures, std::vector<TextureRect> const &rects) override;
+	void do_download_in_frame(std::vector<std::shared_ptr<Texture>> const &textures, std::vector<TextureRect> const &rects) override;
+	void do_finish_downloads(std::vector<std::shared_ptr<Texture>> const &textures, std::vector<TextureRect> const &rects) override;
 	/// std::invalid_argument for a colour format the device cannot draw into, more layers than its maxImageArrayLayers, a cube larger than
 	/// its maxImageDimensionCube.
-	RenderTargetPtr do_create_render_target(int width, int height, RenderTargetFormat const &format) override;
+	std::shared_ptr<RenderTarget> do_create_render_target(int width, int height, RenderTargetFormat const &format) override;
 	/// Every texture's VulkanTexture::record_download() into one command buffer, submitted with one wait instead of
 	/// one per texture: each wait drains the pipeline (and a PCIe round trip on a discrete GPU).
-	void do_batch_download_textures(std::vector<TexturePtr> const &textures) override;
-	void do_batch_upload_textures(std::vector<TexturePtr> const &textures) override;
-	void do_stream_textures(std::vector<TexturePtr> const &textures) override;
+	void do_batch_download_textures(std::vector<std::shared_ptr<Texture>> const &textures) override;
+	void do_batch_upload_textures(std::vector<std::shared_ptr<Texture>> const &textures) override;
+	void do_stream_textures(std::vector<std::shared_ptr<Texture>> const &textures) override;
 	/// A VulkanGpuTimer: a frame's durations are read back when the renderer waits for the frame (finish_frame(), wait_frames(), or
 	/// the begin_frame() that takes its share back).
 	GpuTimer &gpu_timer() const override;
@@ -231,7 +230,7 @@ protected:
 private:
 	int screen_width_, screen_height_;
 
-	VulkanDeviceContextPtr device_context_;
+	std::shared_ptr<VulkanDeviceContext> device_context_;
 	VkInstance instance_;
 	VkPhysicalDevice physical_device_;
 	// Requested before pick_physical_device(), the chosen device's after it.
@@ -249,9 +248,9 @@ private:
 	// (made by the constructor, never null)
 	std::unique_ptr<VulkanPipelineBuilder> pipeline_builder_;
 
-	TexturePtr default_texture_;
+	std::shared_ptr<Texture> default_texture_;
 	std::unique_ptr<VulkanDynamicUniformBuffer> frame_constants_ubo_;
-	TexturePtr global_textures_[GLOBAL_TEXTURES_COUNT];
+	std::shared_ptr<Texture> global_textures_[GLOBAL_TEXTURES_COUNT];
 	bool global_compare_[GLOBAL_TEXTURES_COUNT] = {};      // global_shadow_texture: sampled with a comparison
 	bool anisotropy_enabled_ = false;
 	std::unique_ptr<VulkanDynamicUniformBuffer> joint_matrices_ubo_;
@@ -277,7 +276,7 @@ private:
 
 	friend class VulkanDrawList;
 	/// do_begin_pass(): the pass's draws recorded inline, or (@p split) in secondary command buffers.
-	void begin_render_pass(RenderTargetPtr const &target, RenderPassClearState const &clear_state, bool split);
+	void begin_render_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state, bool split);
 	/// A draw of @p call recorded into @p command_buffer, the frame's own or a list's: any thread, one for each command buffer.
 	/// What the threads share is taken a block at a time (the uniform buffers) or under cache_mutex_ (pipelines, descriptor sets).
 	/// @p list: the list the draw is of (none: the frame's own command buffer), which remembers each material's pipeline and
@@ -304,7 +303,7 @@ private:
 	VkCommandBuffer active_command_buffer_;
 	VkRenderPass active_pass_render_pass_;
 	uint32_t active_pass_color_attachments_ = 0;      // the colours of the pass's target, which its pipelines blend
-	RenderTargetPtr default_render_target_;
+	std::shared_ptr<RenderTarget> default_render_target_;
 
 
 	std::unique_ptr<VulkanGpuTimer> gpu_timer_;

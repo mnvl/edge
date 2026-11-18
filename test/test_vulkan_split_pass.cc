@@ -53,12 +53,12 @@ struct Rgba
 
 struct Rig
 {
-	VulkanRendererPtr renderer;
-	CameraPtr camera;
-	IndexBufferPtr indices;
-	VertexBufferPtr quad;
-	std::vector<TexturePtr> textures;
-	RenderTargetPtr target, other;
+	std::shared_ptr<VulkanRenderer> renderer;
+	std::shared_ptr<Camera> camera;
+	std::shared_ptr<IndexBuffer> indices;
+	std::shared_ptr<VertexBuffer> quad;
+	std::vector<std::shared_ptr<Texture>> textures;
+	std::shared_ptr<RenderTarget> target, other;
 
 	explicit Rig(int frames_in_flight = 1):
 		renderer(new VulkanRenderer(64, 64, std::string(), std::vector<std::string>(), frames_in_flight))
@@ -86,7 +86,7 @@ struct Rig
 		uint32_t const colours[COLOURS] = {0xFFFF0000u, 0xFF00FF00u, 0xFF0000FFu, 0xFFFFFF00u};
 		for (uint32_t colour : colours)
 		{
-			TexturePtr texture = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8);
+			std::shared_ptr<Texture> texture = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8);
 			auto mapping = texture->write(Contents::DISCARD);
 			uint32_t *p = mapping.as<uint32_t>().data();
 			BOOST_REQUIRE(p);
@@ -100,9 +100,9 @@ struct Rig
 	}
 
 	/// A material of its own for every call: each is a descriptor set the renderer has not made when its first draw comes.
-	MaterialPtr material(int colour) const
+	std::shared_ptr<Material> material(int colour) const
 	{
-		MaterialPtr m = renderer->create_material();
+		std::shared_ptr<Material> m = renderer->create_material();
 		m->set_cull_mode(Material::CullMode::NONE);
 		m->set_shader_program(renderer->create_shader_program(edge::test_shader("test_frame.vert"), edge::test_shader("test_sample.frag")));
 		m->set_diffuse_texture(textures[static_cast<size_t>(colour)]);
@@ -112,14 +112,14 @@ struct Rig
 	/// Tile @p tile's quad: as wide a share of its viewport as the tile's column says and as high as its row says (each step two
 	/// pixels), in the tile's colour; @p variant moves every tile's shape and colour on by one.  Its shape rides in the draw
 	/// constants, its colour in the material's descriptor set.
-	DrawCallPtr tile_call(int tile, int variant) const
+	std::shared_ptr<DrawCall> tile_call(int tile, int variant) const
 	{
 		int const side = SIZE / TILE;
 		rove::matrix<4, 4> world;
 		world.identity();
 		world.scale(static_cast<float>((tile + variant) % side + 1) / static_cast<float>(side),
 			static_cast<float>(tile / side + 1) / static_cast<float>(side), 1.0f);
-		DrawCallPtr c = renderer->create_draw_call();
+		std::shared_ptr<DrawCall> c = renderer->create_draw_call();
 		c->set_world_matrix(world);
 		c->set_vertex_buffer(quad);
 		c->set_index_buffer(indices);
@@ -145,7 +145,7 @@ struct Rig
 	}
 
 	/// Every tile through the renderer, one after another.
-	void inline_pass(RenderTargetPtr const &into, int variant = 0) const
+	void inline_pass(std::shared_ptr<RenderTarget> const &into, int variant = 0) const
 	{
 		renderer->begin_pass(into, clear());
 		for (int tile = 0; tile < TILES; ++tile)
@@ -153,7 +153,7 @@ struct Rig
 			int x, y;
 			tile_rect(tile, x, y);
 			renderer->set_viewport(x, y, TILE, TILE);
-			DrawCallPtr const c = tile_call(tile, variant);
+			std::shared_ptr<DrawCall> const c = tile_call(tile, variant);
 			for (int i = 0; i < REPEATS; ++i)
 				c->execute();
 		}
@@ -161,7 +161,7 @@ struct Rig
 	}
 
 	/// Every tile in @p lists lists, each recorded by a thread of its own, all at once: list l draws the tiles l, l + lists, ...
-	void split_pass(RenderTargetPtr const &into, int lists, int variant = 0) const
+	void split_pass(std::shared_ptr<RenderTarget> const &into, int lists, int variant = 0) const
 	{
 		std::vector<DrawList *> const draw_lists = renderer->begin_split_pass(into, clear(), 0, static_cast<size_t>(lists));
 		BOOST_REQUIRE_EQUAL(draw_lists.size(), static_cast<size_t>(lists));
@@ -179,7 +179,7 @@ struct Rig
 						int x, y;
 						tile_rect(tile, x, y);
 						draw_lists[static_cast<size_t>(l)]->set_viewport(x, y, TILE, TILE);
-						DrawCallPtr const c = tile_call(tile, variant);
+						std::shared_ptr<DrawCall> const c = tile_call(tile, variant);
 						for (int i = 0; i < REPEATS; ++i)
 							scheduler.add(c);
 						scheduler.flush(*draw_lists[static_cast<size_t>(l)]);
@@ -199,7 +199,7 @@ struct Rig
 				std::rethrow_exception(error);
 	}
 
-	std::vector<Rgba> pixels(RenderTargetPtr const &of) const
+	std::vector<Rgba> pixels(std::shared_ptr<RenderTarget> const &of) const
 	{
 		auto mapping = of->color_texture()->read();
 		Rgba const *p = mapping.as<Rgba const>().data();
@@ -207,7 +207,7 @@ struct Rig
 		return std::vector<Rgba>(p, p + SIZE * SIZE);
 	}
 
-	std::vector<Rgba> downloaded(RenderTargetPtr const &of) const
+	std::vector<Rgba> downloaded(std::shared_ptr<RenderTarget> const &of) const
 	{
 		renderer->batch_download_textures({of->color_texture()});
 		return pixels(of);
@@ -293,10 +293,10 @@ BOOST_AUTO_TEST_CASE(split_passes_frame_after_frame_and_two_in_a_frame)
 BOOST_AUTO_TEST_CASE(a_split_pass_is_drawn_through_its_lists_only)
 {
 	Rig rig;
-	DrawCallPtr const call = rig.tile_call(TILES - 1, 0);        // the last tile's quad covers its viewport: here the target
+	std::shared_ptr<DrawCall> const call = rig.tile_call(TILES - 1, 0);        // the last tile's quad covers its viewport: here the target
 	rig.renderer->begin_frame();
 	BOOST_CHECK_THROW(rig.renderer->begin_split_pass(rig.target, Rig::clear(), 0, 0), std::invalid_argument);
-	BOOST_CHECK_THROW(rig.renderer->begin_split_pass(RenderTargetPtr(), Rig::clear(), 0, 2), std::invalid_argument);
+	BOOST_CHECK_THROW(rig.renderer->begin_split_pass(std::shared_ptr<RenderTarget>(), Rig::clear(), 0, 2), std::invalid_argument);
 	BOOST_CHECK(!rig.renderer->in_pass());
 	std::vector<DrawList *> const lists = rig.renderer->begin_split_pass(rig.target, Rig::clear(), 0, 2);
 	BOOST_CHECK(rig.renderer->in_split_pass());
@@ -305,7 +305,7 @@ BOOST_AUTO_TEST_CASE(a_split_pass_is_drawn_through_its_lists_only)
 	BOOST_CHECK_THROW(rig.renderer->begin_split_pass(rig.target, Rig::clear(), 0, 2), std::logic_error);
 	BOOST_CHECK_THROW(lists[0]->set_viewport(SIZE - TILE + 1, 0, TILE, TILE), std::out_of_range);
 	BOOST_CHECK_THROW(lists[0]->set_viewport(0, 0, 0, TILE), std::out_of_range);
-	DrawCallPtr const uncommitted = rig.renderer->create_draw_call();
+	std::shared_ptr<DrawCall> const uncommitted = rig.renderer->create_draw_call();
 	BOOST_CHECK_THROW(uncommitted->execute(*lists[1]), std::logic_error);
 	call->execute(*lists[1]);
 	rig.renderer->end_pass();
@@ -393,7 +393,7 @@ BOOST_AUTO_TEST_CASE(frames_in_flight_are_downloaded_each_when_it_is_drawn)
 BOOST_AUTO_TEST_CASE(a_download_of_rectangles_takes_them_and_leaves_the_rest)
 {
 	Rig rig;
-	std::vector<TexturePtr> const textures{rig.target->color_texture()};
+	std::vector<std::shared_ptr<Texture>> const textures{rig.target->color_texture()};
 	rig.renderer->begin_frame();
 	rig.inline_pass(rig.target, 0);
 	rig.renderer->finish_frame();
@@ -444,14 +444,14 @@ BOOST_AUTO_TEST_CASE(a_download_of_rectangles_takes_them_and_leaves_the_rest)
 BOOST_AUTO_TEST_CASE(downloads_and_waits_out_of_place_are_refused)
 {
 	Rig rig;
-	std::vector<TexturePtr> const textures{rig.target->color_texture()};
+	std::vector<std::shared_ptr<Texture>> const textures{rig.target->color_texture()};
 	BOOST_CHECK_THROW(rig.renderer->download_in_frame(textures), std::logic_error);       // outside a frame
 	BOOST_CHECK_THROW(rig.renderer->wait_frame(0), std::logic_error);
 	BOOST_CHECK_THROW(rig.renderer->wait_frame(1), std::logic_error);                     // not begun
 	rig.renderer->begin_frame();
 	// a texture nothing was uploaded to or drawn into has nothing on the GPU to download
 	BOOST_CHECK_THROW(rig.renderer->download_in_frame({rig.renderer->create_texture(4, 4, PixelFormat::A8R8G8B8)}), std::logic_error);
-	BOOST_CHECK_THROW(rig.renderer->download_in_frame({TexturePtr()}), std::invalid_argument);
+	BOOST_CHECK_THROW(rig.renderer->download_in_frame({std::shared_ptr<Texture>()}), std::invalid_argument);
 	BOOST_CHECK_THROW(rig.renderer->wait_frame(rig.renderer->frame_serial()), std::logic_error);      // the open frame
 	BOOST_CHECK_THROW(rig.renderer->frame_drawn(rig.renderer->frame_serial()), std::logic_error);
 	rig.renderer->begin_pass(rig.target, Rig::clear());

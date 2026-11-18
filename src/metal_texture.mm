@@ -56,7 +56,7 @@ size_t row_bytes(MetalFormat const &format, int width)
 
 }
 
-MetalTexture::MetalTexture(MetalContextPtr const &context, int width, int height, PixelFormat pixel_format, TextureUsage const &usage):
+MetalTexture::MetalTexture(std::shared_ptr<MetalContext> const &context, int width, int height, PixelFormat pixel_format, TextureUsage const &usage):
 	Texture(width, height, pixel_format, usage),
 	context_(context),
 	impl_(new Impl)
@@ -113,7 +113,7 @@ TextureUsage layered_usage(int layers)
 
 }
 
-MetalTexture::MetalTexture(MetalContextPtr const &context, int width, int height, PixelFormat pixel_format, Layers layers):
+MetalTexture::MetalTexture(std::shared_ptr<MetalContext> const &context, int width, int height, PixelFormat pixel_format, Layers layers):
 	Texture(width, height, pixel_format, layered_usage(layers.count)),
 	context_(context),
 	impl_(new Impl)
@@ -130,7 +130,7 @@ MetalTexture::MetalTexture(MetalContextPtr const &context, int width, int height
 	make_texture(layers.cube ? 0 : layers.count);
 }
 
-MetalTexture::MetalTexture(MetalContextPtr const &context, int width, int height, Depth, Layers layers, bool readable):
+MetalTexture::MetalTexture(std::shared_ptr<MetalContext> const &context, int width, int height, Depth, Layers layers, bool readable):
 	Texture(width, height, PixelFormat::R32F, layered_usage(layers.count)),
 	context_(context),
 	impl_(new Impl),

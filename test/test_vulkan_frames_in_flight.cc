@@ -52,16 +52,16 @@ bool near(float a, float b)
 	return std::fabs(a - b) < 1.0e-3f;
 }
 
-VulkanRendererPtr renderer_with(int frames_in_flight)
+std::shared_ptr<VulkanRenderer> renderer_with(int frames_in_flight)
 {
-	VulkanRendererPtr renderer(new VulkanRenderer(64, 64, std::string(), std::vector<std::string>(), frames_in_flight));
+	std::shared_ptr<VulkanRenderer> renderer(new VulkanRenderer(64, 64, std::string(), std::vector<std::string>(), frames_in_flight));
 	return renderer;
 }
 
 /// A quad over x0..x1 of the target and all of its height, UVs 0..1 across it.
-VertexBufferPtr quad(VulkanRendererPtr const &renderer, float x0, float x1)
+std::shared_ptr<VertexBuffer> quad(std::shared_ptr<VulkanRenderer> const &renderer, float x0, float x1)
 {
-	VertexBufferPtr vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	VERTEX_PT *v = vb_mapping.as<VERTEX_PT>().data();
 	BOOST_REQUIRE(v);
@@ -80,15 +80,15 @@ int band_column(int k) { return (2 * k + 1) * SIZE / (2 * FRAMES); }
 
 struct Rig
 {
-	VulkanRendererPtr renderer;
-	CameraPtr camera;
-	IndexBufferPtr indices;
-	VertexBufferPtr whole;
-	MaterialPtr constants;       // the frame constants' first vec4, plus the second's x on red
-	MaterialPtr red;             // a red texture
-	TexturePtr red_texture;
-	std::vector<RenderTargetPtr> targets;
-	RenderTargetPtr scratch;     // where busy() keeps the GPU drawing
+	std::shared_ptr<VulkanRenderer> renderer;
+	std::shared_ptr<Camera> camera;
+	std::shared_ptr<IndexBuffer> indices;
+	std::shared_ptr<VertexBuffer> whole;
+	std::shared_ptr<Material> constants;       // the frame constants' first vec4, plus the second's x on red
+	std::shared_ptr<Material> red;             // a red texture
+	std::shared_ptr<Texture> red_texture;
+	std::vector<std::shared_ptr<RenderTarget>> targets;
+	std::shared_ptr<RenderTarget> scratch;     // where busy() keeps the GPU drawing
 
 	explicit Rig(int frames_in_flight):
 		renderer(renderer_with(frames_in_flight))
@@ -122,23 +122,23 @@ struct Rig
 	void busy() const
 	{
 		renderer->begin_pass(scratch);
-		DrawCallPtr const load = call(whole, constants);
+		std::shared_ptr<DrawCall> const load = call(whole, constants);
 		for (int i = 0; i < LOAD; ++i)
 			load->execute();
 		renderer->end_pass();
 	}
 
-	MaterialPtr material(std::string const &fragment) const
+	std::shared_ptr<Material> material(std::string const &fragment) const
 	{
-		MaterialPtr m = renderer->create_material();
+		std::shared_ptr<Material> m = renderer->create_material();
 		m->set_cull_mode(Material::CullMode::NONE);
 		m->set_shader_program(renderer->create_shader_program(edge::test_shader("test_frame.vert"), fragment));
 		return m;
 	}
 
-	DrawCallPtr call(VertexBufferPtr const &vb, MaterialPtr const &m, rove::matrix<4, 4> const *world = nullptr) const
+	std::shared_ptr<DrawCall> call(std::shared_ptr<VertexBuffer> const &vb, std::shared_ptr<Material> const &m, rove::matrix<4, 4> const *world = nullptr) const
 	{
-		DrawCallPtr c = renderer->create_draw_call();
+		std::shared_ptr<DrawCall> c = renderer->create_draw_call();
 		if (world)
 			c->set_world_matrix(*world);
 		c->set_vertex_buffer(vb);
@@ -152,16 +152,16 @@ struct Rig
 	}
 
 	/// Frame k's pass into its target, after a busy() one: the load, in the frame constants' colour, then what `then` draws over it.
-	void pass(int k, std::vector<DrawCallPtr> const &then = {}) const
+	void pass(int k, std::vector<std::shared_ptr<DrawCall>> const &then = {}) const
 	{
 		busy();
 		RenderPassClearState clear;
 		clear.clear_color_r = clear.clear_color_g = clear.clear_color_b = clear.clear_color_a = -1.0f;
 		renderer->begin_pass(targets[k], clear);
-		DrawCallPtr const load = call(whole, constants);
+		std::shared_ptr<DrawCall> const load = call(whole, constants);
 		for (int i = 0; i < LOAD; ++i)
 			load->execute();
-		for (DrawCallPtr const &c : then)
+		for (std::shared_ptr<DrawCall> const &c : then)
 			c->execute();
 		renderer->end_pass();
 	}
@@ -169,12 +169,12 @@ struct Rig
 	/// Every target's pixels, downloaded together (which waits for every frame submitted).
 	std::vector<std::vector<Rgba>> pictures() const
 	{
-		std::vector<TexturePtr> textures;
-		for (RenderTargetPtr const &t : targets)
+		std::vector<std::shared_ptr<Texture>> textures;
+		for (std::shared_ptr<RenderTarget> const &t : targets)
 			textures.push_back(t->color_texture());
 		renderer->batch_download_textures(textures);
 		std::vector<std::vector<Rgba>> out;
-		for (TexturePtr const &t : textures)
+		for (std::shared_ptr<Texture> const &t : textures)
 		{
 			auto t_mapping = t->read();
 			Rgba const *pixels = t_mapping.as<Rgba const>().data();
@@ -253,9 +253,9 @@ void check_constants_set_once_persist(Rig const &rig, int n)
 /// the host stages the next frames' bytes.
 void check_geometry_written_between_frames_is_isolated(Rig const &rig, int n)
 {
-	VertexBufferPtr const marker = quad(rig.renderer, band_x0(0), band_x1(0));
+	std::shared_ptr<VertexBuffer> const marker = quad(rig.renderer, band_x0(0), band_x1(0));
 	// staged first, larger each frame: a frame's bulk reaches over where the frames before it put their marker
-	std::vector<VertexBufferPtr> bulks;
+	std::vector<std::shared_ptr<VertexBuffer>> bulks;
 	for (int k = 0; k < FRAMES; ++k)
 	{
 		size_t const bulk_size = sizeof(VERTEX_PT) * 256 * size_t(k + 1);
@@ -284,7 +284,7 @@ void check_geometry_written_between_frames_is_isolated(Rig const &rig, int n)
 /// The draw constants are written while the frame is recorded: frame k's must not land on those of a frame still drawn.
 void check_each_draw_keeps_its_world_matrix(Rig const &rig, int n)
 {
-	VertexBufferPtr const marker = quad(rig.renderer, band_x0(0), band_x1(0));
+	std::shared_ptr<VertexBuffer> const marker = quad(rig.renderer, band_x0(0), band_x1(0));
 	for (int k = 0; k < FRAMES; ++k)
 	{
 		rove::matrix<4, 4> world;
@@ -301,15 +301,15 @@ void check_dropped_resources_do_not_affect_frames_in_flight(Rig const &rig, int 
 {
 	for (int k = 0; k < FRAMES; ++k)
 	{
-		VertexBufferPtr marker = quad(rig.renderer, band_x0(k), band_x1(k));
-		TexturePtr texture = rig.renderer->create_texture(4, 4, PixelFormat::A8R8G8B8);
+		std::shared_ptr<VertexBuffer> marker = quad(rig.renderer, band_x0(k), band_x1(k));
+		std::shared_ptr<Texture> texture = rig.renderer->create_texture(4, 4, PixelFormat::A8R8G8B8);
 		auto texture_mapping = texture->write(Contents::DISCARD);
 		uint32_t *p = texture_mapping.as<uint32_t>().data();
 		BOOST_REQUIRE(p);
 		for (int i = 0; i < 16; ++i)
 			p[i] = 0xFFFF0000u;
 		texture_mapping.unmap();
-		MaterialPtr m = rig.material(edge::test_shader("test_sample.frag"));
+		std::shared_ptr<Material> m = rig.material(edge::test_shader("test_sample.frag"));
 		m->set_diffuse_texture(texture);
 		rig.renderer->begin_frame();
 		rig.pass(k, {rig.call(marker, m)});
@@ -422,7 +422,7 @@ BOOST_AUTO_TEST_CASE(the_sets_of_dropped_materials_are_freed_once_their_frames_a
 	size_t const base = rig.renderer->material_descriptor_set_count();
 	for (int k = 0; k < 200; ++k)
 	{
-		MaterialPtr m = rig.material(edge::test_shader("test_sample.frag"));
+		std::shared_ptr<Material> m = rig.material(edge::test_shader("test_sample.frag"));
 		m->set_diffuse_texture(rig.red_texture);
 		rig.renderer->begin_frame();
 		RenderPassClearState clear;

@@ -55,7 +55,7 @@ BOOST_AUTO_TEST_SUITE(gles_context)
 
 BOOST_AUTO_TEST_CASE(a_renderer_needs_a_context)
 {
-	BOOST_CHECK_THROW(GLESRenderer(8, 8, ".", GLESContextPtr()), std::invalid_argument);
+	BOOST_CHECK_THROW(GLESRenderer(8, 8, ".", std::shared_ptr<GLESContext>()), std::invalid_argument);
 }
 
 BOOST_AUTO_TEST_CASE(a_renderer_works_in_any_context_the_host_gives_it)

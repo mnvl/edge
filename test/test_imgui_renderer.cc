@@ -35,10 +35,10 @@ constexpr uint32_t RED = 0x00FF0000u;
 template <class F> struct Ui
 {
 	F fixture;
-	RendererPtr renderer;
+	std::shared_ptr<Renderer> renderer;
 	ImGuiContext *context = nullptr;
 	std::unique_ptr<ImGuiRenderer> ui;
-	RenderTargetPtr target;
+	std::shared_ptr<RenderTarget> target;
 
 	Ui()
 	{
@@ -82,7 +82,7 @@ template <class F> struct Ui
 		ui->draw();
 		renderer->end_pass();
 		renderer->finish_frame();
-		TexturePtr const colour = target->color_texture();
+		std::shared_ptr<Texture> const colour = target->color_texture();
 		colour->download();
 		auto colour_mapping = colour->read();
 		uint32_t const *texels = colour_mapping.as<uint32_t const>().data();
@@ -103,9 +103,9 @@ template <class F> struct Ui
 };
 
 /// A 2 x 2 texture: red, green over blue, white.
-TexturePtr quad(RendererPtr const &renderer)
+std::shared_ptr<Texture> quad(std::shared_ptr<Renderer> const &renderer)
 {
-	TexturePtr t = renderer->create_texture(2, 2, PixelFormat::A8R8G8B8);
+	std::shared_ptr<Texture> t = renderer->create_texture(2, 2, PixelFormat::A8R8G8B8);
 	auto t_mapping = t->write(Contents::DISCARD);
 	auto *texels = t_mapping.as<unsigned char>().data();
 	unsigned char const bgra[4][4] = {{0, 0, 255, 255}, {0, 255, 0, 255}, {255, 0, 0, 255}, {255, 255, 255, 255}};

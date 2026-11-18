@@ -17,7 +17,7 @@ namespace edge
 /// with the translations of edge's SPIR-V (EDGE_METAL_SHADER_DIR) and of the tests' own beside their .spv.
 struct MetalFixture
 {
-	MetalRendererPtr renderer;
+	std::shared_ptr<MetalRenderer> renderer;
 	std::string error;
 
 	MetalFixture()

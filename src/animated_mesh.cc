@@ -29,7 +29,7 @@ template <skinned_vertex_layout V>
 BasicAnimatedMesh<V>::~BasicAnimatedMesh() = default;
 
 template <skinned_vertex_layout V>
-MeshPtr BasicAnimatedMesh<V>::shallow_copy() const
+std::shared_ptr<Mesh> BasicAnimatedMesh<V>::shallow_copy() const
 {
 	std::shared_ptr<BasicAnimatedMesh<V>> copy(new BasicAnimatedMesh(*this));
 	copy->unshare_morphed_vertex_array();
@@ -168,7 +168,7 @@ rove::obb<3> BasicAnimatedMesh<V>::placed_pose_bounds(rove::matrix<4,4> const &w
 }
 
 template <skinned_vertex_layout V>
-rove::obb<3> BasicAnimatedMesh<V>::conservative_bounds(std::vector<JointPtr> const &, Joint const &,
+rove::obb<3> BasicAnimatedMesh<V>::conservative_bounds(std::vector<std::shared_ptr<Joint>> const &, Joint const &,
 	rove::matrix<4,4> const &world_matrix) const
 {
 	return placed_pose_bounds(world_matrix);
@@ -186,7 +186,7 @@ rove::aabb<3> const &BasicAnimatedMesh<V>::posed_bounds() const
 }
 
 template <skinned_vertex_layout V>
-std::vector<rove::matrix<4,4>> BasicAnimatedMesh<V>::skin_matrices(std::vector<JointPtr> const &joints) const
+std::vector<rove::matrix<4,4>> BasicAnimatedMesh<V>::skin_matrices(std::vector<std::shared_ptr<Joint>> const &joints) const
 {
 	// (what skins on the CPU reads the joints: a model in a cached pose builds them now)
 	if (Model const *model = Mesh::model())
@@ -293,7 +293,7 @@ CachedPose const &BasicAnimatedMesh<V>::cached_pose() const
 
 template <skinned_vertex_layout V>
 std::vector<typename BasicAnimatedMesh<V>::SkinnedVertex> BasicAnimatedMesh<V>::skin(
-	std::vector<JointPtr> const &joints) const
+	std::vector<std::shared_ptr<Joint>> const &joints) const
 {
 	std::vector<rove::matrix<4,4>> const skin_matrices = this->skin_matrices(joints);
 
@@ -314,7 +314,7 @@ std::vector<typename BasicAnimatedMesh<V>::SkinnedVertex> BasicAnimatedMesh<V>::
 }
 
 template <skinned_vertex_layout V>
-std::vector<V> BasicAnimatedMesh<V>::skinned_vertices(std::vector<JointPtr> const &joints) const
+std::vector<V> BasicAnimatedMesh<V>::skinned_vertices(std::vector<std::shared_ptr<Joint>> const &joints) const
 {
 	std::vector<rove::matrix<4,4>> const skin_matrices = this->skin_matrices(joints);
 
@@ -357,7 +357,7 @@ std::vector<V> BasicAnimatedMesh<V>::skinned_vertices(std::vector<JointPtr> cons
 }
 
 template <skinned_vertex_layout V>
-rove::aabb<3> BasicAnimatedMesh<V>::exact_bounds(std::vector<JointPtr> const &joints, Joint const &,
+rove::aabb<3> BasicAnimatedMesh<V>::exact_bounds(std::vector<std::shared_ptr<Joint>> const &joints, Joint const &,
 	rove::matrix<4,4> const &world_matrix) const
 {
 	if (this->base_vertices_.empty())
@@ -375,7 +375,7 @@ rove::aabb<3> BasicAnimatedMesh<V>::exact_bounds(std::vector<JointPtr> const &jo
 }
 
 template <skinned_vertex_layout V>
-void BasicAnimatedMesh<V>::insert_triangles(Mesh::octree_type &octree, int id, std::vector<JointPtr> const &joints,
+void BasicAnimatedMesh<V>::insert_triangles(Mesh::octree_type &octree, int id, std::vector<std::shared_ptr<Joint>> const &joints,
 	Joint const &, rove::matrix<4,4> const &world_matrix) const
 {
 	std::vector<SkinnedVertex> const vertices = skin(joints);
@@ -388,7 +388,7 @@ void BasicAnimatedMesh<V>::insert_triangles(Mesh::octree_type &octree, int id, s
 }
 
 template <skinned_vertex_layout V>
-void BasicAnimatedMesh<V>::draw(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera,
+void BasicAnimatedMesh<V>::draw(Scheduler &scheduler, Joint *joint_ptr, std::shared_ptr<Camera> const &camera,
 	rove::matrix<4,4> const &world_matrix, unsigned lod)
 {
 	// one palette for the calls (shared, not copied for each)
@@ -400,7 +400,7 @@ void BasicAnimatedMesh<V>::draw(Scheduler &scheduler, Joint *joint_ptr, CameraPt
 	typename Mesh::triangles_list_type const &level = this->triangles_of_lod(lod);
 	for (auto const &triangles : level)
 	{
-		UberDrawCallPtr draw_call = Mesh::model()->renderer()->create_uber_draw_call();
+		std::shared_ptr<UberDrawCall> draw_call = Mesh::model()->renderer()->create_uber_draw_call();
 		draw_call->set_obb(bounds);
 		draw_call->set_vertex_buffer(this->vertex_array_->vertex_buffer());
 		draw_call->set_index_buffer(this->index_array_->index_buffer());
@@ -419,7 +419,7 @@ void BasicAnimatedMesh<V>::draw(Scheduler &scheduler, Joint *joint_ptr, CameraPt
 }
 
 template <skinned_vertex_layout V>
-void BasicAnimatedMesh<V>::draw_instances(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera,
+void BasicAnimatedMesh<V>::draw_instances(Scheduler &scheduler, Joint *joint_ptr, std::shared_ptr<Camera> const &camera,
 	std::vector<rove::matrix<4,4>> const &world_matrices, unsigned lod)
 {
 	if (world_matrices.empty())
@@ -433,7 +433,7 @@ void BasicAnimatedMesh<V>::draw_instances(Scheduler &scheduler, Joint *joint_ptr
 	typename Mesh::triangles_list_type const &level = this->triangles_of_lod(lod);
 	for (auto const &triangles : level)
 	{
-		UberDrawCallPtr draw_call = Mesh::model()->renderer()->create_uber_draw_call();
+		std::shared_ptr<UberDrawCall> draw_call = Mesh::model()->renderer()->create_uber_draw_call();
 		draw_call->set_obb(bounds);
 		draw_call->set_vertex_buffer(this->vertex_array_->vertex_buffer());
 		draw_call->set_index_buffer(this->index_array_->index_buffer());

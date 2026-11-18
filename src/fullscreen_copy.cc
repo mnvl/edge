@@ -17,7 +17,7 @@
 namespace edge
 {
 
-FullscreenCopy::FullscreenCopy(RendererPtr const &renderer):
+FullscreenCopy::FullscreenCopy(std::shared_ptr<Renderer> const &renderer):
 	renderer_(renderer)
 {
 	if (!renderer_)
@@ -46,7 +46,7 @@ FullscreenCopy::FullscreenCopy(RendererPtr const &renderer):
 	draw_->set_always_visible(true);
 }
 
-void FullscreenCopy::draw(TexturePtr const &source)
+void FullscreenCopy::draw(std::shared_ptr<Texture> const &source)
 {
 	if (!source)
 		throw std::invalid_argument("FullscreenCopy::draw: no texture");

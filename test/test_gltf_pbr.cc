@@ -32,28 +32,28 @@ std::string asset(std::string const &name)
 	return edge::TestFixture::graphic_sources_path() + "test/data/" + name;
 }
 
-std::shared_ptr<edge::ModelBuilder> load(edge::RendererPtr const &renderer, std::string const &name,
+std::shared_ptr<edge::ModelBuilder> load(std::shared_ptr<edge::Renderer> const &renderer, std::string const &name,
 	edge::GltfOptions const &options = edge::GltfOptions())
 {
-	edge::SchedulerPtr scheduler(new edge::Scheduler(renderer));
+	std::shared_ptr<edge::Scheduler> scheduler(new edge::Scheduler(renderer));
 	auto model = std::make_shared<edge::ModelBuilder>(renderer);
 	model->load_from_gltf(asset(name), options);
 	return model;
 }
 
-edge::RendererPtr null_renderer()
+std::shared_ptr<edge::Renderer> null_renderer()
 {
-	edge::RendererPtr renderer(new edge::NullRenderer(320, 200));
+	std::shared_ptr<edge::Renderer> renderer(new edge::NullRenderer(320, 200));
 	return renderer;
 }
 
-edge::MaterialPtr material(std::shared_ptr<edge::ModelBuilder> const &model, std::string const &name)
+std::shared_ptr<edge::Material> material(std::shared_ptr<edge::ModelBuilder> const &model, std::string const &name)
 {
 	for (auto const &m : model->materials())
 		if (m->name() == name)
 			return m;
 	BOOST_FAIL("no material " << name);
-	return edge::MaterialPtr();
+	return std::shared_ptr<edge::Material>();
 }
 
 edge::GltfOptions game_options()
@@ -130,14 +130,14 @@ BOOST_AUTO_TEST_CASE(a_texture_that_cannot_be_loaded_is_an_error)
 
 BOOST_AUTO_TEST_CASE(a_model_cache_loads_with_its_options)
 {
-	edge::RendererPtr renderer = null_renderer();
-	edge::SchedulerPtr scheduler(new edge::Scheduler(renderer));
+	std::shared_ptr<edge::Renderer> renderer = null_renderer();
+	std::shared_ptr<edge::Scheduler> scheduler(new edge::Scheduler(renderer));
 	edge::ModelCache plain(renderer), game(renderer, game_options());
 	auto find = [](auto const &model) {
 		for (auto const &m : model->materials())
 			if (m->name() == "pbr")
 				return m;
-		return edge::MaterialPtr();
+		return std::shared_ptr<edge::Material>();
 	};
 	auto a = find(plain.load<edge::StaticModelPTBNT>(asset("test_gltf_loader_pbr.glb")));
 	auto b = find(game.load<edge::StaticModelPTBNT>(asset("test_gltf_loader_pbr.glb")));
@@ -153,7 +153,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(loaded_textures_without_cpu_copy_cannot_be_locked,
 	auto const &renderer = fixture.renderer;
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
 	auto pbr = material(load(renderer, "test_gltf_loader_pbr.glb", game_options()), "pbr");
-	edge::TexturePtr t = pbr->diffuse_texture();
+	std::shared_ptr<edge::Texture> t = pbr->diffuse_texture();
 	BOOST_CHECK_EQUAL(t->mip_levels(), 3);
 	BOOST_CHECK_THROW((void)t->write(edge::Contents::DISCARD), std::logic_error);
 	BOOST_CHECK_THROW(t->download(), std::logic_error);

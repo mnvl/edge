@@ -52,7 +52,7 @@ public:
 	/// app goes to the background; the swapchain is let go and the surface is to be detached, the window's next attached).
 	/// std::logic_error without a surface, on a lost one, or for an image in a layout it cannot be copied from;
 	/// std::invalid_argument for a texture of another renderer or a negative size.
-	bool present(TexturePtr const &frame, int width, int height);
+	bool present(Texture &frame, int width, int height);
 	/// Whether the surface attached was lost presenting (until it is detached).
 	bool surface_lost() const { return lost_; }
 	/// Waits for the last copy present() made, if any is still running.

@@ -65,7 +65,7 @@ private:
 /// The line as a texture of the colours (r, g, b, a) blended by its coverage over the background's,
 /// as big as its mask; a texel of the background for a line of nothing.
 [[deprecated("a texture per line of text: rasterise() into an atlas, or Dear ImGui (edge_imgui)")]]
-TexturePtr make_text_texture(RendererPtr const &renderer, Font const &font, std::string const &line,
+std::shared_ptr<Texture> make_text_texture(std::shared_ptr<Renderer> const &renderer, Font const &font, std::string const &line,
 	rove::vec<4> const &text_color, rove::vec<4> const &background_color);
 
 // 1) Points must be passed in clockwise order:
@@ -75,7 +75,7 @@ TexturePtr make_text_texture(RendererPtr const &renderer, Font const &font, std:
 //
 // 2) User should set camera for draw call and commit() it.
 [[deprecated("a texture and a draw call per line of text: rasterise() into an atlas, or Dear ImGui (edge_imgui)")]]
-DrawCallPtr make_text_draw_call(RendererPtr const &renderer, Font const &font, rove::vec<3> const &p1,
+std::shared_ptr<DrawCall> make_text_draw_call(std::shared_ptr<Renderer> const &renderer, Font const &font, rove::vec<3> const &p1,
 	rove::vec<3> const &p2, rove::vec<3> const &p3, rove::vec<3> const &p4, std::string const &line,
 	rove::vec<4> const &text_color, rove::vec<4> const &background_color);
 

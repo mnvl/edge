@@ -46,8 +46,8 @@ std::string asset(std::string const &name)
 
 struct Files
 {
-	edge::RendererPtr renderer = [] { edge::RendererPtr r(new edge::NullRenderer(64, 64)); return r; }();
-	edge::SchedulerPtr scheduler = std::make_shared<edge::Scheduler>(renderer);
+	std::shared_ptr<edge::Renderer> renderer = [] { std::shared_ptr<edge::Renderer> r(new edge::NullRenderer(64, 64)); return r; }();
+	std::shared_ptr<edge::Scheduler> scheduler = std::make_shared<edge::Scheduler>(renderer);
 	std::filesystem::path const dir = std::filesystem::temp_directory_path() / ("edge_untrusted_" + std::to_string(reinterpret_cast<std::uintptr_t>(this)));
 	std::filesystem::path const file = dir / "model.edge";
 
@@ -78,7 +78,7 @@ struct Files
 
 	void draw(edge::Model &model)
 	{
-		edge::CameraPtr const camera = std::make_shared<edge::Camera>();
+		std::shared_ptr<edge::Camera> const camera = std::make_shared<edge::Camera>();
 		rove::matrix<4, 4> world;
 		world.identity();
 		scheduler->clear();
@@ -315,20 +315,20 @@ BOOST_FIXTURE_TEST_CASE(a_texture_of_no_size_or_of_a_negative_size_is_refused, F
 
 BOOST_FIXTURE_TEST_CASE(save_to_file_refuses_a_format_it_cannot_write, Files)
 {
-	edge::TexturePtr const small = renderer->create_texture(64, 64, edge::PixelFormat::R8UI, edge::TextureUsage());
-	BOOST_CHECK_THROW(edge::Texture::save_to_file(small, (dir / "a.png").string()), std::invalid_argument);
+	std::shared_ptr<edge::Texture> const small = renderer->create_texture(64, 64, edge::PixelFormat::R8UI, edge::TextureUsage());
+	BOOST_CHECK_THROW(edge::Texture::save_to_file(*small, (dir / "a.png").string()), std::invalid_argument);
 	BOOST_TEST(!std::filesystem::exists(dir / "a.png"));
-	edge::TexturePtr const wide = renderer->create_texture(4, 4, edge::PixelFormat::R32G32B32A32F, edge::TextureUsage());
-	BOOST_CHECK_THROW(edge::Texture::save_to_file(wide, (dir / "b.png").string()), std::invalid_argument);
+	std::shared_ptr<edge::Texture> const wide = renderer->create_texture(4, 4, edge::PixelFormat::R32G32B32A32F, edge::TextureUsage());
+	BOOST_CHECK_THROW(edge::Texture::save_to_file(*wide, (dir / "b.png").string()), std::invalid_argument);
 }
 
 BOOST_FIXTURE_TEST_CASE(save_to_file_writes_what_its_extension_says, Files)
 {
 	edge::TextureUsage usage;
 	usage.keep_cpu_copy = true;
-	edge::TexturePtr const texture = renderer->create_texture(4, 4, edge::PixelFormat::A8R8G8B8, usage);
+	std::shared_ptr<edge::Texture> const texture = renderer->create_texture(4, 4, edge::PixelFormat::A8R8G8B8, usage);
 	auto const header = [&](std::string const &name) {
-		edge::Texture::save_to_file(texture, (dir / name).string());
+		edge::Texture::save_to_file(*texture, (dir / name).string());
 		return bytes_of((dir / name).string());
 	};
 	BOOST_TEST(std::string(header("a.png").data() + 1, 3) == "PNG");
@@ -338,8 +338,8 @@ BOOST_FIXTURE_TEST_CASE(save_to_file_writes_what_its_extension_says, Files)
 	BOOST_TEST(static_cast<unsigned char>(header("a.jpeg")[1]) == 0xD8u);
 	BOOST_TEST(header("a.tga").size() > 18u);
 	// what it does not know is an error, not a BMP under another name
-	BOOST_CHECK_THROW(edge::Texture::save_to_file(texture, (dir / "a.xyz").string()), std::invalid_argument);
-	BOOST_CHECK_THROW(edge::Texture::save_to_file(texture, (dir / "noextension").string()), std::invalid_argument);
+	BOOST_CHECK_THROW(edge::Texture::save_to_file(*texture, (dir / "a.xyz").string()), std::invalid_argument);
+	BOOST_CHECK_THROW(edge::Texture::save_to_file(*texture, (dir / "noextension").string()), std::invalid_argument);
 }
 
 // --- glTF ------------------------------------------------------------------------------------------------------------------------

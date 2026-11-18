@@ -10,7 +10,7 @@
 namespace edge
 {
 
-GLESBufferStore::GLESBufferStore(GLESContextPtr const &context, size_t size, bool dynamic, GLenum target):
+GLESBufferStore::GLESBufferStore(std::shared_ptr<GLESContext> const &context, size_t size, bool dynamic, GLenum target):
 	bytes_(size, 0),
 	context_(context),
 	target_(target)
@@ -37,7 +37,7 @@ void GLESBufferStore::upload()
 }
 
 // A vertex buffer through a binding of its own, which no draw reads.
-GLESVertexBuffer::GLESVertexBuffer(GLESContextPtr const &context, VertexTraits const *traits, size_t size, bool dynamic):
+GLESVertexBuffer::GLESVertexBuffer(std::shared_ptr<GLESContext> const &context, VertexTraits const *traits, size_t size, bool dynamic):
 	store_(context, size, dynamic, GL_COPY_WRITE_BUFFER),
 	traits_(traits)
 {
@@ -45,7 +45,7 @@ GLESVertexBuffer::GLESVertexBuffer(GLESContextPtr const &context, VertexTraits c
 
 // An index buffer as indices (WebGL's rule, GLESBufferStore): that makes it the element buffer of the renderer's vertex array, which
 // every indexed draw binds its own over.
-GLESIndexBuffer::GLESIndexBuffer(GLESContextPtr const &context, IndexFormat index_format, size_t size, bool dynamic):
+GLESIndexBuffer::GLESIndexBuffer(std::shared_ptr<GLESContext> const &context, IndexFormat index_format, size_t size, bool dynamic):
 	store_(context, size, dynamic, GL_ELEMENT_ARRAY_BUFFER)
 {
 	if (index_format == IndexFormat::U16)

@@ -20,7 +20,7 @@ namespace edge
 namespace
 {
 
-VulkanDeviceContextPtr require_device_context(VulkanRenderer *renderer)
+std::shared_ptr<VulkanDeviceContext> require_device_context(VulkanRenderer *renderer)
 {
 	if (!renderer)
 	{
@@ -212,7 +212,7 @@ VulkanTexture::VulkanTexture(VulkanRenderer *renderer_ptr, int width, int height
 
 VulkanTexture::VulkanTexture(std::shared_ptr<VulkanTexture> const &depth, Stencil):
 	Texture(depth ? depth->width() : 0, depth ? depth->height() : 0, PixelFormat::R8UI, depth_usage()),
-	context_(depth ? depth->context_ : VulkanDeviceContextPtr()),
+	context_(depth ? depth->context_ : std::shared_ptr<VulkanDeviceContext>()),
 	image_(depth ? depth->image_ : VK_NULL_HANDLE),
 	image_memory_(VK_NULL_HANDLE),
 	image_view_(VK_NULL_HANDLE),

@@ -122,14 +122,14 @@ std::vector<GenericVertex> unpack_vertices(std::vector<std::uint8_t> const &byte
 	return vertices;
 }
 
-SerializedTexture export_texture(TexturePtr const &texture)
+SerializedTexture export_texture(Texture &texture)
 {
 	SerializedTexture result;
-	result.filename = texture->filename();
-	result.width = texture->width();
-	result.height = texture->height();
-	result.pixel_format = texture->pixel_format();
-	TextureUsage const &usage = texture->usage();
+	result.filename = texture.filename();
+	result.width = texture.width();
+	result.height = texture.height();
+	result.pixel_format = texture.pixel_format();
+	TextureUsage const &usage = texture.usage();
 	result.srgb = usage.srgb;
 	result.mipmaps = usage.mipmaps;
 	result.provided_mip_levels = usage.provided_mip_levels;
@@ -137,8 +137,8 @@ SerializedTexture export_texture(TexturePtr const &texture)
 	Mapping<Texture const> texels;
 	try
 	{
-		texture->download();
-		texels = std::as_const(*texture).read();
+		texture.download();
+		texels = std::as_const(texture).read();
 	}
 	catch (std::logic_error const &e)
 	{
@@ -149,7 +149,7 @@ SerializedTexture export_texture(TexturePtr const &texture)
 	return result;
 }
 
-TexturePtr import_texture(SerializedTexture const &serialized, RendererPtr const &renderer_ptr, bool keep_cpu_copy)
+std::shared_ptr<Texture> import_texture(SerializedTexture const &serialized, std::shared_ptr<Renderer> const &renderer_ptr, bool keep_cpu_copy)
 {
 	if (serialized.width <= 0 || serialized.height <= 0)
 	{
@@ -175,7 +175,7 @@ TexturePtr import_texture(SerializedTexture const &serialized, RendererPtr const
 	usage.mipmaps = serialized.mipmaps;
 	usage.keep_cpu_copy = keep_cpu_copy;
 	usage.provided_mip_levels = serialized.provided_mip_levels;
-	TexturePtr texture = renderer_ptr->create_texture(serialized.width, serialized.height, serialized.pixel_format, usage);
+	std::shared_ptr<Texture> texture = renderer_ptr->create_texture(serialized.width, serialized.height, serialized.pixel_format, usage);
 	auto texels = texture->write(Contents::DISCARD);
 	std::memcpy(texels.data(), serialized.pixels.data(), need);
 	texels.unmap();
@@ -183,59 +183,59 @@ TexturePtr import_texture(SerializedTexture const &serialized, RendererPtr const
 	return texture;
 }
 
-std::int64_t TextureTable::add(TexturePtr const &texture)
+std::int64_t TextureTable::add(Texture *texture)
 {
 	if (!texture)
 	{
 		return -1;
 	}
-	auto const [at, added] = index_.emplace(texture.get(), std::int64_t(textures_.size()));
+	auto const [at, added] = index_.emplace(texture, std::int64_t(textures_.size()));
 	if (added)
 	{
-		textures_.push_back(export_texture(texture));
+		textures_.push_back(export_texture(*texture));
 	}
 	return at->second;
 }
 
-SerializedMaterial export_material(MaterialPtr const &material_ptr, TextureTable &textures)
+SerializedMaterial export_material(Material const &material, TextureTable &textures)
 {
 	SerializedMaterial result;
-	result.name = material_ptr->name();
-	result.cull_mode = static_cast<int>(material_ptr->cull_mode());
-	result.zwrite_enabled = material_ptr->zwrite_enabled();
-	result.alpha_blend_enabled = material_ptr->alpha_blend_enabled();
-	result.preserve_destination_alpha = material_ptr->preserve_destination_alpha();
-	result.src_blend_mode = static_cast<int>(material_ptr->src_blend_mode());
-	result.dest_blend_mode = static_cast<int>(material_ptr->dest_blend_mode());
+	result.name = material.name();
+	result.cull_mode = static_cast<int>(material.cull_mode());
+	result.zwrite_enabled = material.zwrite_enabled();
+	result.alpha_blend_enabled = material.alpha_blend_enabled();
+	result.preserve_destination_alpha = material.preserve_destination_alpha();
+	result.src_blend_mode = static_cast<int>(material.src_blend_mode());
+	result.dest_blend_mode = static_cast<int>(material.dest_blend_mode());
 	for (std::size_t i = 0; i < Material::EXTRA_PARAMETERS_COUNT; ++i)
 	{
-		result.extra_parameters[i] = material_ptr->extra_parameter(i);
+		result.extra_parameters[i] = material.extra_parameter(i);
 	}
-	result.base_color_factor = material_ptr->base_color_factor();
-	result.metallic_factor = material_ptr->metallic_factor();
-	result.roughness_factor = material_ptr->roughness_factor();
-	result.emissive_factor = material_ptr->emissive_factor();
-	result.alpha_cutoff = material_ptr->alpha_cutoff();
-	result.normal_scale = material_ptr->normal_scale();
-	result.occlusion = material_ptr->occlusion();
-	result.occlusion_strength = material_ptr->occlusion_strength();
-	for (std::size_t i = 0; i < material_ptr->diffuse_textures_count(); ++i)
+	result.base_color_factor = material.base_color_factor();
+	result.metallic_factor = material.metallic_factor();
+	result.roughness_factor = material.roughness_factor();
+	result.emissive_factor = material.emissive_factor();
+	result.alpha_cutoff = material.alpha_cutoff();
+	result.normal_scale = material.normal_scale();
+	result.occlusion = material.occlusion();
+	result.occlusion_strength = material.occlusion_strength();
+	for (std::size_t i = 0; i < material.diffuse_textures_count(); ++i)
 	{
-		result.diffuse_textures.push_back(textures.add(material_ptr->diffuse_texture(i)));
+		result.diffuse_textures.push_back(textures.add(material.diffuse_texture(i).get()));
 	}
-	result.texture_blending_weights = textures.add(material_ptr->texture_blending_weights_texture());
-	result.normal_map = textures.add(material_ptr->normal_map_texture());
-	result.metallic_roughness = textures.add(material_ptr->metallic_roughness_texture());
-	result.emissive = textures.add(material_ptr->emissive_texture());
+	result.texture_blending_weights = textures.add(material.texture_blending_weights_texture().get());
+	result.normal_map = textures.add(material.normal_map_texture().get());
+	result.metallic_roughness = textures.add(material.metallic_roughness_texture().get());
+	result.emissive = textures.add(material.emissive_texture().get());
 	return result;
 }
 
-MaterialPtr import_material(SerializedMaterial const &serialized, std::vector<TexturePtr> const &textures, RendererPtr const &renderer_ptr)
+std::shared_ptr<Material> import_material(SerializedMaterial const &serialized, std::vector<std::shared_ptr<Texture>> const &textures, std::shared_ptr<Renderer> const &renderer_ptr)
 {
-	auto const texture = [&](std::int64_t index) -> TexturePtr {
+	auto const texture = [&](std::int64_t index) -> std::shared_ptr<Texture> {
 		if (index < 0)
 		{
-			return TexturePtr();
+			return std::shared_ptr<Texture>();
 		}
 		if (size_t(index) >= textures.size())
 		{
@@ -255,7 +255,7 @@ MaterialPtr import_material(SerializedMaterial const &serialized, std::vector<Te
 			std::to_string(serialized.dest_blend_mode));
 	}
 
-	MaterialPtr material_ptr = renderer_ptr->create_material();
+	std::shared_ptr<Material> material_ptr = renderer_ptr->create_material();
 	material_ptr->set_name(serialized.name);
 	material_ptr->set_cull_mode(static_cast<Material::CullMode>(serialized.cull_mode));
 	material_ptr->set_zwrite_enabled(serialized.zwrite_enabled);

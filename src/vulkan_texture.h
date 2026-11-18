@@ -101,7 +101,7 @@ protected:
 private:
 	// Keeps the device alive for as long as this texture holds images and
 	// allocations made from it, whichever is released last.
-	VulkanDeviceContextPtr context_;
+	std::shared_ptr<VulkanDeviceContext> context_;
 	VkImage image_;
 	VkDeviceMemory image_memory_;
 	VkImageView image_view_;

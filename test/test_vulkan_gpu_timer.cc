@@ -23,7 +23,7 @@ namespace
 
 void render_passes(VulkanRenderer &renderer, int count)
 {
-	RenderTargetPtr const target = renderer.create_render_target(64, 64, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const target = renderer.create_render_target(64, 64, PixelFormat::A8R8G8B8);
 	renderer.begin_frame();
 	for (int i = 0; i < count; ++i)
 	{
@@ -93,7 +93,7 @@ BOOST_AUTO_TEST_CASE(tracing_is_switched_between_frames_only)
 {
 	VulkanFixture f;
 	BOOST_REQUIRE_MESSAGE(f.renderer, f.error);
-	RenderTargetPtr const target = f.renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const target = f.renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
 	f.renderer->begin_frame();
 	BOOST_CHECK_THROW(f.renderer->set_gpu_trace_enabled(true), std::logic_error);
 	f.renderer->begin_pass(target);
@@ -136,7 +136,7 @@ BOOST_AUTO_TEST_CASE(tracing_can_be_turned_on_again_after_off)
 BOOST_AUTO_TEST_CASE(with_frames_in_flight_a_frame_s_times_come_when_it_is_waited_for)
 {
 	auto const renderer = std::make_shared<VulkanRenderer>(64, 64, std::string(), std::vector<std::string>(), 3);
-	RenderTargetPtr const target = renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
 	renderer->set_gpu_trace_enabled(true);
 	std::vector<uint64_t> frames;
 	for (int i = 0; i < 2; ++i)
@@ -165,7 +165,7 @@ BOOST_AUTO_TEST_CASE(with_frames_in_flight_a_frame_s_times_come_when_it_is_waite
 BOOST_AUTO_TEST_CASE(a_frame_in_flight_begun_untimed_gets_no_durations_when_tracing_is_on_by_its_read_back)
 {
 	auto const renderer = std::make_shared<VulkanRenderer>(64, 64, std::string(), std::vector<std::string>(), 2);
-	RenderTargetPtr const target = renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
 	renderer->begin_frame();
 	uint64_t const untimed = renderer->frame_serial();
 	renderer->begin_pass(target);
@@ -182,7 +182,7 @@ BOOST_AUTO_TEST_CASE(a_frame_in_flight_begun_untimed_gets_no_durations_when_trac
 BOOST_AUTO_TEST_CASE(frames_in_flight_when_tracing_is_turned_off_never_get_durations)
 {
 	auto const renderer = std::make_shared<VulkanRenderer>(64, 64, std::string(), std::vector<std::string>(), 3);
-	RenderTargetPtr const target = renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(64, 64, PixelFormat::A8R8G8B8);
 	auto const frame = [&]
 	{
 		renderer->begin_frame();

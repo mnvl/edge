@@ -50,7 +50,7 @@ rove::aabb<3> BasicStaticMesh<T>::transformed_bounds(rove::matrix<4,4> const &tr
 }
 
 template <vertex_layout T>
-rove::aabb<3> BasicStaticMesh<T>::exact_bounds(std::vector<JointPtr> const &, Joint const &owner,
+rove::aabb<3> BasicStaticMesh<T>::exact_bounds(std::vector<std::shared_ptr<Joint>> const &, Joint const &owner,
 	rove::matrix<4,4> const &world_matrix) const
 {
 	build_model_joints();
@@ -58,7 +58,7 @@ rove::aabb<3> BasicStaticMesh<T>::exact_bounds(std::vector<JointPtr> const &, Jo
 }
 
 template <vertex_layout T>
-rove::obb<3> BasicStaticMesh<T>::conservative_bounds(std::vector<JointPtr> const &, Joint const &owner,
+rove::obb<3> BasicStaticMesh<T>::conservative_bounds(std::vector<std::shared_ptr<Joint>> const &, Joint const &owner,
 	rove::matrix<4,4> const &world_matrix) const
 {
 	build_model_joints();
@@ -68,7 +68,7 @@ rove::obb<3> BasicStaticMesh<T>::conservative_bounds(std::vector<JointPtr> const
 }
 
 template <vertex_layout T>
-void BasicStaticMesh<T>::insert_triangles(octree_type &octree, int id, std::vector<JointPtr> const &,
+void BasicStaticMesh<T>::insert_triangles(octree_type &octree, int id, std::vector<std::shared_ptr<Joint>> const &,
 	Joint const &owner, rove::matrix<4,4> const &world_matrix) const
 {
 	build_model_joints();
@@ -81,7 +81,7 @@ void BasicStaticMesh<T>::insert_triangles(octree_type &octree, int id, std::vect
 }
 
 template <vertex_layout T>
-MeshPtr BasicStaticMesh<T>::shallow_copy() const
+std::shared_ptr<Mesh> BasicStaticMesh<T>::shallow_copy() const
 {
 	std::shared_ptr<BasicStaticMesh<T>> copy(new BasicStaticMesh<T>(*this));
 	copy->unshare_morphed_vertex_array();
@@ -140,13 +140,13 @@ void BasicStaticMesh<T>::check()
 }
 
 template <vertex_layout T>
-void BasicStaticMesh<T>::draw(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod)
+void BasicStaticMesh<T>::draw(Scheduler &scheduler, Joint *joint_ptr, std::shared_ptr<Camera> const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod)
 {
 	submit(scheduler, joint_ptr, camera, world_matrix, lod, nullptr);
 }
 
 template <vertex_layout T>
-void BasicStaticMesh<T>::draw_instances(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
+void BasicStaticMesh<T>::draw_instances(Scheduler &scheduler, Joint *joint_ptr, std::shared_ptr<Camera> const &camera, std::vector<rove::matrix<4,4>> const &world_matrices,
 	unsigned lod)
 {
 	if (world_matrices.empty())
@@ -156,7 +156,7 @@ void BasicStaticMesh<T>::draw_instances(Scheduler &scheduler, Joint *joint_ptr, 
 }
 
 template <vertex_layout T>
-void BasicStaticMesh<T>::submit(Scheduler &scheduler, Joint *joint_ptr, CameraPtr const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod,
+void BasicStaticMesh<T>::submit(Scheduler &scheduler, Joint *joint_ptr, std::shared_ptr<Camera> const &camera, rove::matrix<4,4> const &world_matrix, unsigned lod,
 	std::vector<rove::matrix<4,4>> const *instances)
 {
 	build_model_joints();
@@ -169,7 +169,7 @@ void BasicStaticMesh<T>::submit(Scheduler &scheduler, Joint *joint_ptr, CameraPt
 	triangles_list_type const &level = triangles_of_lod(lod);
 	for (auto const &triangles : level)
 	{
-		UberDrawCallPtr draw_call = Mesh::model()->renderer()->create_uber_draw_call();
+		std::shared_ptr<UberDrawCall> draw_call = Mesh::model()->renderer()->create_uber_draw_call();
 		draw_call->set_obb(bounds);
 
 		draw_call->set_vertex_buffer(vertex_array_->vertex_buffer());

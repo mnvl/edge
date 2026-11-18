@@ -36,12 +36,12 @@ uint32_t const BLUE = 0x000000FFu;
 // The left half of the screen: x from -1 to 0.
 struct LeftHalf
 {
-	VertexBufferPtr vb;
-	IndexBufferPtr ib;
-	CameraPtr camera;
-	RenderTargetPtr target;
+	std::shared_ptr<VertexBuffer> vb;
+	std::shared_ptr<IndexBuffer> ib;
+	std::shared_ptr<Camera> camera;
+	std::shared_ptr<RenderTarget> target;
 
-	explicit LeftHalf(RendererPtr const &renderer)
+	explicit LeftHalf(std::shared_ptr<Renderer> const &renderer)
 	{
 		vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
 		auto vb_mapping = vb->write(Contents::DISCARD);
@@ -65,22 +65,22 @@ struct LeftHalf
 	}
 
 	// (the colour a quarter of the way across, three quarters of the way across)
-	std::pair<uint32_t, uint32_t> render(RendererPtr const &renderer, uint8_t red)
+	std::pair<uint32_t, uint32_t> render(std::shared_ptr<Renderer> const &renderer, uint8_t red)
 	{
-		TexturePtr texture = renderer->create_texture(2, 2, PixelFormat::X8R8G8B8);
+		std::shared_ptr<Texture> texture = renderer->create_texture(2, 2, PixelFormat::X8R8G8B8);
 		auto texture_mapping = texture->write(Contents::DISCARD);
 		unsigned *p = texture_mapping.as<unsigned>().data();
 		BOOST_REQUIRE(p);
 		p[0] = p[1] = p[2] = p[3] = 0xFF000000u | (uint32_t(red) << 16);
 		texture_mapping.unmap();
 
-		MaterialPtr material = renderer->create_material();
+		std::shared_ptr<Material> material = renderer->create_material();
 		material->set_diffuse_texture(texture);
 		material->set_cull_mode(Material::CullMode::NONE);
 		material->set_shader_program(renderer->create_shader_program(
 			edge::test_shader("test_vertex_texture.vert"), edge::test_shader("test_vertex_texture.frag")));
 
-		DrawCallPtr draw_call = renderer->create_draw_call();
+		std::shared_ptr<DrawCall> draw_call = renderer->create_draw_call();
 		draw_call->set_vertex_buffer(vb);
 		draw_call->set_index_buffer(ib);
 		draw_call->set_material(material);
@@ -103,7 +103,7 @@ struct LeftHalf
 		renderer->end_pass();
 		renderer->finish_frame();
 
-		TexturePtr color = target->color_texture();
+		std::shared_ptr<Texture> color = target->color_texture();
 		color->download();
 		auto color_mapping = color->read();
 		uint32_t const *pixels = color_mapping.as<uint32_t const>().data();

@@ -52,15 +52,15 @@ rove::matrix<4, 4> scaled(float s)
 /// target `size` pixels square, +x to the right and +y up.
 struct Scene
 {
-	VertexBufferPtr vertices;
-	IndexBufferPtr indices;
-	CameraPtr camera;
-	RenderTargetPtr target;
-	MaterialPtr material;
-	SchedulerPtr scheduler;
+	std::shared_ptr<VertexBuffer> vertices;
+	std::shared_ptr<IndexBuffer> indices;
+	std::shared_ptr<Camera> camera;
+	std::shared_ptr<RenderTarget> target;
+	std::shared_ptr<Material> material;
+	std::shared_ptr<Scheduler> scheduler;
 	int size;
 
-	Scene(RendererPtr const &renderer, float extent, int size_ = 64):
+	Scene(std::shared_ptr<Renderer> const &renderer, float extent, int size_ = 64):
 		size(size_)
 	{
 		vertices = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PTBNT>(), sizeof(VERTEX_PTBNT) * 4);
@@ -93,10 +93,10 @@ struct Scene
 	}
 
 	/// The square's draw call at `world`, its bounds the square's, drawn once for each of `instances` if there are any
-	DrawCallPtr call(RendererPtr const &renderer, rove::matrix<4, 4> const &world,
+	std::shared_ptr<DrawCall> call(std::shared_ptr<Renderer> const &renderer, rove::matrix<4, 4> const &world,
 		std::vector<rove::matrix<4, 4>> const *instances = nullptr) const
 	{
-		DrawCallPtr dc = renderer->create_draw_call();
+		std::shared_ptr<DrawCall> dc = renderer->create_draw_call();
 		dc->set_vertex_buffer(vertices);
 		dc->set_index_buffer(indices);
 		dc->set_material(material);
@@ -112,9 +112,9 @@ struct Scene
 		return dc;
 	}
 
-	Image<rove::rgba<float>> render(RendererPtr const &renderer, std::vector<DrawCallPtr> const &calls) const
+	Image<rove::rgba<float>> render(std::shared_ptr<Renderer> const &renderer, std::vector<std::shared_ptr<DrawCall>> const &calls) const
 	{
-		for (DrawCallPtr const &dc : calls)
+		for (std::shared_ptr<DrawCall> const &dc : calls)
 			scheduler->add(dc);
 		RenderPassClearState clear;
 		clear.clear_color_r = clear.clear_color_g = clear.clear_color_b = clear.clear_color_a = 0;
@@ -236,7 +236,7 @@ BOOST_AUTO_TEST_CASE(the_renderer_gets_each_visible_instances_world_and_none_out
 	Scene scene(renderer, 0.1f);
 	rove::matrix<4, 4> const world = scaled(0.5f);
 	std::vector<rove::matrix<4, 4>> const instances{moved(-0.5f, 0), moved(50, 0), moved(0, 0.5f)};
-	DrawCallPtr const dc = scene.call(renderer, world, &instances);
+	std::shared_ptr<DrawCall> const dc = scene.call(renderer, world, &instances);
 	BOOST_CHECK(dc->is_visible());
 	BOOST_CHECK_EQUAL(dc->instance_count(), 2u);
 	scene.scheduler->add(dc);
@@ -261,14 +261,14 @@ BOOST_AUTO_TEST_CASE(a_draw_whose_instances_are_all_out_of_view_is_not_drawn_unl
 	auto renderer = std::make_shared<CapturingRenderer>();
 	Scene scene(renderer, 0.1f);
 	std::vector<rove::matrix<4, 4>> const far_away{moved(50, 0), moved(0, -50)};
-	DrawCallPtr const dc = scene.call(renderer, rove::matrix<4, 4>(), &far_away);
+	std::shared_ptr<DrawCall> const dc = scene.call(renderer, rove::matrix<4, 4>(), &far_away);
 	BOOST_CHECK(!dc->is_visible());
 	BOOST_CHECK_EQUAL(dc->instance_count(), 0u);
 	scene.scheduler->add(dc);
 	flush_in_a_pass(scene.scheduler);
 	BOOST_CHECK(renderer->draws.empty());
 
-	DrawCallPtr const all = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> const all = renderer->create_draw_call();
 	all->set_vertex_buffer(scene.vertices);
 	all->set_index_buffer(scene.indices);
 	all->set_material(scene.material);
@@ -288,9 +288,9 @@ BOOST_AUTO_TEST_CASE(no_instances_is_refused_and_a_plain_draw_has_none)
 {
 	auto renderer = std::make_shared<CapturingRenderer>();
 	Scene scene(renderer, 0.1f);
-	DrawCallPtr const dc = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> const dc = renderer->create_draw_call();
 	BOOST_CHECK_THROW(dc->set_instances(std::vector<rove::matrix<4, 4>>()), std::invalid_argument);
-	DrawCallPtr const plain = scene.call(renderer, moved(0.25f, 0));
+	std::shared_ptr<DrawCall> const plain = scene.call(renderer, moved(0.25f, 0));
 	BOOST_CHECK_EQUAL(plain->instance_count(), 1u);
 	scene.scheduler->add(plain);
 	flush_in_a_pass(scene.scheduler);
@@ -327,7 +327,7 @@ int covered(Image<rove::rgba<float>> const &a)
 }
 
 template<class M>
-Image<rove::rgba<float>> draw_model(RendererPtr const &renderer, Scheduler &scheduler, M &model, CameraPtr const &camera,
+Image<rove::rgba<float>> draw_model(std::shared_ptr<Renderer> const &renderer, Scheduler &scheduler, M &model, std::shared_ptr<Camera> const &camera,
 	std::vector<rove::matrix<4, 4>> const &worlds, bool as_instances)
 {
 	if (as_instances)
@@ -339,7 +339,7 @@ Image<rove::rgba<float>> draw_model(RendererPtr const &renderer, Scheduler &sche
 		for (rove::matrix<4, 4> const &world : worlds)
 			model.draw(scheduler, camera, world);
 	}
-	RenderTargetPtr const target = renderer->create_render_target(128, 128, PixelFormat::R32G32B32A32F);
+	std::shared_ptr<RenderTarget> const target = renderer->create_render_target(128, 128, PixelFormat::R32G32B32A32F);
 	RenderPassClearState clear;
 	clear.clear_color_r = clear.clear_color_g = clear.clear_color_b = clear.clear_color_a = 0;
 	renderer->begin_frame();
@@ -350,9 +350,9 @@ Image<rove::rgba<float>> draw_model(RendererPtr const &renderer, Scheduler &sche
 	return read_image<rove::rgba<float>>(*target->color_texture());
 }
 
-CameraPtr looking_at_the_origin()
+std::shared_ptr<Camera> looking_at_the_origin()
 {
-	CameraPtr camera = std::make_shared<Camera>();
+	std::shared_ptr<Camera> camera = std::make_shared<Camera>();
 	camera->set_orthographic_projection(4.0f, 4.0f, 0.1f, 20.0f);
 	camera->look_at(rove::vec<3>(0, 0, 5), rove::vec<3>(0, 0, 0), rove::vec<3>(0, 1, 0));
 	return camera;
@@ -414,7 +414,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(skinned_draws_of_one_frame_keep_their_own_joint_ma
 		model->bind_animations();
 		model->pose(time);
 		int roots = 0;
-		for (JointPtr const &joint : model->joints())
+		for (std::shared_ptr<Joint> const &joint : model->joints())
 			if (!joint->parent.lock() && !joint->transforms.empty())
 			{
 				joint->transforms[0].matrix = moved(carried, 0) * joint->transforms[0].matrix;
@@ -425,7 +425,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(skinned_draws_of_one_frame_keep_their_own_joint_ma
 		return model;
 	};
 	auto const a = posed(0.3f, 0.0f), b = posed(0.9f, 2.0f);
-	CameraPtr const camera = looking_at_the_origin();
+	std::shared_ptr<Camera> const camera = looking_at_the_origin();
 	rove::matrix<4, 4> const left = moved(-1.0f, -1.5f);
 
 	Image<rove::rgba<float>> const a_alone = draw_model(renderer, *scheduler, *a, camera, {left}, false);

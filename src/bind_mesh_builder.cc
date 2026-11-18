@@ -144,7 +144,7 @@ void mesh_builder_set_indices_numpy_2d(edge::MeshBuilder &self,
 
 void bind_mesh_builder(nb::module_ &m)
 {
-    auto default_triangles = [](edge::MeshBuilder &self, edge::MaterialPtr const &material_ptr) {
+    auto default_triangles = [](edge::MeshBuilder &self, std::shared_ptr<edge::Material> const &material_ptr) {
             if (self.index_buffer().size() % 3 != 0)
             {
                 throw std::runtime_error("mesh index buffer size must be divisible by 3");
@@ -179,10 +179,10 @@ void bind_mesh_builder(nb::module_ &m)
         .def("add_triangles", [](edge::MeshBuilder &self,
             size_t first_index_offset,
             size_t triangles_count,
-            edge::MaterialPtr const &material_ptr) {
+            std::shared_ptr<edge::Material> const &material_ptr) {
             self.add_triangles(material_ptr, first_index_offset, triangles_count);
-        }, "first_index_offset"_a, "triangles_count"_a, "material"_a = edge::MaterialPtr())
-        .def("set_default_triangles", default_triangles, "material"_a = edge::MaterialPtr(),
+        }, "first_index_offset"_a, "triangles_count"_a, "material"_a = std::shared_ptr<edge::Material>())
+        .def("set_default_triangles", default_triangles, "material"_a = std::shared_ptr<edge::Material>(),
             "One group of all the triangles, of material")
         .def("set_vertices_numpy", &mesh_builder_set_vertices_numpy, "positions"_a, "texcoords"_a = nb::none(), "normals"_a = nb::none(),
             "tangents"_a = nb::none(), "binormals"_a = nb::none())

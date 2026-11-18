@@ -75,11 +75,11 @@ struct Fixture
 void draw_a_frame()
 {
 	auto const renderer = std::make_shared<edge::VulkanRenderer>(16, 16);
-	edge::VertexBufferPtr const vb = renderer->create_vertex_buffer(edge::VertexTraits::of<edge::VERTEX_PT>(), sizeof(edge::VERTEX_PT) * 3);
+	std::shared_ptr<edge::VertexBuffer> const vb = renderer->create_vertex_buffer(edge::VertexTraits::of<edge::VERTEX_PT>(), sizeof(edge::VERTEX_PT) * 3);
 	auto vb_mapping = vb->write(edge::Contents::DISCARD);
 	std::memset(vb_mapping.data(), 0, sizeof(edge::VERTEX_PT) * 3);
 	vb_mapping.unmap();
-	edge::DrawCallPtr const draw = renderer->create_draw_call();
+	std::shared_ptr<edge::DrawCall> const draw = renderer->create_draw_call();
 	draw->set_vertex_buffer(vb);
 	draw->set_material(renderer->create_material());
 	draw->set_camera(std::make_shared<edge::Camera>());

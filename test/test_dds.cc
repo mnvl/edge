@@ -38,7 +38,7 @@ using namespace edge;
 namespace
 {
 
-bool supports_astc(VulkanRendererPtr const &renderer)
+bool supports_astc(std::shared_ptr<VulkanRenderer> const &renderer)
 {
 	VkFormatProperties properties;
 	vkGetPhysicalDeviceFormatProperties(renderer->device_context()->physical_device(), VK_FORMAT_ASTC_6x6_SRGB_BLOCK, &properties);
@@ -46,14 +46,14 @@ bool supports_astc(VulkanRendererPtr const &renderer)
 }
 
 #ifdef EDGE_USE_GLES
-bool supports_astc(GLESRendererPtr const &renderer)
+bool supports_astc(std::shared_ptr<GLESRenderer> const &renderer)
 {
 	return renderer->context()->has_extension("GL_KHR_texture_compression_astc_ldr");
 }
 #endif
 
 #ifdef EDGE_USE_METAL
-bool supports_astc(MetalRendererPtr const &renderer)
+bool supports_astc(std::shared_ptr<MetalRenderer> const &renderer)
 {
 	return renderer->context()->supports_astc();
 }
@@ -73,10 +73,10 @@ struct Rgba
 
 // The centre pixel of a 64 x 64 target after drawing a quad `pixels` wide
 // with the texture.
-Rgba sample(RendererPtr const &renderer, TexturePtr const &texture, float pixels)
+Rgba sample(std::shared_ptr<Renderer> const &renderer, std::shared_ptr<Texture> const &texture, float pixels)
 {
 	float const e = pixels / 64.0f;
-	VertexBufferPtr vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
+	std::shared_ptr<VertexBuffer> vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 4);
 	auto vb_mapping = vb->write(Contents::DISCARD);
 	VERTEX_PT *v = vb_mapping.as<VERTEX_PT>().data();
 	float const xy[4][2] = {{-e, -e}, {e, -e}, {e, e}, {-e, e}}, uv[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
@@ -86,21 +86,21 @@ Rgba sample(RendererPtr const &renderer, TexturePtr const &texture, float pixels
 		v[i].texcoords = rove::vec<2>(uv[i][0], uv[i][1]);
 	}
 	vb_mapping.unmap();
-	IndexBufferPtr ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
+	std::shared_ptr<IndexBuffer> ib = renderer->create_index_buffer(IndexFormat::U16, sizeof(INDEX_U16) * 6);
 	auto ib_mapping = ib->write(Contents::DISCARD);
 	INDEX_U16 *idx = ib_mapping.as<INDEX_U16>().data();
 	INDEX_U16 const q[6] = {0, 1, 2, 0, 2, 3};
 	std::copy(q, q + 6, idx);
 	ib_mapping.unmap();
-	CameraPtr camera(new Camera());
+	std::shared_ptr<Camera> camera(new Camera());
 	camera->set_orthographic_projection(2, 2, 0, 2);
 	camera->look_at(rove::vec<3>(0, 0, 1), rove::vec<3>(0, 0, 0), rove::vec<3>(0, 1, 0));
-	RenderTargetPtr target = renderer->create_render_target(64, 64, PixelFormat::R32G32B32A32F);
-	MaterialPtr material = renderer->create_material();
+	std::shared_ptr<RenderTarget> target = renderer->create_render_target(64, 64, PixelFormat::R32G32B32A32F);
+	std::shared_ptr<Material> material = renderer->create_material();
 	material->set_cull_mode(Material::CullMode::NONE);
 	material->set_shader_program(renderer->create_shader_program(edge::test_shader("test_frame.vert"), edge::test_shader("test_sample.frag")));
 	material->set_diffuse_texture(texture);
-	DrawCallPtr call = renderer->create_draw_call();
+	std::shared_ptr<DrawCall> call = renderer->create_draw_call();
 	call->set_vertex_buffer(vb);
 	call->set_index_buffer(ib);
 	call->set_material(material);
@@ -113,7 +113,7 @@ Rgba sample(RendererPtr const &renderer, TexturePtr const &texture, float pixels
 	call->execute();
 	renderer->end_pass();
 	renderer->finish_frame();
-	TexturePtr colour = target->color_texture();
+	std::shared_ptr<Texture> colour = target->color_texture();
 	colour->download();
 	auto colour_mapping = colour->read();
 	Rgba const *px = colour_mapping.as<Rgba const>().data();
@@ -138,7 +138,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(every_mip_level_of_a_bc7_file_is_where_it_belongs,
 	BOOST_REQUIRE_MESSAGE(renderer, "renderer unavailable: " << fixture.error);
 	std::vector<char> const file = read("test_dds_bc7_mips.dds");
 	BOOST_REQUIRE(Texture::is_dds(file.data(), file.size()));
-	TexturePtr t = Texture::load_dds(renderer, file.data(), file.size());
+	std::shared_ptr<Texture> t = Texture::load_dds(renderer, file.data(), file.size());
 	BOOST_CHECK_EQUAL(t->pixel_format(), PixelFormat::BC7);
 	BOOST_CHECK_EQUAL(t->mip_levels(), 4);
 	BOOST_CHECK(t->is_srgb());                       // DXGI 99: BC7 sRGB
@@ -157,7 +157,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(bc5_keeps_two_linear_channels_even_when_srgb_is_as
 	std::vector<char> const file = read("test_dds_bc5.dds");
 	TextureUsage srgb;
 	srgb.srgb = true;
-	TexturePtr t = Texture::load_dds(renderer, file.data(), file.size(), srgb);
+	std::shared_ptr<Texture> t = Texture::load_dds(renderer, file.data(), file.size(), srgb);
 	BOOST_CHECK_EQUAL(t->pixel_format(), PixelFormat::BC5);
 	BOOST_CHECK(!t->is_srgb());
 	Rgba const c = sample(renderer, t, 64);
@@ -183,7 +183,7 @@ BOOST_AUTO_TEST_CASE(astc_blocks_are_sixteen_bytes_of_four_six_or_eight_texels)
 
 BOOST_AUTO_TEST_CASE(an_astc_dds_loads_with_its_block_size_levels_and_srgb)
 {
-	RendererPtr null(new NullRenderer(64, 64));
+	std::shared_ptr<Renderer> null(new NullRenderer(64, 64));
 	struct { char const *file; PixelFormat format; int side; } const cases[] = {
 		{"test_dds_astc4x4_mips.dds", PixelFormat::ASTC_4x4, 8},
 		{"test_dds_astc6x6_mips.dds", PixelFormat::ASTC_6x6, 12},
@@ -192,7 +192,7 @@ BOOST_AUTO_TEST_CASE(an_astc_dds_loads_with_its_block_size_levels_and_srgb)
 	for (auto const &c : cases)
 	{
 		std::vector<char> const file = read(c.file);
-		TexturePtr t = Texture::load_dds(null, file.data(), file.size());
+		std::shared_ptr<Texture> t = Texture::load_dds(null, file.data(), file.size());
 		BOOST_CHECK_EQUAL(t->pixel_format(), c.format);
 		BOOST_CHECK_EQUAL(t->width(), c.side);
 		BOOST_CHECK_EQUAL(t->mip_levels(), 4);
@@ -209,7 +209,7 @@ BOOST_AUTO_TEST_CASE(an_astc_dds_loads_with_its_block_size_levels_and_srgb)
 
 BOOST_AUTO_TEST_CASE(an_astc_dds_of_a_block_size_edge_lacks_is_refused)
 {
-	RendererPtr null(new NullRenderer(64, 64));
+	std::shared_ptr<Renderer> null(new NullRenderer(64, 64));
 	std::vector<char> file = read("test_dds_astc6x6_mips.dds");
 	uint32_t const astc_5x5 = 141;
 	std::memcpy(file.data() + 128, &astc_5x5, 4);
@@ -236,7 +236,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(an_astc_texture_is_sampled_per_level_or_refused_by
 		}
 		return;
 	}
-	TexturePtr t = Texture::load_dds(renderer, file.data(), file.size());
+	std::shared_ptr<Texture> t = Texture::load_dds(renderer, file.data(), file.size());
 	Rgba const big = sample(renderer, t, 32), mid = sample(renderer, t, 6), small = sample(renderer, t, 3);
 	BOOST_CHECK_MESSAGE(near(big, 1, 0, 0), "level 0: " << big.r << " " << big.g << " " << big.b);
 	BOOST_CHECK_MESSAGE(near(mid, 0, 1, 0), "level 1: " << mid.r << " " << mid.g << " " << mid.b);
@@ -300,8 +300,8 @@ BOOST_AUTO_TEST_SUITE_END()
 
 BOOST_AUTO_TEST_CASE(the_gltf_loader_prefers_msft_texture_dds)
 {
-	RendererPtr renderer(new NullRenderer(320, 200));
-	SchedulerPtr scheduler(new Scheduler(renderer));
+	std::shared_ptr<Renderer> renderer(new NullRenderer(320, 200));
+	std::shared_ptr<Scheduler> scheduler(new Scheduler(renderer));
 	auto model = std::make_shared<ModelBuilder>(renderer);
 	GltfOptions o;
 	o.compress_textures = false;
@@ -309,7 +309,7 @@ BOOST_AUTO_TEST_CASE(the_gltf_loader_prefers_msft_texture_dds)
 	o.mipmaps = true;
 	model->load_from_gltf(TestFixture::graphic_sources_path() + "test/data/test_gltf_loader_dds.glb", o);
 	BOOST_REQUIRE_EQUAL(model->materials().size(), 1u);
-	TexturePtr t = model->materials().front()->diffuse_texture();
+	std::shared_ptr<Texture> t = model->materials().front()->diffuse_texture();
 	BOOST_REQUIRE(t);
 	BOOST_CHECK_EQUAL(t->pixel_format(), PixelFormat::BC7);
 	BOOST_CHECK_EQUAL(t->mip_levels(), 4);       // the file's, not made
@@ -356,8 +356,8 @@ BOOST_AUTO_TEST_CASE(a_large_external_dds_is_read_at_disk_speed)
 				{"bufferView":1,"componentType":5126,"count":3,"type":"VEC2"}]})";
 		BOOST_REQUIRE(out);
 	}
-	RendererPtr renderer(new NullRenderer(320, 200));
-	SchedulerPtr scheduler(new Scheduler(renderer));
+	std::shared_ptr<Renderer> renderer(new NullRenderer(320, 200));
+	std::shared_ptr<Scheduler> scheduler(new Scheduler(renderer));
 	auto model = std::make_shared<ModelBuilder>(renderer);
 	GltfOptions o;
 	o.compress_textures = false;
@@ -367,7 +367,7 @@ BOOST_AUTO_TEST_CASE(a_large_external_dds_is_read_at_disk_speed)
 	double const ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
 	std::filesystem::remove_all(dir);
 	BOOST_REQUIRE_EQUAL(model->materials().size(), 1u);
-	TexturePtr t = model->materials().front()->diffuse_texture();
+	std::shared_ptr<Texture> t = model->materials().front()->diffuse_texture();
 	BOOST_REQUIRE(t);
 	BOOST_CHECK_EQUAL(t->width(), side);
 	BOOST_CHECK_EQUAL(t->pixel_format(), PixelFormat::BC7);

@@ -193,12 +193,12 @@ BlendFactors blend_factors(Material::BlendMode src_mode, Material::BlendMode des
 }
 
 VulkanPipelineBuilder::PipelineKey VulkanPipelineBuilder::key_of(VkRenderPass render_pass, uint32_t pass_type,
-	VertexTraits const *traits, MaterialPtr const &material)
+	VertexTraits const *traits, std::shared_ptr<Material> const &material)
 {
 	PipelineKey key;
 	// (by reference: a look takes no count of a program every material of a pass shares)
-	static ShaderProgramPtr const none;
-	ShaderProgramPtr const &shader_program = material ? material->shader_program(pass_type) : none;
+	static std::shared_ptr<ShaderProgram> const none;
+	std::shared_ptr<ShaderProgram> const &shader_program = material ? material->shader_program(pass_type) : none;
 	key.render_pass = render_pass;
 	key.traits = traits;
 	if (shader_program)
@@ -217,7 +217,7 @@ VulkanPipelineBuilder::PipelineKey VulkanPipelineBuilder::key_of(VkRenderPass re
 }
 
 VkPipeline VulkanPipelineBuilder::find(VkRenderPass render_pass, uint32_t pass_type, VertexTraits const *traits,
-	MaterialPtr const &material) const
+	std::shared_ptr<Material> const &material) const
 {
 	auto const found = pipelines_.find(key_of(render_pass, pass_type, traits, material));
 	return found == pipelines_.end() ? VK_NULL_HANDLE : found->second;
@@ -225,12 +225,12 @@ VkPipeline VulkanPipelineBuilder::find(VkRenderPass render_pass, uint32_t pass_t
 
 VkPipeline VulkanPipelineBuilder::pipeline(VkDevice device, VkPipelineLayout pipeline_layout,
 	VkRenderPass render_pass, uint32_t color_attachments, uint32_t pass_type,
-	VertexTraits const *traits, MaterialPtr const &material)
+	VertexTraits const *traits, std::shared_ptr<Material> const &material)
 {
 	PipelineKey const key = key_of(render_pass, pass_type, traits, material);
-	ShaderProgramPtr shader_program = material
+	std::shared_ptr<ShaderProgram> shader_program = material
 		? material->shader_program(pass_type)
-		: ShaderProgramPtr();
+		: std::shared_ptr<ShaderProgram>();
 
 	std::map<PipelineKey, VkPipeline>::const_iterator found = pipelines_.find(key);
 	if (found != pipelines_.end())

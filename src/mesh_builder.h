@@ -15,7 +15,6 @@ namespace edge
 class ModelBuilder;
 class Renderer;
 
-using MeshBuilderPtr = std::shared_ptr<class MeshBuilder>;
 
 // MeshBuilder is for constructing meshes — it cannot render.
 // Save via ModelBuilder and load with StaticModel/AnimatedModel for rendering.
@@ -27,13 +26,13 @@ public:
 	MeshBuilder(ModelBuilder *m);
 	~MeshBuilder() override;
 
-	rove::aabb<3> exact_bounds(std::vector<JointPtr> const &joints, Joint const &owner,
+	rove::aabb<3> exact_bounds(std::vector<std::shared_ptr<Joint>> const &joints, Joint const &owner,
 		rove::matrix<4,4> const &world_matrix) const override;
-	rove::obb<3> conservative_bounds(std::vector<JointPtr> const &joints, Joint const &owner,
+	rove::obb<3> conservative_bounds(std::vector<std::shared_ptr<Joint>> const &joints, Joint const &owner,
 		rove::matrix<4,4> const &world_matrix) const override;
-	void insert_triangles(octree_type &octree, int id, std::vector<JointPtr> const &joints,
+	void insert_triangles(octree_type &octree, int id, std::vector<std::shared_ptr<Joint>> const &joints,
 		Joint const &owner, rove::matrix<4,4> const &world_matrix) const override;
-	MeshPtr shallow_copy() const override;
+	std::shared_ptr<Mesh> shallow_copy() const override;
 
 	std::vector<vertex_type> const &vertex_buffer() const { return vertices_; }
 	std::vector<index_type> const &index_buffer() const { return indices_; }
@@ -44,7 +43,7 @@ public:
 	void append_geometry(std::vector<vertex_type> const &vertices, std::vector<index_type> const &indices,
 		bool add_default_triangles = true);
 	void clear_triangles();
-	void add_triangles(MaterialPtr const &material_ptr, size_t first_index_offset, size_t triangles_count);
+	void add_triangles(std::shared_ptr<Material> const &material_ptr, size_t first_index_offset, size_t triangles_count);
 
 	/// std::invalid_argument for joints or weights: a MeshBuilder is saved as a static mesh, which has no skin.
 	void set_vertices(GenericVertex *vertices, GenericVertex::format_type format, size_t count) override;

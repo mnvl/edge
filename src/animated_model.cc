@@ -15,7 +15,7 @@ namespace edge
 {
 
 template <skinned_vertex_layout V>
-BasicAnimatedModel<V>::BasicAnimatedModel(RendererPtr const &renderer_ptr):
+BasicAnimatedModel<V>::BasicAnimatedModel(std::shared_ptr<Renderer> const &renderer_ptr):
 	Model(renderer_ptr)
 {
 }
@@ -24,7 +24,7 @@ template <skinned_vertex_layout V>
 BasicAnimatedModel<V>::~BasicAnimatedModel() = default;
 
 template <skinned_vertex_layout V>
-MeshPtr BasicAnimatedModel<V>::add_mesh()
+std::shared_ptr<Mesh> BasicAnimatedModel<V>::add_mesh()
 {
 	meshes_.push_back(std::make_shared<BasicAnimatedMesh<V>>(this));
 	return meshes().back();
@@ -34,7 +34,7 @@ template <skinned_vertex_layout V>
 void BasicAnimatedModel<V>::compute_pose_bounds(float margin)
 {
 	std::vector<BasicAnimatedMesh<V> *> skinned;
-	for (MeshPtr const &mesh : meshes())
+	for (std::shared_ptr<Mesh> const &mesh : meshes())
 	{
 		if (auto *animated = dynamic_cast<BasicAnimatedMesh<V> *>(mesh.get()))
 		{
@@ -48,7 +48,7 @@ void BasicAnimatedModel<V>::compute_pose_bounds(float margin)
 
 	// The joints go back where they are when this is done.
 	std::vector<std::vector<rove::matrix<4,4>>> bind;
-	for (JointPtr const &joint : joints())
+	for (std::shared_ptr<Joint> const &joint : joints())
 	{
 		bind.emplace_back();
 		for (Joint::Transform const &t : joint->transforms)
@@ -92,7 +92,7 @@ void BasicAnimatedModel<V>::compute_pose_bounds(float margin)
 	};
 
 	sample(true);
-	for (AnimationPtr const &clip : animations())
+	for (std::shared_ptr<Animation> const &clip : animations())
 	{
 		// from time 0 (before its first key a clip holds that key's pose) to its last key
 		rove::scalar const end = clip->duration();

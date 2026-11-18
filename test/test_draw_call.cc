@@ -21,16 +21,16 @@ namespace
 
 struct DrawCallFixture
 {
-	edge::RendererPtr renderer;
+	std::shared_ptr<edge::Renderer> renderer;
 
 	DrawCallFixture()
 	{
 		renderer = std::make_shared<edge::NullRenderer>(320, 200);
 	}
 
-	edge::CameraPtr make_camera()
+	std::shared_ptr<edge::Camera> make_camera()
 	{
-		edge::CameraPtr camera(new edge::Camera());
+		std::shared_ptr<edge::Camera> camera(new edge::Camera());
 		camera->set_perspective_projection(1.0f, 1.0f, 0.1f, 100.0f);
 		camera->look_at(
 			rove::vec<3>(0, 0, 5),
@@ -44,10 +44,10 @@ struct DrawCallFixture
 struct Given
 {
 	edge::DrawCall const *call;
-	edge::VertexBufferPtr vertex_buffer;
-	edge::IndexBufferPtr index_buffer;
-	edge::MaterialPtr material;
-	edge::CameraPtr camera;
+	std::shared_ptr<edge::VertexBuffer> vertex_buffer;
+	std::shared_ptr<edge::IndexBuffer> index_buffer;
+	std::shared_ptr<edge::Material> material;
+	std::shared_ptr<edge::Camera> camera;
 	rove::matrix<4,4> world_view_projection, world;
 	size_t minimal_vertex_index, first_index_offset, triangles_count;
 	bool uber, instanced;
@@ -83,7 +83,7 @@ rove::matrix<4,4> moved(float x, float y, float z)
 }
 
 /// One pass of @p call's execute()
-void execute_in_a_pass(edge::RendererPtr const &renderer, edge::DrawCall &call)
+void execute_in_a_pass(std::shared_ptr<edge::Renderer> const &renderer, edge::DrawCall &call)
 {
 	renderer->begin_frame();
 	renderer->begin_pass(renderer->default_render_target());
@@ -98,7 +98,7 @@ BOOST_AUTO_TEST_SUITE(draw_call)
 
 BOOST_FIXTURE_TEST_CASE(commit_requires_vertex_buffer, DrawCallFixture)
 {
-	edge::DrawCallPtr dc = renderer->create_draw_call();
+	std::shared_ptr<edge::DrawCall> dc = renderer->create_draw_call();
 	dc->set_material(renderer->create_material());
 	dc->set_camera(make_camera());
 	BOOST_CHECK_THROW(dc->commit(), std::logic_error);
@@ -106,7 +106,7 @@ BOOST_FIXTURE_TEST_CASE(commit_requires_vertex_buffer, DrawCallFixture)
 
 BOOST_FIXTURE_TEST_CASE(commit_requires_material, DrawCallFixture)
 {
-	edge::DrawCallPtr dc = renderer->create_draw_call();
+	std::shared_ptr<edge::DrawCall> dc = renderer->create_draw_call();
 	dc->set_vertex_buffer(renderer->create_vertex_buffer(nullptr, 1));
 	dc->set_camera(make_camera());
 	BOOST_CHECK_THROW(dc->commit(), std::logic_error);
@@ -114,7 +114,7 @@ BOOST_FIXTURE_TEST_CASE(commit_requires_material, DrawCallFixture)
 
 BOOST_FIXTURE_TEST_CASE(commit_requires_camera, DrawCallFixture)
 {
-	edge::DrawCallPtr dc = renderer->create_draw_call();
+	std::shared_ptr<edge::DrawCall> dc = renderer->create_draw_call();
 	dc->set_vertex_buffer(renderer->create_vertex_buffer(nullptr, 1));
 	dc->set_material(renderer->create_material());
 	BOOST_CHECK_THROW(dc->commit(), std::logic_error);
@@ -122,7 +122,7 @@ BOOST_FIXTURE_TEST_CASE(commit_requires_camera, DrawCallFixture)
 
 BOOST_FIXTURE_TEST_CASE(commit_succeeds_with_all_set, DrawCallFixture)
 {
-	edge::DrawCallPtr dc = renderer->create_draw_call();
+	std::shared_ptr<edge::DrawCall> dc = renderer->create_draw_call();
 	dc->set_vertex_buffer(renderer->create_vertex_buffer(nullptr, 1));
 	dc->set_material(renderer->create_material());
 	dc->set_camera(make_camera());
@@ -131,7 +131,7 @@ BOOST_FIXTURE_TEST_CASE(commit_succeeds_with_all_set, DrawCallFixture)
 
 BOOST_FIXTURE_TEST_CASE(always_visible_is_visible, DrawCallFixture)
 {
-	edge::DrawCallPtr dc = renderer->create_draw_call();
+	std::shared_ptr<edge::DrawCall> dc = renderer->create_draw_call();
 	dc->set_always_visible(true);
 	dc->set_vertex_buffer(renderer->create_vertex_buffer(nullptr, 1));
 	dc->set_material(renderer->create_material());
@@ -142,7 +142,7 @@ BOOST_FIXTURE_TEST_CASE(always_visible_is_visible, DrawCallFixture)
 
 BOOST_FIXTURE_TEST_CASE(not_always_visible_default_bounds_at_origin, DrawCallFixture)
 {
-	edge::DrawCallPtr dc = renderer->create_draw_call();
+	std::shared_ptr<edge::DrawCall> dc = renderer->create_draw_call();
 	dc->set_always_visible(false);
 	dc->set_vertex_buffer(renderer->create_vertex_buffer(nullptr, 1));
 	dc->set_material(renderer->create_material());
@@ -155,7 +155,7 @@ BOOST_FIXTURE_TEST_CASE(not_always_visible_default_bounds_at_origin, DrawCallFix
 BOOST_FIXTURE_TEST_CASE(an_uber_draw_call_takes_no_more_joints_than_a_draw_has_matrices_for, DrawCallFixture)
 {
 	// (not the first 256 of them, silently)
-	edge::UberDrawCallPtr draw_call = renderer->create_uber_draw_call();
+	std::shared_ptr<edge::UberDrawCall> draw_call = renderer->create_uber_draw_call();
 	std::vector<rove::matrix<4,4>> joints(edge::MAX_JOINT_MATRICES);
 	draw_call->set_joint_matrix_array(joints);
 	joints.resize(edge::MAX_JOINT_MATRICES + 1);
@@ -165,7 +165,7 @@ BOOST_FIXTURE_TEST_CASE(an_uber_draw_call_takes_no_more_joints_than_a_draw_has_m
 BOOST_FIXTURE_TEST_CASE(a_draw_call_is_committed_before_it_draws, DrawCallFixture)
 {
 	// (its matrices are worked out at commit(): before it there are none to draw with)
-	edge::DrawCallPtr dc = renderer->create_draw_call();
+	std::shared_ptr<edge::DrawCall> dc = renderer->create_draw_call();
 	dc->set_vertex_buffer(renderer->create_vertex_buffer(nullptr, 1));
 	dc->set_material(renderer->create_material());
 	dc->set_camera(make_camera());
@@ -185,13 +185,13 @@ BOOST_AUTO_TEST_CASE(the_renderer_is_given_the_call_and_reads_what_was_set_on_it
 {
 	auto const renderer = std::make_shared<ReadingRenderer>();
 	DrawCallFixture fixture;
-	edge::CameraPtr const camera = fixture.make_camera();
-	edge::VertexBufferPtr const vertices = renderer->create_vertex_buffer(nullptr, 1);
-	edge::IndexBufferPtr const indices = renderer->create_index_buffer(edge::IndexFormat::U16, 2 * 30);
-	edge::MaterialPtr const material = renderer->create_material();
+	std::shared_ptr<edge::Camera> const camera = fixture.make_camera();
+	std::shared_ptr<edge::VertexBuffer> const vertices = renderer->create_vertex_buffer(nullptr, 1);
+	std::shared_ptr<edge::IndexBuffer> const indices = renderer->create_index_buffer(edge::IndexFormat::U16, 2 * 30);
+	std::shared_ptr<edge::Material> const material = renderer->create_material();
 	rove::matrix<4,4> const world = moved(0.5f, -0.25f, 1);
 
-	edge::DrawCallPtr const dc = renderer->create_draw_call();
+	std::shared_ptr<edge::DrawCall> const dc = renderer->create_draw_call();
 	dc->set_vertex_buffer(vertices);
 	dc->set_index_buffer(indices);
 	dc->set_material(material);
@@ -225,7 +225,7 @@ BOOST_AUTO_TEST_CASE(an_uber_call_is_drawn_as_one_and_skinned_only_with_joints)
 {
 	auto const renderer = std::make_shared<ReadingRenderer>();
 	DrawCallFixture fixture;
-	edge::UberDrawCallPtr const dc = renderer->create_uber_draw_call();
+	std::shared_ptr<edge::UberDrawCall> const dc = renderer->create_uber_draw_call();
 	dc->set_vertex_buffer(renderer->create_vertex_buffer(nullptr, 1));
 	dc->set_material(renderer->create_material());
 	dc->set_camera(fixture.make_camera());
@@ -253,7 +253,7 @@ BOOST_AUTO_TEST_CASE(a_skin_is_drawn_with_the_joint_matrices_it_has_when_drawn_o
 	// (they are read as the call is drawn, not at its commit: three where two were committed, in the commit's frame, draw three)
 	auto const renderer = std::make_shared<ReadingRenderer>();
 	DrawCallFixture fixture;
-	edge::UberDrawCallPtr const dc = renderer->create_uber_draw_call();
+	std::shared_ptr<edge::UberDrawCall> const dc = renderer->create_uber_draw_call();
 	dc->set_vertex_buffer(renderer->create_vertex_buffer(nullptr, 1));
 	dc->set_material(renderer->create_material());
 	dc->set_camera(fixture.make_camera());
@@ -280,8 +280,8 @@ BOOST_AUTO_TEST_CASE(a_call_drawn_in_later_frames_is_drawn_with_the_matrices_of_
 	// (what changed since is not seen before the next commit: neither the world matrix set nor the camera moved)
 	auto const renderer = std::make_shared<ReadingRenderer>();
 	DrawCallFixture fixture;
-	edge::CameraPtr const camera = fixture.make_camera();
-	edge::DrawCallPtr const dc = renderer->create_draw_call();
+	std::shared_ptr<edge::Camera> const camera = fixture.make_camera();
+	std::shared_ptr<edge::DrawCall> const dc = renderer->create_draw_call();
 	dc->set_vertex_buffer(renderer->create_vertex_buffer(nullptr, 1));
 	dc->set_material(renderer->create_material());
 	dc->set_camera(camera);

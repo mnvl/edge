@@ -39,14 +39,14 @@ protected:
 	void do_unlock() override;
 
 private:
-	VulkanDeviceContextPtr context_;     // the device, not the renderer: a buffer kept after it can still be let go
+	std::shared_ptr<VulkanDeviceContext> context_;     // the device, not the renderer: a buffer kept after it can still be let go
 	VkBuffer buffer_;
 	VkDeviceMemory memory_;
 	VkMemoryPropertyFlags memory_properties_;
 	std::vector<char> clone_;
 	VertexTraits const *traits_;
 
-	VulkanVertexBuffer(VulkanRendererPtr const &renderer, size_t size, VertexTraits const *traits);
+	VulkanVertexBuffer(std::shared_ptr<VulkanRenderer> const &renderer, size_t size, VertexTraits const *traits);
 };
 
 }

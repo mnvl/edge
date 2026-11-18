@@ -44,8 +44,6 @@ void bind_material(nb::module_ &m)
         blend_mode.attr((std::string("BLEND_") + name).c_str()) = blend_mode.attr(name);
 
     using edge::Material;
-    using edge::ShaderProgramPtr;
-    using edge::TexturePtr;
     auto parameters = [](Material const &self) {
         std::vector<unsigned char> const &p = self.parameters();
         return nb::bytes(reinterpret_cast<char const *>(p.data()), p.size());
@@ -61,7 +59,7 @@ void bind_material(nb::module_ &m)
         self.set_parameters(array.nbytes() ? array.data() : nullptr, array.nbytes());
     };
     // a texture, or the file of one (str)
-    using TextureOrFile = std::variant<TexturePtr, std::string>;
+    using TextureOrFile = std::variant<std::shared_ptr<edge::Texture>, std::string>;
     auto set_normal_map_texture = [](Material &self, TextureOrFile const &t) {
         std::visit([&](auto const &v) { self.set_normal_map_texture(v); }, t);
     };
@@ -73,7 +71,7 @@ void bind_material(nb::module_ &m)
         .def_prop_rw("name", &Material::name, &Material::set_name)
         .def_prop_ro("diffuse_textures_count", &Material::diffuse_textures_count)
         .def("diffuse_texture", nb::overload_cast<size_t>(&Material::diffuse_texture, nb::const_), "index"_a = 0)
-        .def("set_diffuse_texture", nb::overload_cast<TexturePtr const &, size_t>(&Material::set_diffuse_texture), "texture"_a, "index"_a = 0)
+        .def("set_diffuse_texture", nb::overload_cast<std::shared_ptr<edge::Texture> const &, size_t>(&Material::set_diffuse_texture), "texture"_a, "index"_a = 0)
         .def("set_diffuse_texture", nb::overload_cast<std::string const &, size_t>(&Material::set_diffuse_texture), "filename"_a,
             "index"_a = 0)
         .def_prop_rw("cull_mode", &Material::cull_mode,
@@ -92,13 +90,13 @@ void bind_material(nb::module_ &m)
             &Material::set_dest_blend_mode)
         // shader_program: the default; pass_shader_program(pass_type) and set_shader_program(pass_type, program): a pass's
         .def_prop_rw("shader_program", nb::overload_cast<>(&Material::shader_program, nb::const_),
-            nb::overload_cast<ShaderProgramPtr const &>(&Material::set_shader_program), nb::arg("program").none())
-        .def("set_shader_program", nb::overload_cast<ShaderProgramPtr const &>(&Material::set_shader_program), "program"_a.none())
-        .def("set_shader_program", nb::overload_cast<uint32_t, ShaderProgramPtr const &>(&Material::set_shader_program),
+            nb::overload_cast<std::shared_ptr<edge::ShaderProgram> const &>(&Material::set_shader_program), nb::arg("program").none())
+        .def("set_shader_program", nb::overload_cast<std::shared_ptr<edge::ShaderProgram> const &>(&Material::set_shader_program), "program"_a.none())
+        .def("set_shader_program", nb::overload_cast<uint32_t, std::shared_ptr<edge::ShaderProgram> const &>(&Material::set_shader_program),
             "pass_type"_a, "program"_a.none())
         .def("pass_shader_program", nb::overload_cast<uint32_t>(&Material::shader_program, nb::const_), "pass_type"_a,
             "The pass's own program, or the default where it has none")
-        .def("clear_shader_program", [](Material &self) { self.set_shader_program(ShaderProgramPtr()); })
+        .def("clear_shader_program", [](Material &self) { self.set_shader_program(std::shared_ptr<edge::ShaderProgram>()); })
         .def("clear_shader_program", &Material::clear_shader_program, "pass_type"_a)
         .def_prop_rw("parameters", parameters, set_parameters,
             "The material's own uniform block, read by a shader of its own at EDGE_BINDING_MATERIAL_PARAMETERS (20): bytes, set from "

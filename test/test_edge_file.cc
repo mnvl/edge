@@ -50,8 +50,8 @@ std::string asset(std::string const &name)
 
 struct Fixture
 {
-	edge::RendererPtr renderer = [] { edge::RendererPtr r(new edge::NullRenderer(320, 200)); return r; }();
-	edge::SchedulerPtr scheduler = std::make_shared<edge::Scheduler>(renderer);
+	std::shared_ptr<edge::Renderer> renderer = [] { std::shared_ptr<edge::Renderer> r(new edge::NullRenderer(320, 200)); return r; }();
+	std::shared_ptr<edge::Scheduler> scheduler = std::make_shared<edge::Scheduler>(renderer);
 	std::filesystem::path const file = std::filesystem::temp_directory_path() / "edge_file_contract.edge";
 
 	~Fixture()
@@ -127,7 +127,7 @@ struct Fixture
 	std::uintmax_t file_size_with(size_t count)
 	{
 		auto model = std::make_shared<M>(renderer);
-		edge::MeshPtr const mesh = model->add_mesh();
+		std::shared_ptr<edge::Mesh> const mesh = model->add_mesh();
 		std::vector<edge::GenericVertex> vertices(count);
 		std::memset(vertices.data(), 0, vertices.size() * sizeof(edge::GenericVertex));
 		for (size_t i = 0; i < count; ++i)
@@ -177,7 +177,7 @@ void same_matrix(rove::matrix<4,4> const &a, rove::matrix<4,4> const &b, float t
 			BOOST_REQUIRE_MESSAGE(std::abs(a.ij[c][r] - b.ij[c][r]) <= tolerance, what << " [" << c << "][" << r << "]: " << a.ij[c][r] << " vs " << b.ij[c][r]);
 }
 
-void same_texture(edge::TexturePtr const &a, edge::TexturePtr const &b, std::string const &what)
+void same_texture(std::shared_ptr<edge::Texture> const &a, std::shared_ptr<edge::Texture> const &b, std::string const &what)
 {
 	BOOST_REQUIRE_MESSAGE(bool(a) == bool(b), what << ": one has a texture, the other not");
 	if (!a)
@@ -239,7 +239,7 @@ void same_model(edge::Model const &a, edge::Model const &b)
 			BOOST_CHECK_EQUAL(ja.transforms[t].sid, jb.transforms[t].sid);
 			same_matrix(ja.transforms[t].matrix, jb.transforms[t].matrix, 0, what + " transform");
 		}
-		auto const position = [](edge::Model const &m, edge::JointPtr const &j) -> long {
+		auto const position = [](edge::Model const &m, std::shared_ptr<edge::Joint> const &j) -> long {
 			if (!j)
 				return -1;
 			for (size_t k = 0; k < m.joints().size(); ++k)
@@ -251,7 +251,7 @@ void same_model(edge::Model const &a, edge::Model const &b)
 		BOOST_REQUIRE_EQUAL(ja.children.size(), jb.children.size());
 		for (size_t c = 0; c < ja.children.size(); ++c)
 			BOOST_CHECK_MESSAGE(position(a, ja.children[c].lock()) == position(b, jb.children[c].lock()), what << ": child " << c);
-		auto const mesh_position = [](edge::Model const &m, edge::MeshPtr const &mesh) -> long {
+		auto const mesh_position = [](edge::Model const &m, std::shared_ptr<edge::Mesh> const &mesh) -> long {
 			for (size_t k = 0; k < m.meshes().size(); ++k)
 				if (m.meshes()[k] == mesh)
 					return long(k);
@@ -286,7 +286,7 @@ void same_model(edge::Model const &a, edge::Model const &b)
 			auto const &ta = ma.triangles()[k], &tb = mb.triangles()[k];
 			BOOST_CHECK(ta.minimal_vertex_index == tb.minimal_vertex_index && ta.vertices_count == tb.vertices_count
 				&& ta.first_index_offset == tb.first_index_offset && ta.triangles_count == tb.triangles_count);
-			auto const material = [](edge::Model const &m, edge::MaterialPtr const &p) -> long {
+			auto const material = [](edge::Model const &m, std::shared_ptr<edge::Material> const &p) -> long {
 				for (size_t q = 0; q < m.materials().size(); ++q)
 					if (m.materials()[q] == p)
 						return long(q);
@@ -531,7 +531,7 @@ BOOST_AUTO_TEST_CASE(drawing_a_loaded_model_submits_what_the_gltf_model_submits)
 {
 	auto original = from_gltf<Animated>("test_figure.glb");
 	auto loaded = reloaded(*original);
-	edge::CameraPtr camera(new edge::Camera());
+	std::shared_ptr<edge::Camera> camera(new edge::Camera());
 	camera->set_perspective_projection(1.0f, 4.0f / 3.0f, 0.05f, 50.0f);
 	camera->look_at(rove::vec<3>(0, 1, 3), rove::vec<3>(0, 1, 0), rove::vec<3>(0, 1, 0));
 	rove::matrix<4,4> identity;
@@ -691,7 +691,7 @@ BOOST_AUTO_TEST_CASE(a_custom_attribute_of_another_length_than_the_vertices_is_r
 BOOST_AUTO_TEST_CASE(a_custom_attribute_of_another_length_than_the_vertices_is_not_saved)
 {
 	auto original = from_gltf<edge::StaticModelPTBNT>("test_attributes.glb");
-	edge::MeshPtr const mesh = original->meshes().at(0);
+	std::shared_ptr<edge::Mesh> const mesh = original->meshes().at(0);
 	std::map<std::string, edge::Mesh::CustomAttribute> attributes = mesh->custom_attributes();
 	attributes.begin()->second.values.push_back(0);
 	mesh->set_custom_attributes(attributes);
@@ -744,7 +744,7 @@ BOOST_AUTO_TEST_CASE(a_damaged_length_is_refused_before_it_is_allocated)
 BOOST_AUTO_TEST_CASE(triangles_without_a_material_come_back_without_one)
 {
 	auto original = from_gltf<edge::StaticModelPTBNT>("test_gltf_loder_plane.glb");
-	edge::MeshPtr const mesh = original->meshes().at(0);
+	std::shared_ptr<edge::Mesh> const mesh = original->meshes().at(0);
 	edge::Mesh::triangles_list_type groups = mesh->triangles();
 	for (edge::Mesh::Triangles &triangles : groups)
 		triangles.material_ptr.reset();

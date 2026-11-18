@@ -21,7 +21,7 @@ namespace edge
 class GLESBufferStore
 {
 public:
-	GLESBufferStore(GLESContextPtr const &context, size_t size, bool dynamic, GLenum target);
+	GLESBufferStore(std::shared_ptr<GLESContext> const &context, size_t size, bool dynamic, GLenum target);
 	~GLESBufferStore();
 	GLESBufferStore(GLESBufferStore const &) = delete;
 	GLESBufferStore &operator=(GLESBufferStore const &) = delete;
@@ -34,7 +34,7 @@ public:
 
 private:
 	std::vector<unsigned char> bytes_;
-	GLESContextPtr context_;
+	std::shared_ptr<GLESContext> context_;
 	GLenum target_;
 	GLuint id_ = 0;
 };
@@ -42,7 +42,7 @@ private:
 class GLESVertexBuffer: public VertexBuffer
 {
 public:
-	GLESVertexBuffer(GLESContextPtr const &context, VertexTraits const *traits, size_t size, bool dynamic);
+	GLESVertexBuffer(std::shared_ptr<GLESContext> const &context, VertexTraits const *traits, size_t size, bool dynamic);
 
 	GLuint get() const { return store_.get(); }
 	VertexTraits const *vertex_traits() const override { return traits_; }
@@ -64,7 +64,7 @@ class GLESIndexBuffer: public IndexBuffer
 {
 public:
 	/// std::invalid_argument for a format that is not IndexFormat::U16 or IndexFormat::U32.
-	GLESIndexBuffer(GLESContextPtr const &context, IndexFormat index_format, size_t size, bool dynamic);
+	GLESIndexBuffer(std::shared_ptr<GLESContext> const &context, IndexFormat index_format, size_t size, bool dynamic);
 
 	GLuint get() const { return store_.get(); }
 	/// GL_UNSIGNED_SHORT or GL_UNSIGNED_INT

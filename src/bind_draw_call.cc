@@ -52,14 +52,14 @@ void validate_upload_range(size_t total_size, size_t offset, size_t data_size, c
     }
 }
 
-void upload_bytes_to_vertex_buffer(edge::VertexBufferPtr const &buffer, nb::bytes const &data,
+void upload_bytes_to_vertex_buffer(edge::VertexBuffer &buffer, nb::bytes const &data,
     size_t offset, bool discard)
 {
-    size_t const total_size = buffer->size();
+    size_t const total_size = buffer.size();
     size_t const data_size = data.size();
     validate_upload_range(total_size, offset, data_size, "vertex buffer");
 
-    auto bytes = buffer->write(discard ? edge::Contents::DISCARD : edge::Contents::KEEP);
+    auto bytes = buffer.write(discard ? edge::Contents::DISCARD : edge::Contents::KEEP);
     if (!bytes.data() && data_size > 0)
     {
         throw std::runtime_error("vertex buffer has no bytes to write");
@@ -70,14 +70,14 @@ void upload_bytes_to_vertex_buffer(edge::VertexBufferPtr const &buffer, nb::byte
     }
 }
 
-void upload_bytes_to_index_buffer(edge::IndexBufferPtr const &buffer, nb::bytes const &data,
+void upload_bytes_to_index_buffer(edge::IndexBuffer &buffer, nb::bytes const &data,
     size_t offset, bool discard)
 {
-    size_t const total_size = buffer->size();
+    size_t const total_size = buffer.size();
     size_t const data_size = data.size();
     validate_upload_range(total_size, offset, data_size, "index buffer");
 
-    auto bytes = buffer->write(discard ? edge::Contents::DISCARD : edge::Contents::KEEP);
+    auto bytes = buffer.write(discard ? edge::Contents::DISCARD : edge::Contents::KEEP);
     if (!bytes.data() && data_size > 0)
     {
         throw std::runtime_error("index buffer has no bytes to write");
@@ -167,7 +167,7 @@ void bind_draw_call(nb::module_ &m)
     nb::class_<edge::DebugLines>(m, "DebugLines",
         "Lines in the world for debugging: segments, boxes, spheres and axes of a colour, drawn as strips of a width in world units "
         "that face the camera, unlit, one draw call for each colour; collected between draws, draw() queues them and starts afresh")
-        .def(nb::init<edge::RendererPtr const &, float>(), "renderer"_a, "width"_a,
+        .def(nb::init<std::shared_ptr<edge::Renderer> const &, float>(), "renderer"_a, "width"_a,
             "ValueError for no renderer or a width that is not more than zero")
         .def("line", &edge::DebugLines::line, "a"_a, "b"_a, "colour"_a)
         .def("box", nb::overload_cast<rove::aabb<3> const &, rove::vec<4> const &>(&edge::DebugLines::box), "bounds"_a, "colour"_a)

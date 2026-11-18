@@ -43,14 +43,14 @@ struct Rgb
 /// A renderer's picture, started: a target cleared to `clear`, a square of `square` drawn in its middle, the frame and pass open.
 struct Picture
 {
-	VulkanRendererPtr renderer;
-	RenderTargetPtr target;
-	DrawCallPtr draw;
+	std::shared_ptr<VulkanRenderer> renderer;
+	std::shared_ptr<RenderTarget> target;
+	std::shared_ptr<DrawCall> draw;
 
-	Picture(VulkanRendererPtr const &renderer_, Rgb clear, Rgb square): renderer(renderer_)
+	Picture(std::shared_ptr<VulkanRenderer> const &renderer_, Rgb clear, Rgb square): renderer(renderer_)
 	{
 		target = renderer->create_render_target(32, 32, PixelFormat::A8R8G8B8);
-		VertexBufferPtr const vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 6);
+		std::shared_ptr<VertexBuffer> const vb = renderer->create_vertex_buffer(VertexTraits::of<VERTEX_PT>(), sizeof(VERTEX_PT) * 6);
 		auto vb_mapping = vb->write(Contents::DISCARD);
 		auto *v = vb_mapping.as<VERTEX_PT>().data();
 		float const corners[6][2] = {{-1, -1}, {1, -1}, {1, 1}, {-1, -1}, {1, 1}, {-1, 1}};
@@ -60,7 +60,7 @@ struct Picture
 			v[i].texcoords = rove::vec<2>(0, 0);
 		}
 		vb_mapping.unmap();
-		MaterialPtr const material = renderer->create_material();
+		std::shared_ptr<Material> const material = renderer->create_material();
 		material->set_cull_mode(Material::CullMode::NONE);
 		material->set_base_color_factor(rove::vec<4>(square.r / 255.0f, square.g / 255.0f, square.b / 255.0f, 1.0f));
 		draw = renderer->create_draw_call();
@@ -89,7 +89,7 @@ struct Picture
 	{
 		renderer->end_pass();
 		renderer->finish_frame();
-		TexturePtr const colour = target->color_texture();
+		std::shared_ptr<Texture> const colour = target->color_texture();
 		colour->download();
 		auto colour_mapping = colour->read();
 		auto const *pixels = colour_mapping.as<uint32_t const>().data();
@@ -105,7 +105,7 @@ struct Picture
 };
 
 /// The renderer's picture, drawn whole; whether its pixels are right.  Each renderer gets colours of its own (by `n`).
-bool draws_right(VulkanRendererPtr const &renderer, int n)
+bool draws_right(std::shared_ptr<VulkanRenderer> const &renderer, int n)
 {
 	Rgb const clear{(n * 37) % 200, 20, 200 - (n * 37) % 200}, square{240, (n * 53) % 230, 10};
 	Picture picture(renderer, clear, square);
@@ -120,7 +120,7 @@ std::vector<std::string> gpus()
 	return uuids;
 }
 
-VulkanRendererPtr renderer_on(std::string const &uuid, std::vector<std::string> const &extensions = std::vector<std::string>())
+std::shared_ptr<VulkanRenderer> renderer_on(std::string const &uuid, std::vector<std::string> const &extensions = std::vector<std::string>())
 {
 	return std::make_shared<VulkanRenderer>(32, 32, uuid, extensions);
 }
@@ -160,10 +160,10 @@ BOOST_AUTO_TEST_CASE(renderers_share_the_instance_the_first_makes_and_it_outlive
 	BOOST_REQUIRE_MESSAGE(!VulkanInstance::alive(), "an instance is alive before the test");
 	VulkanInstance::release_unused();
 	uint64_t const made = VulkanInstance::made_count();
-	VulkanRendererPtr a = renderer_on("");
+	std::shared_ptr<VulkanRenderer> a = renderer_on("");
 	BOOST_CHECK(VulkanInstance::alive());
 	BOOST_CHECK_EQUAL(VulkanInstance::made_count(), made + 1);
-	VulkanRendererPtr b = renderer_on(""), c = renderer_on("");
+	std::shared_ptr<VulkanRenderer> b = renderer_on(""), c = renderer_on("");
 	BOOST_CHECK_EQUAL(VulkanInstance::made_count(), made + 1);
 	BOOST_CHECK(a->instance() != VK_NULL_HANDLE);
 	BOOST_CHECK(b->instance() == a->instance());
@@ -188,7 +188,7 @@ BOOST_AUTO_TEST_CASE(renderers_share_the_instance_the_first_makes_and_it_outlive
 	BOOST_CHECK(!VulkanInstance::alive());
 
 	// the next renderer takes the one kept: a driver may not give back what an instance took
-	VulkanRendererPtr d = renderer_on("");
+	std::shared_ptr<VulkanRenderer> d = renderer_on("");
 	BOOST_CHECK_EQUAL(VulkanInstance::made_count(), made + 1);
 	BOOST_CHECK(draws_right(d, 5));
 	d.reset();
@@ -201,7 +201,7 @@ BOOST_AUTO_TEST_CASE(renderers_on_two_gpus_share_one_instance_and_either_goes_fi
 	BOOST_REQUIRE(!VulkanInstance::alive());
 	VulkanInstance::release_unused();
 	uint64_t const made = VulkanInstance::made_count();
-	VulkanRendererPtr first = renderer_on(uuids[0]), second = renderer_on(uuids[1]);
+	std::shared_ptr<VulkanRenderer> first = renderer_on(uuids[0]), second = renderer_on(uuids[1]);
 	BOOST_CHECK_EQUAL(VulkanInstance::made_count(), made + 1);
 	BOOST_CHECK_EQUAL(first->device_uuid(), uuids[0]);
 	BOOST_CHECK_EQUAL(second->device_uuid(), uuids[1]);
@@ -218,7 +218,7 @@ BOOST_AUTO_TEST_CASE(renderers_on_two_gpus_share_one_instance_and_either_goes_fi
 		BOOST_CHECK(picture.finish(clear, square));
 	}
 	// and one on the first GPU again while the second lives: the same instance
-	VulkanRendererPtr again = renderer_on(uuids[0]);
+	std::shared_ptr<VulkanRenderer> again = renderer_on(uuids[0]);
 	BOOST_CHECK_EQUAL(VulkanInstance::made_count(), made + 1);
 	BOOST_CHECK(again->instance() == second->instance());
 	second.reset();
@@ -235,7 +235,7 @@ BOOST_AUTO_TEST_CASE(renderers_made_and_let_go_in_mixed_order_draw_what_they_sho
 	BOOST_REQUIRE(!VulkanInstance::alive());
 	VulkanInstance::release_unused();
 	uint64_t const made = VulkanInstance::made_count();
-	std::vector<VulkanRendererPtr> live(6);
+	std::vector<std::shared_ptr<VulkanRenderer>> live(6);
 	auto const make = [&](int n) { live[n] = renderer_on(uuids[n % uuids.size()]); };
 	auto const all_draw = [&](char const *step)
 	{
@@ -271,12 +271,12 @@ BOOST_AUTO_TEST_CASE(a_texture_that_outlives_its_renderer_keeps_the_instance)
 	BOOST_REQUIRE(!VulkanInstance::alive());
 	VulkanInstance::release_unused();
 	uint64_t const made = VulkanInstance::made_count();
-	VulkanRendererPtr renderer = renderer_on("");
+	std::shared_ptr<VulkanRenderer> renderer = renderer_on("");
 	VkInstance const instance = renderer->instance();
-	TexturePtr texture = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8);
+	std::shared_ptr<Texture> texture = renderer->create_texture(4, 4, PixelFormat::A8R8G8B8);
 	renderer.reset();
 	BOOST_CHECK(VulkanInstance::alive());
-	VulkanRendererPtr next = renderer_on("");
+	std::shared_ptr<VulkanRenderer> next = renderer_on("");
 	BOOST_CHECK(next->instance() == instance);
 	BOOST_CHECK_EQUAL(VulkanInstance::made_count(), made + 1);
 	BOOST_CHECK(draws_right(next, 0));
@@ -291,7 +291,7 @@ BOOST_AUTO_TEST_CASE(a_renderer_asking_for_an_extension_the_instance_was_made_wi
 	BOOST_REQUIRE(!VulkanInstance::alive());
 	VulkanInstance::release_unused();
 	uint64_t const made = VulkanInstance::made_count();
-	VulkanRendererPtr plain = renderer_on("");
+	std::shared_ptr<VulkanRenderer> plain = renderer_on("");
 	std::string missing;
 	{
 		std::shared_ptr<VulkanInstance> const instance = VulkanInstance::acquire({});
@@ -316,8 +316,8 @@ BOOST_AUTO_TEST_CASE(a_renderer_asking_for_an_extension_the_instance_was_made_wi
 	BOOST_REQUIRE(!VulkanInstance::alive());
 
 	// made with it first, the instance has it; a renderer asking for less is given it as it is
-	VulkanRendererPtr with = renderer_on("", {missing});
-	VulkanRendererPtr without = renderer_on("");
+	std::shared_ptr<VulkanRenderer> with = renderer_on("", {missing});
+	std::shared_ptr<VulkanRenderer> without = renderer_on("");
 	BOOST_CHECK(with->instance() == without->instance());
 	BOOST_CHECK_EQUAL(VulkanInstance::made_count(), made + 2);
 	{
@@ -336,7 +336,7 @@ BOOST_AUTO_TEST_CASE(device_enumeration_uses_the_instance_there_is)
 	std::vector<std::string> const alone = gpus();         // none alive: one made for it, and kept
 	BOOST_CHECK_EQUAL(VulkanInstance::made_count(), made + 1);
 	BOOST_CHECK(!VulkanInstance::alive());
-	VulkanRendererPtr renderer = renderer_on("");
+	std::shared_ptr<VulkanRenderer> renderer = renderer_on("");
 	BOOST_CHECK_EQUAL(VulkanInstance::made_count(), made + 1);
 	std::vector<std::string> const beside = gpus();
 	BOOST_CHECK_EQUAL(VulkanInstance::made_count(), made + 1);
@@ -359,7 +359,7 @@ BOOST_AUTO_TEST_CASE(renderers_made_and_let_go_on_several_threads_at_once_draw_w
 			{
 				for (int round = 0; round < rounds; ++round)
 				{
-					VulkanRendererPtr const renderer = renderer_on(uuids[(t + round) % uuids.size()]);
+					std::shared_ptr<VulkanRenderer> const renderer = renderer_on(uuids[(t + round) % uuids.size()]);
 					if (!draws_right(renderer, t * rounds + round))
 						++wrong[t];
 				}

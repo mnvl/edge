@@ -32,7 +32,7 @@ VkIndexType resolve_vk_index_type(IndexFormat index_format)
 
 }
 
-VulkanIndexBuffer::VulkanIndexBuffer(VulkanRendererPtr const &renderer, IndexFormat index_format, size_t size):
+VulkanIndexBuffer::VulkanIndexBuffer(std::shared_ptr<VulkanRenderer> const &renderer, IndexFormat index_format, size_t size):
 	context_(renderer->device_context()),
 	index_format_(index_format),
 	index_type_(resolve_vk_index_type(index_format)),

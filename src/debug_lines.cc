@@ -18,7 +18,7 @@
 namespace edge
 {
 
-DebugLines::DebugLines(RendererPtr const &renderer, float width):
+DebugLines::DebugLines(std::shared_ptr<Renderer> const &renderer, float width):
 	renderer_(renderer),
 	width_(width)
 {
@@ -94,7 +94,7 @@ void DebugLines::clear()
 		entry.segments.clear();
 }
 
-void DebugLines::draw(Scheduler &scheduler, CameraPtr const &camera)
+void DebugLines::draw(Scheduler &scheduler, std::shared_ptr<Camera> const &camera)
 {
 	if (!camera)
 		throw std::invalid_argument("debug lines drawn without a camera");
@@ -105,7 +105,7 @@ void DebugLines::draw(Scheduler &scheduler, CameraPtr const &camera)
 			continue;
 		if (!entry.mesh)
 		{
-			MaterialPtr const material = renderer_->create_material();
+			std::shared_ptr<Material> const material = renderer_->create_material();
 			material->set_cull_mode(Material::CullMode::NONE);
 			material->set_base_color_factor(colour);
 			if (colour.w < 1)
