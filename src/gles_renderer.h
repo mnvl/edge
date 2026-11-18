@@ -129,6 +129,7 @@ public:
 	std::shared_ptr<GLESProgram> program(std::string const &vertex_shader_filename, std::string const &fragment_shader_filename);
 
 private:
+	InlineDrawList<GLESRenderer> list_{*this};       // every pass's one list
 	std::shared_ptr<GLESContext> context_;
 	std::string shader_dir_;
 	int width_, height_;
@@ -158,7 +159,7 @@ protected:
 	/// glFinish(): the frame is drawn when it returns.
 	void do_finish_frame() override;
 	/// The pass's one list: an InlineDrawList, whose viewport and draws are do_set_viewport() and do_draw().
-	std::vector<std::unique_ptr<DrawList>> do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state,
+	std::vector<DrawList *> do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state,
 		uint32_t pass_type, size_t lists) override;
 	void do_end_pass() override;
 	void do_set_viewport(int x, int y, int width, int height);

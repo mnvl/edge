@@ -346,7 +346,7 @@ void GLESRenderer::do_finish_frame()
 	gpu_timer_->end_frame();
 }
 
-std::vector<std::unique_ptr<DrawList>> GLESRenderer::do_begin_pass(std::shared_ptr<RenderTarget> const &target,
+std::vector<DrawList *> GLESRenderer::do_begin_pass(std::shared_ptr<RenderTarget> const &target,
 	RenderPassClearState const &clear_state, uint32_t, size_t)
 {
 	auto *gles_target = dynamic_cast<GLESRenderTarget *>(target.get());
@@ -374,7 +374,7 @@ std::vector<std::unique_ptr<DrawList>> GLESRenderer::do_begin_pass(std::shared_p
 	if (bits)
 		glClear(bits);
 	check_gl_often("beginning a render pass");
-	return InlineDrawList<GLESRenderer>::one(*this);
+	return {&list_};
 }
 
 void GLESRenderer::do_end_pass()

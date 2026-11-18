@@ -39,7 +39,7 @@ public:
 protected:
 	void do_begin_frame() override;
 	void do_finish_frame() override;
-	std::vector<std::unique_ptr<DrawList>> do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state,
+	std::vector<DrawList *> do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state,
 		uint32_t pass_type, size_t lists) override;
 	void do_end_pass() override;
 	/// What the pass's one list does (InlineDrawList): nothing, here; a test's renderer sees the draws by overriding them.
@@ -53,6 +53,7 @@ protected:
 
 private:
 	friend class InlineDrawList<NullRenderer>;
+	InlineDrawList<NullRenderer> list_{*this};       // every pass's one list
 	std::shared_ptr<bool> in_a_frame_ = std::make_shared<bool>(false);     // a texture may outlive the renderer, and asks this
 
 	int width_, height_;

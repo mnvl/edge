@@ -24,8 +24,9 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- A backend's pass is its lists: `Renderer::do_begin_pass()` returns them, and `do_draw()` and `do_set_viewport()` are the
-  `DrawList`'s (`InlineDrawList<R>` forwards them to a renderer that records on one thread). `Material`'s texture getters return
+- A backend's pass is its lists: `Renderer::do_begin_pass()` returns them, the backend's own and kept from pass to pass, and
+  `do_draw()` and `do_set_viewport()` are the `DrawList`'s (`draw_list.h`). A renderer that records on one thread has an
+  `InlineDrawList<R>` member, which forwards them to its own. `Material`'s texture getters return
   references.
 
 - A model no longer has a scheduler: it is given one at each draw, and draws into as many as it is given. `Model::draw()` and

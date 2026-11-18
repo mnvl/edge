@@ -355,4 +355,32 @@ BOOST_AUTO_TEST_CASE(a_material_changed_inside_a_pass_draws_as_it_is_now)
 	}
 }
 
+BOOST_AUTO_TEST_CASE(a_list_kept_for_the_next_pass_looks_its_materials_up_again)
+{
+	// The renderer keeps its lists from pass to pass, and what a list remembered a material drew with was the last pass's: another
+	// render pass, another pass type.  One material, unchanged, samples its red texture in pass type 0 and is white in pass type 1.
+	for (size_t lists : {size_t(1), size_t(2)})
+	{
+		Rig rig;
+		std::shared_ptr<Material> const material = rig.material(0);
+		material->set_shader_program(1, rig.renderer->create_shader_program(edge::test_shader("test_frame.vert"),
+			edge::test_shader("test_vertex_texture.frag")));
+		std::shared_ptr<DrawCall> const call = rig.tile_call(TILES - 1, 0);
+		call->set_material(material);
+		call->commit();
+		rig.renderer->begin_frame();
+		rig.renderer->begin_pass(rig.target, Rig::clear(), 0, lists);
+		call->execute(rig.renderer->draw_list(lists - 1));
+		rig.renderer->end_pass();
+		rig.renderer->begin_pass(rig.other, Rig::clear(), 1, lists);
+		call->execute(rig.renderer->draw_list(lists - 1));
+		rig.renderer->end_pass();
+		rig.renderer->finish_frame();
+		size_t const centre = size_t(SIZE / 2) * SIZE + SIZE / 2;
+		Rgba const sampled = rig.downloaded(rig.target)[centre], white = rig.downloaded(rig.other)[centre];
+		BOOST_CHECK_MESSAGE(sampled.r == 1.0f && sampled.g == 0.0f && sampled.b == 0.0f, lists << " lists: pass type 0 is not red");
+		BOOST_CHECK_MESSAGE(white.r == 1.0f && white.g == 1.0f && white.b == 1.0f, lists << " lists: pass type 1 is not white");
+	}
+}
+
 BOOST_AUTO_TEST_SUITE_END()

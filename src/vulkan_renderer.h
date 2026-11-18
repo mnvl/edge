@@ -20,6 +20,7 @@ namespace edge
 class VulkanDeviceContext;
 class VulkanDescriptorCache;
 class VulkanDrawList;
+class VulkanDrawLists;
 class VulkanDynamicUniformBuffer;
 class VulkanFrameRing;
 class VulkanGpuTimer;
@@ -198,9 +199,8 @@ protected:
 	/// Ends the frame and submits it with no wait: the GPU draws it while the host builds the next frames, each in a share of
 	/// the host's memory of its own.  A download, a texture written, or wait_frames() waits for it.  One submit, as finish_frame().
 	void do_submit_frame() override;
-	/// One list: the pass recorded into the frame's command buffer.  Several: a secondary command buffer for each, from a pool of
-	/// its own (a thread records it) of the frame's share of the host's memory, reset when the share is taken again.
-	std::vector<std::unique_ptr<DrawList>> do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state,
+	/// One list: the pass recorded into the frame's command buffer.  Several: a secondary command buffer for each (VulkanDrawLists).
+	std::vector<DrawList *> do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state,
 		uint32_t pass_type, size_t lists) override;
 	/// The lists' secondary command buffers, if any, executed in their order.
 	void do_end_pass() override;
@@ -273,20 +273,8 @@ private:
 	/// block at a time (the uniform buffers) or under cache_mutex_ (pipelines, descriptor sets); the list remembers each material's
 	/// pipeline and descriptor set while the material's revision stands, so that only its first draw of it looks them up.
 	void record_draw(VulkanDrawList &list, DrawCall const &call);
-	static void record_viewport(VkCommandBuffer command_buffer, int x, int y, int width, int height);
-
-	/// The command pools the lists of passes of several lists record from, for each share of the host's memory: pool i is the i-th
-	/// list's of every such pass of the frame, with the buffers it has handed out this frame (kept, and begun again by the next).
-	struct ListPool
-	{
-		VkCommandPool pool = VK_NULL_HANDLE;
-		std::vector<VkCommandBuffer> buffers;
-		size_t used = 0;
-	};
-	std::vector<std::vector<ListPool>> list_pools_;
-	void destroy_list_pools();
-	/// The active pass's secondary command buffers, in the order they are drawn: none for a pass of one list.
-	std::vector<VkCommandBuffer> pass_secondaries_;
+	/// The passes' lists and the command pools of their secondary buffers.
+	std::unique_ptr<VulkanDrawLists> lists_;
 	VkFramebuffer active_pass_framebuffer_ = VK_NULL_HANDLE;
 	/// The pipelines and the materials' descriptor sets: looked up by any number of threads at once (shared), made by one alone.
 	std::shared_mutex cache_mutex_;
