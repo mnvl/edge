@@ -6,9 +6,10 @@
 namespace edge
 {
 
-ModelCache::ModelCache(std::shared_ptr<Renderer> const &renderer, GltfOptions const &gltf_options):
+ModelCache::ModelCache(std::shared_ptr<Renderer> const &renderer, GltfOptions const &gltf_options, Keep keep):
 	renderer_(renderer),
-	gltf_options_(gltf_options)
+	gltf_options_(gltf_options),
+	keep_(keep)
 {
 	if (!renderer_)
 	{
@@ -21,7 +22,7 @@ std::size_t ModelCache::prototypes_count() const
 	std::size_t count = 0;
 	for (auto const &entry : prototypes_)
 	{
-		if (!entry.second.expired())
+		if (!entry.second.model.expired())
 			++count;
 	}
 	return count;
@@ -32,7 +33,10 @@ std::size_t ModelCache::sweep()
 	std::size_t dropped = 0;
 	for (auto it = prototypes_.begin(); it != prototypes_.end();)
 	{
-		if (it->second.expired())
+		// kept always: let go of a model only the cache holds, which then goes as one kept while used goes with its last instance
+		if (it->second.kept && it->second.kept.use_count() == 1)
+			it->second.kept.reset();
+		if (it->second.model.expired())
 		{
 			it = prototypes_.erase(it);
 			++dropped;

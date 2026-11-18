@@ -95,6 +95,7 @@ SET(EDGE_CORE_SOURCES
   shader_interface.cc
   shader_interface.h
   shader_program.h
+  shared_vector.h
   static_mesh.cc
   static_mesh.h
   static_model.cc

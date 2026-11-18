@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2004-2026 Manvel Avetisian
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <fstream>
+#include <iterator>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -413,6 +416,148 @@ BOOST_AUTO_TEST_CASE(a_null_prototype_is_refused)
 {
 	BOOST_CHECK_THROW(edge::StaticModelPTBNT(std::shared_ptr<edge::StaticModelPTBNT const>()),
 		std::invalid_argument);
+}
+
+// The CPU copies of the geometry (vertices(), indices(), morph_target_deltas()) are the prototype's, not copied into each instance:
+// a scene of a few hundred placed objects loads without copying each one's vertices.  An instance's mesh given geometry of its own
+// has it alone.
+
+BOOST_AUTO_TEST_CASE(instances_share_the_cpu_geometry)
+{
+	auto a = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_directions.glb"));
+	auto b = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_directions.glb"));
+	BOOST_REQUIRE(!a->meshes().empty());
+	for (std::size_t i = 0; i < a->meshes().size(); ++i)
+	{
+		auto const &ma = static_mesh<edge::VERTEX_PTBNT>(a->meshes()[i]);
+		auto const &mb = static_mesh<edge::VERTEX_PTBNT>(b->meshes()[i]);
+		BOOST_REQUIRE(!ma.vertices().empty() && !ma.indices().empty());
+		BOOST_CHECK(&ma.vertices() == &mb.vertices());
+		BOOST_CHECK(&ma.indices() == &mb.indices());
+	}
+	auto animated_a = cache.load<edge::AnimatedModelPTBNJWT>(asset("test_gltf_loder_animation.glb"));
+	auto animated_b = cache.load<edge::AnimatedModelPTBNJWT>(asset("test_gltf_loder_animation.glb"));
+	auto const *pa = dynamic_cast<edge::AnimatedMeshPTBNJWT const *>(animated_a->meshes()[0].get());
+	auto const *pb = dynamic_cast<edge::AnimatedMeshPTBNJWT const *>(animated_b->meshes()[0].get());
+	BOOST_REQUIRE(pa && pb && !pa->vertices().empty());
+	BOOST_CHECK(&pa->vertices() == &pb->vertices());
+	BOOST_CHECK(&pa->indices() == &pb->indices());
+	std::string const morphed = asset("test_gltf_loder_animation_weights_path.gltf");
+	auto const morphed_model_a = cache.load<edge::StaticModelPTBNT>(morphed), morphed_model_b = cache.load<edge::StaticModelPTBNT>(morphed);
+	auto const &morphed_a = static_mesh<edge::VERTEX_PTBNT>(morphed_model_a->meshes()[0]);
+	auto const &morphed_b = static_mesh<edge::VERTEX_PTBNT>(morphed_model_b->meshes()[0]);
+	BOOST_REQUIRE(!morphed_a.morph_target_deltas().empty());
+	BOOST_CHECK(&morphed_a.morph_target_deltas() == &morphed_b.morph_target_deltas());
+}
+
+BOOST_AUTO_TEST_CASE(geometry_given_to_an_instance_is_its_own)
+{
+	auto a = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
+	auto b = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
+	auto const &ma = static_mesh<edge::VERTEX_PTBNT>(a->meshes()[0]);
+	auto const &mb = static_mesh<edge::VERTEX_PTBNT>(b->meshes()[0]);
+	std::vector<edge::BasicStaticMesh<edge::VERTEX_PTBNT>::index_type> const original = ma.indices();
+	BOOST_REQUIRE_GT(original.size(), 3u);
+	std::vector<unsigned> reversed(original.rbegin(), original.rend());
+	b->meshes()[0]->set_indices(reversed.data(), reversed.size());
+
+	BOOST_CHECK(std::equal(mb.indices().begin(), mb.indices().end(), reversed.begin(), reversed.end()));
+	BOOST_CHECK(ma.indices() == original);
+	BOOST_CHECK(&ma.indices() != &mb.indices());
+	// the prototype's are as they were: another instance has them, shared with the first
+	auto c = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
+	auto const &mc = static_mesh<edge::VERTEX_PTBNT>(c->meshes()[0]);
+	BOOST_CHECK(mc.indices() == original);
+	BOOST_CHECK(&mc.indices() == &ma.indices());
+}
+
+BOOST_AUTO_TEST_SUITE_END()
+
+// A cache made with Keep::ALWAYS holds its models itself: a file is read once for the cache's life, whether or not an instance of
+// it lives (a scene generator places a few hundred models in a scene and lets them go, then places them again in the next);
+// sweep() lets go of the ones nothing else holds, and clear() of all.
+
+struct KeepingCacheFixture
+{
+	std::shared_ptr<edge::Renderer> renderer = make_renderer();
+	edge::ModelCache cache{renderer, edge::GltfOptions(), edge::ModelCache::Keep::ALWAYS};
+};
+
+BOOST_FIXTURE_TEST_SUITE(model_cache_keeping_its_models, KeepingCacheFixture)
+
+BOOST_AUTO_TEST_CASE(a_model_no_instance_uses_stays_cached)
+{
+	auto a = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
+	std::weak_ptr<edge::VertexBuffer> const buffer = model_cache::buffer_of(a);
+	a.reset();
+	BOOST_CHECK(!buffer.expired());
+	BOOST_CHECK_EQUAL(cache.prototypes_count(), 1u);
+	auto b = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
+	BOOST_CHECK(model_cache::buffer_of(b).lock() == buffer.lock());
+	BOOST_CHECK_EQUAL(cache.prototypes_count(), 1u);
+}
+
+BOOST_AUTO_TEST_CASE(a_file_is_read_once_for_the_caches_life)
+{
+	std::string const path = "model_cache_keeping_test.edge";
+	{
+		auto source = std::make_shared<edge::StaticModelPTBNT>(renderer);
+		source->load_from_gltf(asset("cone.glb"));
+		source->save_to_file(path);
+	}
+	int reads = 0;
+	cache.read_edge_files_with([&reads](std::string const &filename) {
+		++reads;
+		std::ifstream file(filename, std::ios::binary);
+		return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+	});
+	for (int i = 0; i < 3; ++i)
+		BOOST_REQUIRE(!cache.load<edge::StaticModelPTBNT>(path)->meshes().empty());     // each let go at once
+	std::remove(path.c_str());
+	BOOST_CHECK_EQUAL(reads, 1);
+}
+
+BOOST_AUTO_TEST_CASE(sweep_releases_the_models_nothing_else_holds)
+{
+	auto a = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
+	auto b = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_directions.glb"));
+	std::weak_ptr<edge::VertexBuffer> const a_buffer = model_cache::buffer_of(a), b_buffer = model_cache::buffer_of(b);
+	BOOST_CHECK_EQUAL(cache.sweep(), 0u);           // both have instances
+	a.reset();
+	BOOST_CHECK(!a_buffer.expired());               // kept until swept
+	BOOST_CHECK_EQUAL(cache.sweep(), 1u);
+	BOOST_CHECK_EQUAL(cache.sweep(), 0u);
+	BOOST_CHECK(a_buffer.expired());
+	BOOST_CHECK_EQUAL(cache.prototypes_count(), 1u);
+	auto c = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_directions.glb"));
+	BOOST_CHECK(model_cache::buffer_of(c).lock() == b_buffer.lock());
+}
+
+BOOST_AUTO_TEST_CASE(a_prototype_held_outside_the_cache_is_not_swept)
+{
+	auto a = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
+	std::shared_ptr<edge::Model const> const held = a->prototype();
+	a.reset();
+	BOOST_CHECK_EQUAL(cache.sweep(), 0u);
+	BOOST_CHECK(cache.load<edge::StaticModelPTBNT>(asset("cone.glb"))->prototype() == held);
+}
+
+BOOST_AUTO_TEST_CASE(clear_releases_every_model_and_keeps_the_instances)
+{
+	auto a = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
+	std::weak_ptr<edge::VertexBuffer> const buffer = model_cache::buffer_of(a);
+	cache.clear();
+	BOOST_CHECK_EQUAL(cache.prototypes_count(), 0u);
+	BOOST_CHECK(!buffer.expired());
+	a.reset();
+	BOOST_CHECK(buffer.expired());
+}
+
+BOOST_AUTO_TEST_CASE(a_failed_load_caches_nothing)
+{
+	BOOST_CHECK_THROW(cache.load<edge::StaticModelPTBNT>(asset("no_such_model.glb")), std::exception);
+	BOOST_CHECK_EQUAL(cache.prototypes_count(), 0u);
+	BOOST_CHECK_EQUAL(cache.sweep(), 0u);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

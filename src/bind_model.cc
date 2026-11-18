@@ -305,9 +305,20 @@ void bind_model(nb::module_ &m)
         "Reads each model file once per renderer; every load() is a new model\n"
         "sharing the file's GPU buffers and textures, with its own joints,\n"
         "animations and materials.  See edge/src/model_cache.h.")
-        .def(nb::init<std::shared_ptr<edge::Renderer> const &>(), "renderer"_a)
+        .def("__init__", [](edge::ModelCache *self, std::shared_ptr<edge::Renderer> const &renderer, bool keep_cpu_copy, bool keep_models) {
+                edge::GltfOptions options;
+                options.keep_cpu_copy = keep_cpu_copy;
+                new (self) edge::ModelCache(renderer, options,
+                    keep_models ? edge::ModelCache::Keep::ALWAYS : edge::ModelCache::Keep::WHILE_USED);
+            }, "renderer"_a, "keep_cpu_copy"_a = true, "keep_models"_a = false,
+            "keep_cpu_copy: whether the models' textures keep their texels on the CPU (GltfOptions::keep_cpu_copy); a cache whose\n"
+            "models are only measured, never drawn or read back, saves their memory with False.\n"
+            "keep_models: hold each model read for the cache's life, so a file is read once whether or not an instance of it lives\n"
+            "(edge::ModelCache::Keep::ALWAYS); by default a model goes with its last instance and is read again.")
+        .def_prop_ro("keep_models", [](edge::ModelCache const &self) { return self.keep() == edge::ModelCache::Keep::ALWAYS; })
         .def("sweep", &edge::ModelCache::sweep,
-            "Forget the models no instance holds any more (their memory went with their last instance); returns how many.")
+            "Forget the models nothing but the cache holds (kept while used, their memory went with their last instance; kept\n"
+            "always, it goes now); returns how many.")
         .def("load", [](edge::ModelCache &self, nb::handle cls, std::string const &filename) -> nb::object {
                 if (cls.is(nb::type<edge::StaticModelPNT>()))
                     return load_letting_python_run<edge::StaticModelPNT>(self, filename);
