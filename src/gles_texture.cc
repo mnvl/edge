@@ -273,6 +273,22 @@ void GLESTexture::download()
 	Texture::download();
 	if (cpu_.empty())
 		throw std::logic_error("a texture without its CPU copy cannot be downloaded");
+	read_level({}, cpu_.data());
+}
+
+void GLESTexture::record_download(std::vector<TextureRect> const &rects)
+{
+	staging_.resize(level_size(width_, height_, pixel_format_, 0));
+	read_level(rects, staging_.data());
+}
+
+void GLESTexture::finish_download(std::vector<TextureRect> const &rects)
+{
+	Texture::copy_level_rects(staging_.data(), cpu_.data(), width_, height_, pixel_format_, rects);
+}
+
+void GLESTexture::read_level(std::vector<TextureRect> const &rects, unsigned char *into)
+{
 	GlFormat const format = gl_format(pixel_format_, usage_.srgb);
 	if (format.format == 0)
 		throw std::logic_error("a block-compressed texture cannot be downloaded");
@@ -291,24 +307,36 @@ void GLESTexture::download()
 			+ " cannot be read back (framebuffer status " + std::to_string(status) + ")");
 	}
 	glPixelStorei(GL_PACK_ALIGNMENT, 1);
-	if (format.type == GL_HALF_FLOAT)
+	// each rectangle read on its own, then put where it lies in the level (GL's rows from the bottom are the target's from the top)
+	size_t const texel = level_size(1, 1, pixel_format_, 0);
+	std::vector<unsigned char> texels;
+	for (size_t i = 0; i < std::max<size_t>(rects.size(), 1); ++i)
 	{
-		// GL hands a half-float target back as floats; the texels are the nearest halves
-		std::vector<float> floats(static_cast<size_t>(width_) * height_ * 4);
-		glReadPixels(0, 0, width_, height_, GL_RGBA, GL_FLOAT, floats.data());
-		auto *halves = reinterpret_cast<uint16_t *>(cpu_.data());
-		for (size_t i = 0; i < floats.size(); ++i)
-			halves[i] = to_half(floats[i]);
-	}
-	else
-	{
-		glReadPixels(0, 0, width_, height_, format.format, format.type, cpu_.data());
+		TextureRect const r = rects.empty() ? TextureRect{0, 0, width_, height_} : rects[i];
+		size_t const count = static_cast<size_t>(r.width) * static_cast<size_t>(r.height);
+		texels.resize(count * texel);
+		if (format.type == GL_HALF_FLOAT)
+		{
+			// GL hands a half-float target back as floats; the texels are the nearest halves
+			std::vector<float> floats(count * 4);
+			glReadPixels(r.x, r.y, r.width, r.height, GL_RGBA, GL_FLOAT, floats.data());
+			auto *halves = reinterpret_cast<uint16_t *>(texels.data());
+			for (size_t j = 0; j < floats.size(); ++j)
+				halves[j] = to_half(floats[j]);
+		}
+		else
+		{
+			glReadPixels(r.x, r.y, r.width, r.height, format.format, format.type, texels.data());
+		}
+		if (format.swap_red_blue)
+			swap_red_blue(texels.data(), count);
+		for (int row = 0; row < r.height; ++row)
+			std::memcpy(into + (static_cast<size_t>(r.y + row) * static_cast<size_t>(width_) + static_cast<size_t>(r.x)) * texel,
+				texels.data() + static_cast<size_t>(row) * static_cast<size_t>(r.width) * texel, static_cast<size_t>(r.width) * texel);
 	}
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glDeleteFramebuffers(1, &fbo);
 	check_gl("reading a texture back");
-	if (format.swap_red_blue)
-		swap_red_blue(cpu_.data(), cpu_.size() / 4);
 }
 
 }

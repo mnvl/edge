@@ -203,6 +203,34 @@ void MetalTexture::do_unlock()
 	}
 }
 
+void MetalTexture::record_download(void *command_buffer, std::vector<TextureRect> const &rects)
+{
+	MetalFormat const format = metal_format(pixel_format_, usage_.srgb);
+	if (format.bc || format.astc)
+		throw std::logic_error("a block-compressed texture cannot be downloaded");
+	size_t const row = row_bytes(format, width_), size = row * size_t(height_);
+	if (!impl_->staging || impl_->staging.length < size)
+		impl_->staging = [context_->impl().device newBufferWithLength:size options:MTLResourceStorageModeShared];
+	id<MTLCommandBuffer> commands = (__bridge id<MTLCommandBuffer>)command_buffer;
+	id<MTLBlitCommandEncoder> blit = [commands blitCommandEncoder];
+	for (size_t i = 0; i < std::max<size_t>(rects.size(), 1); ++i)
+	{
+		TextureRect const r = rects.empty() ? TextureRect{0, 0, width_, height_} : rects[i];
+		// each rectangle where it lies in a buffer laid out as the whole level
+		[blit copyFromTexture:impl_->texture sourceSlice:0 sourceLevel:0 sourceOrigin:MTLOriginMake(NSUInteger(r.x), NSUInteger(r.y), 0)
+			sourceSize:MTLSizeMake(NSUInteger(r.width), NSUInteger(r.height), 1) toBuffer:impl_->staging
+			destinationOffset:size_t(r.y) * row + size_t(r.x) * format.bytes destinationBytesPerRow:row
+			destinationBytesPerImage:row * size_t(r.height)];
+	}
+	[blit endEncoding];
+	used();
+}
+
+void MetalTexture::finish_download(std::vector<TextureRect> const &rects)
+{
+	Texture::copy_level_rects(impl_->staging.contents, cpu_.data(), width_, height_, pixel_format_, rects);
+}
+
 void MetalTexture::download()
 {
 	Texture::download();

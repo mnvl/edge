@@ -508,19 +508,25 @@ void VulkanRenderer::transition_image_layout(VkImage image, VkImageLayout old_la
 	end_single_time_commands(command_buffer);
 }
 
+VulkanTexture &VulkanRenderer::downloadable(Texture &texture, char const *what) const
+{
+	VulkanTexture *const vulkan_texture = dynamic_cast<VulkanTexture *>(&texture);
+	if (!vulkan_texture || vulkan_texture->device() != device_)
+	{
+		throw std::invalid_argument(std::string(what) + ": not a texture of this renderer");
+	}
+	vulkan_texture->check_downloadable();
+	return *vulkan_texture;
+}
+
 void VulkanRenderer::do_batch_download_textures(std::vector<std::shared_ptr<Texture>> const &textures)
 {
 	std::vector<VulkanTexture *> batch;
 	for (std::shared_ptr<Texture> const &texture : textures)
 	{
-		VulkanTexture *const vulkan_texture = dynamic_cast<VulkanTexture *>(texture.get());
-		if (!vulkan_texture || vulkan_texture->device() != device_)
-		{
-			throw std::invalid_argument("batch_download_textures: not a texture of this renderer");
-		}
-		vulkan_texture->check_downloadable();
-		if (vulkan_texture->written())
-			batch.push_back(vulkan_texture);
+		VulkanTexture &vulkan_texture = downloadable(*texture, "batch_download_textures");
+		if (vulkan_texture.written())
+			batch.push_back(&vulkan_texture);
 	}
 	if (batch.empty())
 	{
@@ -528,7 +534,7 @@ void VulkanRenderer::do_batch_download_textures(std::vector<std::shared_ptr<Text
 	}
 	// one submit and one wait for them all
 	VkCommandBuffer const command_buffer = begin_single_time_commands();
-	for (VulkanTexture const *texture : batch)
+	for (VulkanTexture *texture : batch)
 	{
 		texture->record_download(command_buffer);
 	}
@@ -537,6 +543,26 @@ void VulkanRenderer::do_batch_download_textures(std::vector<std::shared_ptr<Text
 	{
 		texture->finish_download();
 	}
+}
+
+void VulkanRenderer::do_download_in_frame(Texture &texture, std::vector<TextureRect> const &rects)
+{
+	downloadable(texture, "download_in_frame").record_download(active_command_buffer_, rects);
+}
+
+void VulkanRenderer::do_finish_download(Texture &texture, std::vector<TextureRect> const &rects)
+{
+	downloadable(texture, "finish_downloads").finish_download(rects);
+}
+
+void VulkanRenderer::do_wait_frame(uint64_t serial)
+{
+	frames_->wait_serial(serial);
+}
+
+bool VulkanRenderer::do_frame_drawn(uint64_t serial)
+{
+	return frames_->drawn(serial);
 }
 
 void VulkanRenderer::do_batch_upload_textures(std::vector<std::shared_ptr<Texture>> const &textures)

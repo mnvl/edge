@@ -65,14 +65,15 @@ public:
 	/// Records the commands that copy `size` bytes from source at offset into the image, in a frame's command buffer: the image
 	/// is waited for where shaders read it, and read again from after the copy.
 	void record_stream(VkCommandBuffer command_buffer, VkBuffer source, VkDeviceSize offset);
-	/// The copy of level 0 into the staging buffer, recorded into @p command_buffer, the image left in the layout it had;
-	/// finish_download() takes the texels once the command buffer has run.  Renderer::batch_download_textures() records
-	/// several into one.
 	/// Whether the image has been written (uploaded or drawn into): one never written has nothing on the GPU, and a download leaves
 	/// the CPU copy as it is.
 	bool written() const { return current_layout_ != VK_IMAGE_LAYOUT_UNDEFINED; }
-	void record_download(VkCommandBuffer command_buffer) const;
-	void finish_download();
+	/// The copy of @p rects of level 0 (none: the whole) into the staging buffer, each where it lies in the level, recorded into
+	/// @p command_buffer, the image left in the layout it had; nothing for an image never written.  finish_download() of the same
+	/// rectangles takes the texels into the CPU copy once the command buffer has run (none: the whole copy), the rest of the copy
+	/// left as it was.  Renderer::batch_download_textures() records several into one, Renderer::download_in_frame() into a frame.
+	void record_download(VkCommandBuffer command_buffer, std::vector<TextureRect> const &rects = {});
+	void finish_download(std::vector<TextureRect> const &rects = {});
 
 	VkImage image() const { return image_; }
 	VkImageView image_view() const { return image_view_; }
@@ -105,6 +106,7 @@ private:
 	VkDeviceMemory staging_memory_;
 	VkMemoryPropertyFlags staging_memory_properties_;
 	void *staging_mapped_;
+	bool staged_ = false;        // record_download() copied into the staging buffer, for finish_download() to take
 	std::vector<char> clone_;
 	VkFormat vk_format_;
 	VkImageLayout current_layout_;

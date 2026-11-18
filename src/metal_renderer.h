@@ -90,6 +90,12 @@ protected:
 	/// std::invalid_argument for a vertex or index buffer that is not this renderer's.
 	void do_draw(DrawCall const &call);
 	friend class InlineDrawList<MetalRenderer>;
+	/// A blit in the frame's command buffer into the texture's staging buffer (MetalTexture::record_download()).
+	void do_download_in_frame(Texture &texture, std::vector<TextureRect> const &rects) override;
+	void do_finish_download(Texture &texture, std::vector<TextureRect> const &rects) override;
+	/// The frame's command buffer waited for / its completion asked about.
+	void do_wait_frame(uint64_t serial) override;
+	bool do_frame_drawn(uint64_t serial) override;
 	/// std::invalid_argument for more layers or a larger cube than the device has.
 	std::shared_ptr<RenderTarget> do_create_render_target(int width, int height, RenderTargetFormat const &format) override;
 	GpuTimer &gpu_timer() const override;

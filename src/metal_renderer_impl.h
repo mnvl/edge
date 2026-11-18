@@ -7,6 +7,8 @@
 
 #import <dispatch/dispatch.h>
 #include <array>
+#include <deque>
+#include <utility>
 #include <map>
 #include <memory>
 #include <string>
@@ -74,6 +76,8 @@ struct MetalRenderer::Impl
 	dispatch_semaphore_t slots = dispatch_semaphore_create(2);          // (here, not in the constructor body: ~Impl() waits on it however the constructor ended)
 	uint64_t frame_serial = 0;
 	id<MTLCommandBuffer> commands = nil;
+	/// The frames submitted the GPU may not have drawn, oldest first: what wait_frame() waits on.
+	std::deque<std::pair<uint64_t, id<MTLCommandBuffer>>> submitted;
 	id<MTLRenderCommandEncoder> encoder = nil;
 	MetalRenderTarget *target = nullptr;
 	MetalArena arenas[3];

@@ -312,6 +312,13 @@ void refuse_null(std::vector<std::shared_ptr<Texture>> const &textures, char con
 		throw std::invalid_argument(std::string(what) + ": no texture");
 }
 
+void refuse_twice(std::vector<std::shared_ptr<Texture>> const &textures, char const *what)
+{
+	for (size_t i = 0; i < textures.size(); ++i)
+		if (std::find(textures.begin() + i + 1, textures.end(), textures[i]) != textures.end())
+			throw std::invalid_argument(std::string(what) + ": a texture named twice");
+}
+
 }
 
 void Renderer::batch_download_textures(std::vector<std::shared_ptr<Texture>> const &textures)
@@ -319,15 +326,98 @@ void Renderer::batch_download_textures(std::vector<std::shared_ptr<Texture>> con
 	if (in_frame())
 		throw std::logic_error("batch_download_textures() inside a frame: after finish_frame()");
 	refuse_null(textures, "batch_download_textures");
+	for (std::shared_ptr<Texture> const &texture : textures)
+		if (texture->pending_download_)
+			throw std::logic_error("batch_download_textures: a texture whose download in a frame is pending (finish_downloads())");
 	do_batch_download_textures(textures);
+}
+
+void Renderer::download_in_frame(std::vector<std::shared_ptr<Texture>> const &textures, std::vector<TextureRect> const &rects)
+{
+	if (!in_frame())
+		throw std::logic_error("download_in_frame() outside a frame");
+	if (in_pass())
+		throw std::logic_error("download_in_frame() inside a pass");
+	refuse_null(textures, "download_in_frame");
+	refuse_twice(textures, "download_in_frame");
+	for (std::shared_ptr<Texture> const &texture : textures)
+	{
+		if (texture->owner() && texture->owner() != this)
+			throw std::invalid_argument("download_in_frame: a texture of another renderer");
+		if (!texture->usage().keep_cpu_copy)
+			throw std::logic_error("download_in_frame: a texture without its CPU copy (TextureUsage::keep_cpu_copy)");
+		if (texture->usage().array_layers > 0)
+			throw std::logic_error("download_in_frame: an array texture");
+		if (is_block_compressed(texture->pixel_format()))
+			throw std::logic_error("download_in_frame: a block-compressed texture");
+		if (texture->pending_download_)
+			throw std::logic_error("download_in_frame: a texture whose download is pending (finish_downloads() first)");
+		for (TextureRect const &r : rects)
+			if (r.x < 0 || r.y < 0 || r.width <= 0 || r.height <= 0 || r.x > texture->width() - r.width
+				|| r.y > texture->height() - r.height)
+				throw std::out_of_range("download_in_frame: rectangle " + std::to_string(r.x) + ", " + std::to_string(r.y) + ", "
+					+ std::to_string(r.width) + " x " + std::to_string(r.height) + " is not inside a texture of "
+					+ std::to_string(texture->width()) + " x " + std::to_string(texture->height()));
+	}
+	// every one recorded before any is pending: what the backend alone refuses (a texture of another renderer) leaves none pending,
+	// and a copy recorded for a call refused is never taken
+	for (std::shared_ptr<Texture> const &texture : textures)
+		do_download_in_frame(*texture, rects);
+	for (std::shared_ptr<Texture> const &texture : textures)
+	{
+		texture->pending_download_ = Texture::PendingDownload{frame_serial(), rects};
+		frame_resources_.push_back(texture);
+	}
+}
+
+void Renderer::finish_downloads(std::vector<std::shared_ptr<Texture>> const &textures)
+{
+	refuse_null(textures, "finish_downloads");
+	refuse_twice(textures, "finish_downloads");
+	for (std::shared_ptr<Texture> const &texture : textures)
+	{
+		if (!texture->pending_download_)
+			throw std::logic_error("finish_downloads: a texture with no download pending (download_in_frame)");
+		if (in_frame() && texture->pending_download_->frame == frame_serial())
+			throw std::logic_error("finish_downloads: a download of the open frame (submit it first)");
+	}
+	for (std::shared_ptr<Texture> const &texture : textures)
+	{
+		Texture::PendingDownload const pending = std::move(*texture->pending_download_);
+		do_wait_frame(pending.frame);
+		texture->pending_download_.reset();
+		do_finish_download(*texture, pending.rects);
+	}
+}
+
+namespace
+{
+
+void check_submitted(uint64_t serial, uint64_t last, bool open, char const *what)
+{
+	if (serial == 0 || serial > last || (open && serial == last))
+		throw std::logic_error(std::string(what) + "(" + std::to_string(serial) + "): not a frame submitted (the last begun is "
+			+ std::to_string(last) + (open ? ", open)" : ")"));
+}
+
+}
+
+void Renderer::wait_frame(uint64_t serial)
+{
+	check_submitted(serial, frame_serial(), in_frame(), "wait_frame");
+	do_wait_frame(serial);
+}
+
+bool Renderer::frame_drawn(uint64_t serial)
+{
+	check_submitted(serial, frame_serial(), in_frame(), "frame_drawn");
+	return do_frame_drawn(serial);
 }
 
 void Renderer::batch_upload_textures(std::vector<std::shared_ptr<Texture>> const &textures)
 {
 	refuse_null(textures, "batch_upload_textures");
-	for (size_t i = 0; i < textures.size(); ++i)
-		if (std::find(textures.begin() + i + 1, textures.end(), textures[i]) != textures.end())
-			throw std::invalid_argument("batch_upload_textures: a texture named twice");
+	refuse_twice(textures, "batch_upload_textures");
 	do_batch_upload_textures(textures);
 }
 
@@ -336,9 +426,7 @@ void Renderer::stream_textures(std::vector<std::shared_ptr<Texture>> const &text
 	if (in_pass())
 		throw std::logic_error("stream_textures() inside a pass");
 	refuse_null(textures, "stream_textures");
-	for (size_t i = 0; i < textures.size(); ++i)
-		if (std::find(textures.begin() + i + 1, textures.end(), textures[i]) != textures.end())
-			throw std::invalid_argument("stream_textures: a texture named twice");
+	refuse_twice(textures, "stream_textures");
 	do_stream_textures(textures);
 	if (in_frame())
 		frame_resources_.insert(frame_resources_.end(), textures.begin(), textures.end());

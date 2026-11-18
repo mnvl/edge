@@ -94,6 +94,37 @@ void VulkanFrameRing::wait(uint32_t slot)
 	retire(slot);
 }
 
+void VulkanFrameRing::wait_serial(uint64_t serial)
+{
+	for (uint32_t slot = 0; slot < size(); ++slot)
+	{
+		if (frames_[slot].serial == serial && serial != 0)
+		{
+			wait(slot);
+			return;
+		}
+	}
+}
+
+bool VulkanFrameRing::drawn(uint64_t serial)
+{
+	for (uint32_t slot = 0; slot < size(); ++slot)
+	{
+		if (frames_[slot].serial == serial && serial != 0)
+		{
+			VkResult const status = vkGetFenceStatus(device_, frames_[slot].drawn);
+			if (status == VK_NOT_READY)
+			{
+				return false;
+			}
+			check_vk_result(status, "vkGetFenceStatus(frame)");
+			retire(slot);
+			return true;
+		}
+	}
+	return true;
+}
+
 void VulkanFrameRing::wait_all()
 {
 	for (;;)

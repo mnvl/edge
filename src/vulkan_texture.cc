@@ -551,6 +551,7 @@ void VulkanTexture::check_downloadable() const
 
 void VulkanTexture::download()
 {
+	Texture::download();
 	check_downloadable();
 	if (renderer().in_frame())
 	{
@@ -566,30 +567,61 @@ void VulkanTexture::download()
 	finish_download();
 }
 
-void VulkanTexture::record_download(VkCommandBuffer command_buffer) const
+void VulkanTexture::record_download(VkCommandBuffer command_buffer, std::vector<TextureRect> const &rects)
 {
+	staged_ = written();
+	if (!staged_)
+	{
+		return;
+	}
+	if (!rects.empty() && is_block_compressed(pixel_format_))
+	{
+		throw std::logic_error("rectangles of a block-compressed texture");
+	}
+	// each rectangle where it lies in a buffer laid out as the whole level; none: the whole level
+	std::vector<VkBufferImageCopy> regions(rects.empty() ? 1 : rects.size());
+	size_t const texel = rects.empty() ? 0 : Texture::level_size(1, 1, pixel_format_, 0);
+	for (size_t i = 0; i < regions.size(); ++i)
+	{
+		TextureRect const r = rects.empty() ? TextureRect{0, 0, width_, height_} : rects[i];
+		VkBufferImageCopy &region = regions[i];
+		std::memset(&region, 0, sizeof(region));
+		region.bufferOffset = (static_cast<VkDeviceSize>(r.y) * static_cast<VkDeviceSize>(width_) + static_cast<VkDeviceSize>(r.x)) * texel;
+		region.bufferRowLength = rects.empty() ? 0 : static_cast<uint32_t>(width_);
+		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		region.imageSubresource.layerCount = 1;
+		region.imageOffset.x = r.x;
+		region.imageOffset.y = r.y;
+		region.imageExtent.width = static_cast<uint32_t>(r.width);
+		region.imageExtent.height = static_cast<uint32_t>(r.height);
+		region.imageExtent.depth = 1;
+	}
 	if (current_layout_ != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
 	{
 		record_image_layout_transition(command_buffer, image_, current_layout_, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 	}
-	VkBufferImageCopy region;
-	std::memset(&region, 0, sizeof(region));
-	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	region.imageSubresource.layerCount = 1;
-	region.imageExtent.width = static_cast<uint32_t>(width_);
-	region.imageExtent.height = static_cast<uint32_t>(height_);
-	region.imageExtent.depth = 1;
-	vkCmdCopyImageToBuffer(command_buffer, image_, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging_buffer_, 1, &region);
+	vkCmdCopyImageToBuffer(command_buffer, image_, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging_buffer_,
+		static_cast<uint32_t>(regions.size()), regions.data());
 	if (current_layout_ != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
 	{
 		record_image_layout_transition(command_buffer, image_, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, current_layout_);
 	}
 }
 
-void VulkanTexture::finish_download()
+void VulkanTexture::finish_download(std::vector<TextureRect> const &rects)
 {
+	if (!staged_)
+	{
+		return;
+	}
+	staged_ = false;
 	// the staging memory is host-coherent: once the command buffer has run, the host sees what the copy wrote
-	std::memcpy(&clone_[0], staging_mapped_, clone_.size());
+	if (rects.empty())
+	{
+		std::memcpy(&clone_[0], staging_mapped_, clone_.size());
+		return;
+	}
+	Texture::copy_level_rects(staging_mapped_, &clone_[0], width_, height_, pixel_format_, rects);
 }
 
 void VulkanTexture::transition_layout(VkImageLayout new_layout)

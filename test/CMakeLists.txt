@@ -20,6 +20,7 @@ SET(EDGE_TEST_SOURCES
   test_draw_call.cc
   test_draw_checks.cc
   test_draw_lists.cc
+  test_downloads_in_frame.cc
   test_dynamic_mesh.cc
   test_edge_file.cc
   test_untrusted_files.cc

@@ -81,6 +81,10 @@ void NullRenderer::do_set_viewport(int, int, int, int) {}
 void NullRenderer::do_set_frame_constants(void const *, size_t) {}
 void NullRenderer::do_set_global_texture(unsigned, std::shared_ptr<Texture> const &, bool) {}
 void NullRenderer::do_draw(DrawCall const &) {}
+void NullRenderer::do_download_in_frame(Texture &, std::vector<TextureRect> const &) {}
+void NullRenderer::do_finish_download(Texture &, std::vector<TextureRect> const &) {}
+void NullRenderer::do_wait_frame(uint64_t) {}
+bool NullRenderer::do_frame_drawn(uint64_t) { return true; }
 
 std::shared_ptr<VertexBuffer> NullRenderer::create_vertex_buffer(VertexTraits const *vertex_traits, size_t size, BufferUsage)
 {

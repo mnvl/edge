@@ -103,6 +103,27 @@ void Texture::download()
 {
 	if (usage_.array_layers > 0)
 		throw std::logic_error("an array texture cannot be downloaded");
+	if (pending_download_)
+		throw std::logic_error("a texture whose download in a frame is pending is downloaded by Renderer::finish_downloads()");
+}
+
+void Texture::copy_level_rects(void const *from, void *to, int width, int height, PixelFormat pixel_format,
+	std::vector<TextureRect> const &rects)
+{
+	if (is_block_compressed(pixel_format))
+		throw std::logic_error("rectangles of a block-compressed texture");
+	if (rects.empty())
+	{
+		std::memcpy(to, from, level_size(width, height, pixel_format, 0));
+		return;
+	}
+	size_t const texel = level_size(1, 1, pixel_format, 0);
+	for (TextureRect const &r : rects)
+		for (int row = r.y; row < r.y + r.height; ++row)
+		{
+			size_t const offset = (size_t(row) * size_t(width) + size_t(r.x)) * texel;
+			std::memcpy(static_cast<char *>(to) + offset, static_cast<char const *>(from) + offset, size_t(r.width) * texel);
+		}
 }
 
 size_t Texture::cpu_size() const

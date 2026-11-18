@@ -4,7 +4,9 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <iterator>
+#include <optional>
 #include <span>
 #include <utility>
 #include <vector>
@@ -15,6 +17,12 @@
 
 namespace edge
 {
+
+/// A rectangle of a texture's level 0, from its top left corner, in texels.
+struct TextureRect
+{
+	int x = 0, y = 0, width = 0, height = 0;
+};
 
 /// How a texture is created beyond its size and format.
 struct TextureUsage
@@ -52,6 +60,7 @@ public:
 
 	// Synchronize texture contents from GPU to CPU-side storage.
 	// Backends that keep CPU and GPU copies in sync may implement this as no-op.
+	// std::logic_error for an array, or while a download in a frame is pending (Renderer::download_in_frame).
 	virtual void download();
 
 	/// Whether this is a render target's readable depth (Renderer::create_render_target): what global_shadow_texture takes.
@@ -132,6 +141,10 @@ public:
 	/// of every level up to and including it.
 	static size_t level_size(int width, int height, PixelFormat pixel_format, int level);
 	static size_t levels_size(int width, int height, PixelFormat pixel_format, int levels);
+	/// Copies @p rects (none: the whole) of level 0 of a @p width x @p height texture of @p pixel_format, not block-compressed,
+	/// from @p from to @p to, both laid out as that level.
+	static void copy_level_rects(void const *from, void *to, int width, int height, PixelFormat pixel_format,
+		std::vector<TextureRect> const &rects);
 
 	// Supports BMP and PNG formats (extension-based).
 	static void save_to_file(Texture const &texture, std::string const &filename);
@@ -164,6 +177,14 @@ protected:
 
 private:
 	void const *owner_ = nullptr;
+	/// A download riding in a frame (Renderer::download_in_frame): the frame's number and the rectangles (none: the whole), until
+	/// Renderer::finish_downloads() takes it.
+	struct PendingDownload
+	{
+		uint64_t frame;
+		std::vector<TextureRect> rects;
+	};
+	std::optional<PendingDownload> pending_download_;
 
 	// The CPU copy, if the texture's format is one of these.
 	void const *cpu_copy(PixelFormat const *pixel_formats, size_t count) const;

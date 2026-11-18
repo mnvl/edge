@@ -168,6 +168,11 @@ protected:
 	/// std::invalid_argument for a vertex or index buffer that is not this renderer's.
 	void do_draw(DrawCall const &call);
 	friend class InlineDrawList<GLESRenderer>;
+	/// GL draws in order: the texels are read now (GLESTexture::record_download()), and every frame is drawn once it is submitted.
+	void do_download_in_frame(Texture &texture, std::vector<TextureRect> const &rects) override;
+	void do_finish_download(Texture &texture, std::vector<TextureRect> const &rects) override;
+	void do_wait_frame(uint64_t serial) override;
+	bool do_frame_drawn(uint64_t serial) override;
 	/// std::invalid_argument for more layers than GL_MAX_ARRAY_TEXTURE_LAYERS, a cube larger than GL_MAX_CUBE_MAP_TEXTURE_SIZE;
 	/// std::runtime_error for a colour format the device cannot draw into (the framebuffer is incomplete).
 	std::shared_ptr<RenderTarget> do_create_render_target(int width, int height, RenderTargetFormat const &format) override;

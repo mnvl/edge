@@ -35,6 +35,7 @@ struct MetalTexture::Impl
 	id<MTLTexture> texture = nil;
 	MTLPixelFormat format = MTLPixelFormatInvalid;
 	uint64_t last_use = 0;
+	id<MTLBuffer> staging = nil;        // a download in a frame copies level 0 here, laid out as the CPU copy's
 };
 
 /// The Metal object behind a texture / buffer of this backend (std::invalid_argument naming @p what for one of another).

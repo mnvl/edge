@@ -45,6 +45,11 @@ public:
 	std::shared_ptr<MetalContext> const &context() const { return context_; }
 	/// A draw or pass of the open frame uses it.
 	void used();
+	/// The copy of @p rects of level 0 (none: the whole) into the texture's staging buffer, each where it lies in the level, encoded
+	/// into @p command_buffer (an id<MTLCommandBuffer>, no encoder open); finish_download() of the same rectangles takes the texels
+	/// into the CPU copy once it has run, the rest of the copy left as it was.
+	void record_download(void *command_buffer, std::vector<TextureRect> const &rects);
+	void finish_download(std::vector<TextureRect> const &rects);
 
 	struct Impl;
 	Impl &impl() const { return *impl_; }
