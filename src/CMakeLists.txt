@@ -16,6 +16,8 @@ SET(EDGE_CORE_SOURCES
   camera.h
   draw_call.cc
   draw_call.h
+  draw_list.cc
+  draw_list.h
   font.cc
   font.h
   forward.h
@@ -171,6 +173,8 @@ SET(EDGE_VULKAN_SOURCES
   vulkan_frame_ring.cc
   vulkan_frame_ring.h
   vulkan_device_context.h
+  vulkan_draw_list.cc
+  vulkan_draw_list.h
   vulkan_device_info.cc
   vulkan_device_info.h
   vulkan_dynamic_uniform_buffer.h

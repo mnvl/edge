@@ -12,8 +12,22 @@ versions follow [Semantic Versioning](https://semver.org/).
   reads its `.edge` files with the reader `read_edge_files_with()` gives it, by the name `load()` was given, and never asks the disk.
 - A font from its bytes: `Font::from_bytes()`, the constructor of a file being this of the file's bytes, with the same errors,
   named by the name given.
+- A pass is drawn through its `DrawList`s: `begin_pass(target, clear, pass_type, lists)` makes `lists` of them (one by default),
+  `draw_list(i)` gives one, `DrawCall::execute(list)` and `Scheduler::flush(list)` draw into it, `DrawList::set_viewport()` sets its
+  viewport, and they are drawn in their order. The renderer's own draws and viewport (`DrawCall::execute()`, `Scheduler::flush()`,
+  `set_viewport()`) are list 0's. Vulkan records a pass of several lists on as many threads at once, a secondary command buffer
+  for each (`max_draw_lists()`; 1 on the other renderers, where a pass of more is `std::invalid_argument`): its uniform buffers
+  hand out blocks atomically, its pipelines and descriptor sets are looked up under a shared lock and made under an exclusive
+  one, and `IndexBuffer::highest_index()` may be asked by several threads at once.
+- `Material::revision()`, moved on by every setter: a Vulkan list remembers each material's pipeline and descriptor set until the
+  material changes.
 
 ### Changed
+
+- A backend's pass is its lists: `Renderer::do_begin_pass()` returns them, the backend's own and kept from pass to pass, and
+  `do_draw()` and `do_set_viewport()` are the `DrawList`'s (`draw_list.h`). A renderer that records on one thread has an
+  `InlineDrawList<R>` member, which forwards them to its own. `Material`'s texture getters return
+  references.
 
 - A model no longer has a scheduler: it is given one at each draw, and draws into as many as it is given. `Model::draw()` and
   `draw_instances()` (and `Mesh::draw()`, `draw_instances()`) take the `Scheduler &` first, and throw `std::invalid_argument` for one

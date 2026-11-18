@@ -5,6 +5,8 @@
 
 #include <cstddef>
 #include <map>
+#include <mutex>
+#include <shared_mutex>
 #include <utility>
 #include <cstddef>
 #include "forward.h"
@@ -28,7 +30,10 @@ public:
 	/// The buffer's bytes to write: sent to the GPU when the mapping ends.
 	Mapping<IndexBuffer> write(Contents contents = Contents::KEEP)
 	{
-		highest_.clear();
+		{
+			std::unique_lock const lock(highest_mutex_);
+			highest_.clear();
+		}
 		return Mapping<IndexBuffer>(*this, {static_cast<std::byte *>(do_lock(contents == Contents::DISCARD)), size()});
 	}
 
@@ -36,7 +41,8 @@ public:
 
 	/// The bytes of one index
 	virtual size_t index_size() const = 0;
-	/// The largest index of the @p count from @p first: what a draw of them needs its vertices to reach.
+	/// The largest index of the @p count from @p first: what a draw of them needs its vertices to reach.  Several threads may ask at
+	/// once (the lists of a split pass, each checking its draws), while none writes the buffer.
 	size_t highest_index(size_t first, size_t count) const;
 	/// The renderer the buffer was made by, to tell whether a draw may use it: only compared.
 	void const *owner() const { return owner_; }
@@ -54,8 +60,10 @@ protected:
 
 private:
 	void const *owner_ = nullptr;
-	// the answers of highest_index, which every draw asks and a mesh's groups each ask of their own range: until the next write()
+	// the answers of highest_index, which every draw asks and a mesh's groups each ask of their own range: until the next write();
+	// of the threads recording a split pass's lists together, read under a shared lock and added to under a unique one
 	mutable std::map<std::pair<size_t, size_t>, size_t> highest_;
+	mutable std::shared_mutex highest_mutex_;
 };
 
 }

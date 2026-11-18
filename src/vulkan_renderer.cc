@@ -7,10 +7,13 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <mutex>
+#include <shared_mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
+#include "draw_call.h"
 #include "log.h"
 
 #include "material.h"
@@ -20,6 +23,7 @@
 #include "vulkan_descriptor_cache.h"
 #include "vulkan_device.h"
 #include "vulkan_device_context.h"
+#include "vulkan_draw_list.h"
 #include "vulkan_dynamic_uniform_buffer.h"
 #include "vulkan_pipeline_builder.h"
 #include "vulkan_error.h"
@@ -138,6 +142,7 @@ VulkanRenderer::VulkanRenderer(int width, int height, std::string const &device_
 		render_pass_cache_.reset();
 		uploader_.reset();
 
+		lists_.reset();
 		if (command_pool_ != VK_NULL_HANDLE)
 		{
 			vkDestroyCommandPool(device_, command_pool_, nullptr);
@@ -178,6 +183,7 @@ VulkanRenderer::~VulkanRenderer()
 	render_pass_cache_.reset();
 	presenter_.reset();
 
+	lists_.reset();
 	if (command_pool_ != VK_NULL_HANDLE)
 	{
 		vkDestroyCommandPool(device_, command_pool_, nullptr);
@@ -230,6 +236,7 @@ void VulkanRenderer::init()
 	uploader_ = std::make_unique<VulkanUploader>(device_, physical_device_, slots);
 	render_pass_cache_ = std::make_unique<VulkanRenderPassCache>(device_, physical_device_);
 	create_command_pool();
+	lists_ = std::make_unique<VulkanDrawLists>(*this, device_, graphics_queue_family_);
 	presenter_ = std::make_unique<VulkanPresenter>(instance_, physical_device_, device_, graphics_queue_, graphics_queue_family_,
 		command_pool_, swapchain_extension_enabled_);
 	// a frame known drawn gives its share back: the timer's queries, the staging arena, and what waited for the frame
@@ -729,10 +736,25 @@ void VulkanRenderer::prepare_current()
 	draw_constants_ubo_->use_region(current);
 	frame_constants_ubo_->use_region(current);
 	uploader_->use_arena(current);
+	lists_->reset(current);      // (the share's frame is drawn: what its lists recorded is free to be recorded over)
 	current_ready_ = true;
 }
 
-void VulkanRenderer::do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state, uint32_t pass_type)
+std::vector<DrawList *> VulkanRenderer::do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state,
+	uint32_t, size_t lists)
+{
+	if (lists == 1)
+	{
+		begin_render_pass(target, clear_state, false);
+		return lists_->begin_inline(active_command_buffer_);
+	}
+	lists_->allocate(frames_->current(), lists);
+	begin_render_pass(target, clear_state, true);
+	return lists_->begin_secondary(active_pass_render_pass_, active_pass_framebuffer_,
+		dynamic_cast<VulkanRenderTarget const &>(*target).extent());
+}
+
+void VulkanRenderer::begin_render_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state, bool secondary)
 {
 	VulkanRenderTarget *vulkan_target = dynamic_cast<VulkanRenderTarget *>(target.get());
 	if (!vulkan_target || vulkan_target->device_context() != device_context_)
@@ -799,36 +821,24 @@ void VulkanRenderer::do_begin_pass(std::shared_ptr<RenderTarget> const &target, 
 
 	gpu_timer_->begin_pass(active_command_buffer_);
 
-	vkCmdBeginRenderPass(active_command_buffer_, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBeginRenderPass(active_command_buffer_, &render_pass_info,
+		secondary ? VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS : VK_SUBPASS_CONTENTS_INLINE);
 
-	VkViewport viewport;
-	std::memset(&viewport, 0, sizeof(viewport));
-	// Y-flip: map OpenGL Y-up NDC convention to Vulkan screen space.
-	// VK NDC Y=-1 = top, Y=+1 = bottom; by setting y=height and height=-height,
-	// we invert the mapping so Y=+1 in clip space goes to the top of the image.
-	// Core since Vulkan 1.1 (VK_KHR_maintenance1).
-	viewport.x = 0.0f;
-	viewport.y = static_cast<float>(selected_extent.height);
-	viewport.width = static_cast<float>(selected_extent.width);
-	viewport.height = -static_cast<float>(selected_extent.height);
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-	vkCmdSetViewport(active_command_buffer_, 0, 1, &viewport);
-
-	VkRect2D scissor;
-	std::memset(&scissor, 0, sizeof(scissor));
-	scissor.offset.x = 0;
-	scissor.offset.y = 0;
-	scissor.extent = selected_extent;
-	vkCmdSetScissor(active_command_buffer_, 0, 1, &scissor);
+	// (a pass of secondary command buffers records nothing inline: each sets its own)
+	if (!secondary)
+	{
+		record_viewport(active_command_buffer_, 0, 0, static_cast<int>(selected_extent.width), static_cast<int>(selected_extent.height));
+	}
 
 	active_pass_render_pass_ = selected_render_pass;
+	active_pass_framebuffer_ = selected_framebuffer;
 	active_pass_color_attachments_ = static_cast<uint32_t>(colors);
 }
 
 void VulkanRenderer::do_end_pass()
 {
 	std::shared_ptr<RenderTarget> const &finished_target = pass_target();
+	lists_->end(active_command_buffer_);
 	vkCmdEndRenderPass(active_command_buffer_);
 
 	gpu_timer_->end_pass(active_command_buffer_);
@@ -863,6 +873,7 @@ void VulkanRenderer::do_end_pass()
 	}
 
 	active_pass_render_pass_ = VK_NULL_HANDLE;
+	active_pass_framebuffer_ = VK_NULL_HANDLE;
 }
 
 void VulkanRenderer::do_finish_frame()
@@ -951,26 +962,6 @@ std::shared_ptr<Texture> VulkanRenderer::create_texture(int width, int height, P
 	return std::make_shared<VulkanTexture>(this, width, height, pixel_format, usage);
 }
 
-void VulkanRenderer::do_set_viewport(int x, int y, int width, int height)
-{
-	// the same Y flip as begin_pass, over the rectangle
-	VkViewport viewport;
-	std::memset(&viewport, 0, sizeof(viewport));
-	viewport.x = static_cast<float>(x);
-	viewport.y = static_cast<float>(y + height);
-	viewport.width = static_cast<float>(width);
-	viewport.height = -static_cast<float>(height);
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-	vkCmdSetViewport(active_command_buffer_, 0, 1, &viewport);
-	VkRect2D scissor;
-	scissor.offset.x = x;
-	scissor.offset.y = y;
-	scissor.extent.width = static_cast<uint32_t>(width);
-	scissor.extent.height = static_cast<uint32_t>(height);
-	vkCmdSetScissor(active_command_buffer_, 0, 1, &scissor);
-}
-
 void VulkanRenderer::do_set_frame_constants(void const *data, size_t size)
 {
 	std::vector<unsigned char> block(FRAME_CONSTANTS_SIZE, 0);
@@ -1055,7 +1046,7 @@ std::shared_ptr<Material> VulkanRenderer::create_material()
 	return std::make_shared<Material>(shared_from_this());
 }
 
-void VulkanRenderer::do_draw(DrawCall const &call)
+void VulkanRenderer::record_draw(VulkanDrawList &list, DrawCall const &call)
 {
 	VulkanVertexBuffer *const vertex_buffer = dynamic_cast<VulkanVertexBuffer *>(call.vertex_buffer().get());
 	if (!vertex_buffer || vertex_buffer->device() != device_)
@@ -1081,11 +1072,32 @@ void VulkanRenderer::do_draw(DrawCall const &call)
 	{
 		throw std::invalid_argument("a Vulkan draw of an index buffer of another renderer");
 	}
-	VkCommandBuffer const command_buffer = active_command_buffer();
+	VkCommandBuffer const command_buffer = list.commands();
 	VertexTraits const *const traits = vertex_buffer->vertex_traits();
 
-	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline(traits, call.material()));
-	VkDescriptorSet const descriptor_set = material_descriptor_set(call.material());
+	uint64_t const revision = call.material()->revision();
+	VulkanDrawList::Bound &bound = list.bound[VulkanDrawList::BoundKey{call.material().get(), traits}];
+	if (bound.pipeline == VK_NULL_HANDLE || bound.revision != revision)
+	{
+		VkPipeline found_pipeline = VK_NULL_HANDLE;
+		VkDescriptorSet found_set = VK_NULL_HANDLE;
+		{
+			// What was drawn before is found, by every list's thread at once ...
+			std::shared_lock<std::shared_mutex> const look(cache_mutex_);
+			found_pipeline = pipeline_builder_->find(active_pass_render_pass_, pass_type(), traits, call.material());
+			found_set = descriptors_->find(call.material(), global_textures_, global_compare_, default_texture_);
+		}
+		if (found_pipeline == VK_NULL_HANDLE || found_set == VK_NULL_HANDLE)
+		{
+			// ... and what was not is made by one alone.
+			std::unique_lock<std::shared_mutex> const make(cache_mutex_);
+			found_pipeline = pipeline(traits, call.material());
+			found_set = material_descriptor_set(call.material());
+		}
+		bound = VulkanDrawList::Bound{revision, found_pipeline, found_set};
+	}
+	VkDescriptorSet const descriptor_set = bound.descriptor_set;
+	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, bound.pipeline);
 	VkBuffer const vertex_buffers[] = {vertex_buffer->get()};
 	VkDeviceSize const offsets[] = {0};
 	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);

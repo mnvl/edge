@@ -169,7 +169,23 @@ void DrawCall::execute()
 	}
 	if (triangles_count_)
 	{
-		renderer_->draw(*this);
+		renderer_->draw_list().draw(*this);
+	}
+}
+
+void DrawCall::execute(DrawList &list)
+{
+	if (!committed_)
+	{
+		throw std::logic_error("a draw call executed before commit()");
+	}
+	if (&list.renderer_ != renderer_.get())
+	{
+		throw std::invalid_argument("a draw call executed into a list of another renderer");
+	}
+	if (triangles_count_)
+	{
+		list.draw(*this);
 	}
 }
 

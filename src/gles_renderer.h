@@ -129,6 +129,7 @@ public:
 	std::shared_ptr<GLESProgram> program(std::string const &vertex_shader_filename, std::string const &fragment_shader_filename);
 
 private:
+	InlineDrawList<GLESRenderer> list_{*this};       // every pass's one list
 	std::shared_ptr<GLESContext> context_;
 	std::string shader_dir_;
 	int width_, height_;
@@ -157,13 +158,16 @@ protected:
 	void do_begin_frame() override;
 	/// glFinish(): the frame is drawn when it returns.
 	void do_finish_frame() override;
-	void do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state, uint32_t pass_type) override;
+	/// The pass's one list: an InlineDrawList, whose viewport and draws are do_set_viewport() and do_draw().
+	std::vector<DrawList *> do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state,
+		uint32_t pass_type, size_t lists) override;
 	void do_end_pass() override;
-	void do_set_viewport(int x, int y, int width, int height) override;
+	void do_set_viewport(int x, int y, int width, int height);
 	void do_set_frame_constants(void const *data, size_t size) override;
 	void do_set_global_texture(unsigned slot, std::shared_ptr<Texture> const &texture, bool compare) override;
 	/// std::invalid_argument for a vertex or index buffer that is not this renderer's.
-	void do_draw(DrawCall const &call) override;
+	void do_draw(DrawCall const &call);
+	friend class InlineDrawList<GLESRenderer>;
 	/// std::invalid_argument for more layers than GL_MAX_ARRAY_TEXTURE_LAYERS, a cube larger than GL_MAX_CUBE_MAP_TEXTURE_SIZE;
 	/// std::runtime_error for a colour format the device cannot draw into (the framebuffer is incomplete).
 	std::shared_ptr<RenderTarget> do_create_render_target(int width, int height, RenderTargetFormat const &format) override;
