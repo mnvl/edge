@@ -245,7 +245,7 @@ void BasicStaticMesh<V>::set_vertices(GenericVertex *vertices, GenericVertex::fo
 
 	initialized_vertex_components_ |= format;
 
-	base_vertices_.assign(buffer.begin(), buffer.begin() + count);
+	base_vertices_.write().assign(buffer.begin(), buffer.begin() + count);
 
 	mapped.unmap();
 
@@ -262,15 +262,16 @@ void BasicStaticMesh<T>::set_indices(unsigned *buffer, size_t count)
 
 	index_array_ = Mesh::model()->renderer()->
 		template create_index_array<index_type>(count);
-	base_indices_.resize(count);
+	std::vector<index_type> &cpu_indices = base_indices_.write();
+	cpu_indices.resize(count);
 
 	auto mapped = index_array_->write(Contents::DISCARD);
 	std::span<index_type> const indices = mapped.template as<index_type>();
 	for (size_t i = 0; i < count; i++)
 	{
 		index_type const value = index_type(buffer[i]);
+		cpu_indices[i] = value;
 		indices[i] = value;
-		base_indices_[i] = value;
 	}
 	mapped.unmap();
 }
@@ -293,7 +294,8 @@ void BasicStaticMesh<T>::set_morph_targets(std::vector<std::vector<GenericVertex
 		return;
 	}
 
-	morph_target_deltas_.resize(targets.size());
+	std::vector<std::vector<vertex_type>> &deltas = morph_target_deltas_.write();
+	deltas.resize(targets.size());
 	for (std::size_t target_index = 0; target_index < targets.size(); ++target_index)
 	{
 		std::vector<GenericVertex> const &target = targets[target_index];
@@ -303,7 +305,7 @@ void BasicStaticMesh<T>::set_morph_targets(std::vector<std::vector<GenericVertex
 			return;
 		}
 
-		std::vector<vertex_type> &converted_target = morph_target_deltas_[target_index];
+		std::vector<vertex_type> &converted_target = deltas[target_index];
 		converted_target.resize(base_vertices_.size());
 		for (std::size_t vertex_index = 0; vertex_index < target.size(); ++vertex_index)
 		{

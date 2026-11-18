@@ -19,6 +19,10 @@ versions follow [Semantic Versioning](https://semver.org/).
   for each (`max_draw_lists()`; 1 on the other renderers, where a pass of more is `std::invalid_argument`): its uniform buffers
   hand out blocks atomically, its pipelines and descriptor sets are looked up under a shared lock and made under an exclusive
   one, and `IndexBuffer::highest_index()` may be asked by several threads at once.
+- A `ModelCache` that keeps the models it reads: `ModelCache(renderer, gltf_options, ModelCache::Keep::ALWAYS)` holds each model
+  itself, so a file is read once for the cache's life whether or not an instance of it lives (a scene generator that places
+  models, lets them go and places them again); its `sweep()` releases the models nothing but the cache holds.
+  `Keep::WHILE_USED`, the default, is the cache as before. pyedge: `ModelCache(renderer, keep_cpu_copy=True, keep_models=False)`.
 - Downloads that ride in a frame, on every renderer: `Renderer::download_in_frame(textures, rects)` takes each texture as the frame
   has drawn it so far, with no submit of its own and no wait, and `finish_downloads(textures)` waits for that frame and puts the
   texels in the CPU copies (left as they were until then). With rectangles (`TextureRect`), only those are taken and the rest of the
@@ -29,6 +33,10 @@ versions follow [Semantic Versioning](https://semver.org/).
   material changes.
 
 ### Changed
+
+- A mesh's copies (`Mesh::shallow_copy()`, so every instance of a `ModelCache`'s model) share its CPU copy of the geometry
+  (`vertices()`, `indices()`, `morph_target_deltas()`) instead of each copying it; a copy given geometry of its own has it alone
+  (copied on write, `SharedVector`).
 
 - A backend's pass is its lists: `Renderer::do_begin_pass()` returns them, the backend's own and kept from pass to pass, and
   `do_draw()` and `do_set_viewport()` are the `DrawList`'s (`draw_list.h`). A renderer that records on one thread has an

@@ -109,3 +109,41 @@ def test_a_model_is_cached_while_python_holds_an_instance_of_it(renderer):
     assert cache.sweep() == 0
     c = cache.load(pyedge.StaticModelPTBNT, _asset_path("cone.glb"))
     assert cache.prototypes_count == 1 and c is not None
+
+
+def test_a_cache_keeping_its_models_keeps_one_no_instance_holds(renderer):
+    """keep_models=True (edge::ModelCache::Keep::ALWAYS): a file is read once for the cache's life; sweep() lets go of the
+    models nothing else holds.  The default lets a model go with its last instance."""
+    import gc
+
+    path = _asset_path("cone.glb")
+    keeping = pyedge.ModelCache(renderer, keep_models=True)
+    assert keeping.keep_models is True and pyedge.ModelCache(renderer).keep_models is False
+    a = keeping.load(pyedge.StaticModelPTBNT, path)
+    del a
+    gc.collect()
+    assert keeping.prototypes_count == 1
+    b = keeping.load(pyedge.StaticModelPTBNT, path)
+    assert keeping.sweep() == 0
+    del b
+    gc.collect()
+    assert keeping.sweep() == 1
+    assert keeping.prototypes_count == 0
+
+    default = pyedge.ModelCache(renderer)
+    c = default.load(pyedge.StaticModelPTBNT, path)
+    del c
+    gc.collect()
+    assert default.prototypes_count == 0
+
+
+@pytest.mark.parametrize("keep_models", [False, True])
+def test_a_cache_that_keeps_no_cpu_copy_loads_the_same_geometry(renderer, keep_models):
+    identity = pyrove.mat4()
+    identity.identity()
+    path = _asset_path("test_gltf_loder_directions.glb")
+    kept = pyedge.ModelCache(renderer, keep_models=keep_models).load(pyedge.StaticModelPTBNT, path)
+    lean = pyedge.ModelCache(renderer, keep_cpu_copy=False, keep_models=keep_models).load(pyedge.StaticModelPTBNT, path)
+    a, b = kept.bounds(identity), lean.bounds(identity)
+    assert (a.lo.x, a.lo.y, a.lo.z, a.hi.x, a.hi.y, a.hi.z) == (b.lo.x, b.lo.y, b.lo.z, b.hi.x, b.hi.y, b.hi.z)
+    assert lean.meshes_count == kept.meshes_count > 0
