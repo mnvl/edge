@@ -8,6 +8,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <mutex>
+#include <shared_mutex>
 
 namespace edge
 {
@@ -16,9 +18,12 @@ IndexBuffer::~IndexBuffer() = default;
 
 size_t IndexBuffer::highest_index(size_t first, size_t count) const
 {
-	auto const known = highest_.find({first, count});
-	if (known != highest_.end())
-		return known->second;
+	{
+		std::shared_lock const lock(highest_mutex_);
+		auto const known = highest_.find({first, count});
+		if (known != highest_.end())
+			return known->second;
+	}
 	auto const bytes = read();
 	size_t highest = 0;
 	std::byte const *const data = bytes.data() + first * index_size();
@@ -40,6 +45,7 @@ size_t IndexBuffer::highest_index(size_t first, size_t count) const
 			highest = std::max(highest, size_t(value));
 		}
 	}
+	std::unique_lock const lock(highest_mutex_);
 	highest_[{first, count}] = highest;
 	return highest;
 }
