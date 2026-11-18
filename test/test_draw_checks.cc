@@ -9,7 +9,9 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
+#include <algorithm>
 
 #include <boost/test/unit_test.hpp>
 
@@ -173,6 +175,39 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(ranges_of_one_buffer_are_answered_each_for_itself,
 	}
 	BOOST_TEST(indices->highest_index(0, 3) == 9u);
 	BOOST_TEST(indices->highest_index(3, 3) == 7u);
+}
+
+// A split pass's lists are recorded by several threads at once, and each draw is checked as it is recorded: two lists drawing meshes
+// of one buffer (instances of one model in two lists) ask it of their ranges together.  The answers are kept, and keeping them was a
+// std::map written by both: an arena died of it in its frame (2026-11-18, a segfault in the map's insert under check_ranges()).
+BOOST_AUTO_TEST_CASE(threads_may_ask_one_buffer_of_its_ranges_at_once)
+{
+	std::shared_ptr<Renderer> const renderer(new NullRenderer(64, 64));
+	std::size_t const triangles = 6000;
+	std::vector<std::uint32_t> values(triangles * 3);
+	for (std::size_t i = 0; i < values.size(); ++i)
+		values[i] = std::uint32_t((i * 7919u) % 100003u);
+	std::shared_ptr<IndexBuffer> const indices = indices_of(renderer, values);
+	auto const expected = [&](std::size_t first) {
+		return std::size_t(std::max({values[first], values[first + 1], values[first + 2]}));
+	};
+	std::size_t const threads = 8;
+	std::vector<std::size_t> wrong(threads, 0);
+	std::vector<std::thread> pool;
+	for (std::size_t t = 0; t < threads; ++t)
+		pool.emplace_back([&, t] {
+			// every thread every range, each from its own end: most answers are new to the buffer while another thread adds its own
+			for (std::size_t k = 0; k < triangles; ++k)
+			{
+				std::size_t const first = 3 * ((t % 2 ? triangles - 1 - k : k) * (t + 1) % triangles);
+				if (indices->highest_index(first, 3) != expected(first))
+					++wrong[t];
+			}
+		});
+	for (std::thread &thread : pool)
+		thread.join();
+	for (std::size_t t = 0; t < threads; ++t)
+		BOOST_TEST(wrong[t] == 0u);
 }
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(without_indices_the_vertices_are_the_range, F, AllBackends)

@@ -10,6 +10,7 @@ namespace edge
 
 class Camera;
 class DrawCall;
+class DrawList;
 class VulkanRenderer;
 class GLESRenderer;
 class Font;
