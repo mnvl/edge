@@ -6,7 +6,8 @@
 namespace edge
 {
 
-ModelCache::ModelCache(std::shared_ptr<Renderer> const &renderer, GltfOptions const &gltf_options):
+template <template <class> class Holder>
+BasicModelCache<Holder>::BasicModelCache(std::shared_ptr<Renderer> const &renderer, GltfOptions const &gltf_options):
 	renderer_(renderer),
 	gltf_options_(gltf_options)
 {
@@ -16,23 +17,37 @@ ModelCache::ModelCache(std::shared_ptr<Renderer> const &renderer, GltfOptions co
 	}
 }
 
-std::size_t ModelCache::prototypes_count() const
+template <template <class> class Holder>
+std::size_t BasicModelCache<Holder>::prototypes_count() const
 {
-	std::size_t count = 0;
-	for (auto const &entry : prototypes_)
+	if constexpr (strong)
 	{
-		if (!entry.second.expired())
-			++count;
+		return prototypes_.size();
 	}
-	return count;
+	else
+	{
+		std::size_t count = 0;
+		for (auto const &entry : prototypes_)
+		{
+			if (!entry.second.expired())
+				++count;
+		}
+		return count;
+	}
 }
 
-std::size_t ModelCache::sweep()
+template <template <class> class Holder>
+std::size_t BasicModelCache<Holder>::sweep()
 {
 	std::size_t dropped = 0;
 	for (auto it = prototypes_.begin(); it != prototypes_.end();)
 	{
-		if (it->second.expired())
+		bool unused;
+		if constexpr (strong)
+			unused = it->second.use_count() == 1;  // the cache's own
+		else
+			unused = it->second.expired();
+		if (unused)
 		{
 			it = prototypes_.erase(it);
 			++dropped;
@@ -45,7 +60,8 @@ std::size_t ModelCache::sweep()
 	return dropped;
 }
 
-void ModelCache::load_file(Model &model, std::string const &filename) const
+template <template <class> class Holder>
+void BasicModelCache<Holder>::load_file(Model &model, std::string const &filename) const
 {
 	std::string const edge_suffix = ".edge";
 	if (filename.size() >= edge_suffix.size() &&
@@ -61,5 +77,8 @@ void ModelCache::load_file(Model &model, std::string const &filename) const
 		model.load_from_gltf(filename, gltf_options_);
 	}
 }
+
+template class BasicModelCache<std::weak_ptr>;
+template class BasicModelCache<std::shared_ptr>;
 
 }

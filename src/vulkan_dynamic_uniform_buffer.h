@@ -4,6 +4,7 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+#include <atomic>
 #include <cstring>
 #include <stdexcept>
 #include <string>
@@ -23,6 +24,9 @@ namespace edge
 /// to the device's offset alignment), so a region holds as many bytes as it was made with, however they are cut (a skinned draw's
 /// joints, not the 256 it could have).  The range a shader is bound to stays a whole block from there: each region keeps a block more
 /// at its end for the last one's.
+///
+/// write() and write_packed() may be called by several threads at once (the lists of a split pass): each takes its block with one
+/// atomic step.  Everything else is one thread's, with no write going on.
 class VulkanDynamicUniformBuffer {
 public:
 	VulkanDynamicUniformBuffer() = default;
@@ -134,9 +138,11 @@ public:
 			throw std::length_error(std::to_string(data_size) + " bytes for a uniform block of " + std::to_string(stride_));
 		}
 
-		if ((next_offset_ + stride_) > region_offset() + region_size_)
+		// (a block taken past the end is not given back: the frame has failed)
+		VkDeviceSize const offset = next_offset_.fetch_add(stride_, std::memory_order_relaxed);
+		if ((offset + stride_) > region_offset() + region_size_)
 		{
-			VkDeviceSize const used_blocks = (next_offset_ - region_offset()) / stride_;
+			VkDeviceSize const used_blocks = (offset - region_offset()) / stride_;
 			VkDeviceSize const total_blocks = region_size_ / stride_;
 			throw std::runtime_error(
 				overflow_message + " (" +
@@ -144,9 +150,6 @@ public:
 				std::to_string(static_cast<unsigned long long>(total_blocks)) +
 				" blocks used this frame)");
 		}
-
-		VkDeviceSize const offset = next_offset_;
-		next_offset_ += stride_;
 
 		char *dst = static_cast<char *>(mapped_) + offset;
 		std::memset(dst, 0, static_cast<size_t>(stride_));
@@ -166,15 +169,14 @@ public:
 		{
 			throw std::length_error(std::to_string(data_size) + " bytes for a uniform block of " + std::to_string(block_size_));
 		}
-		VkDeviceSize const used = next_offset_ - region_offset();
+		VkDeviceSize const offset = next_offset_.fetch_add(round_up(data_size, stride_), std::memory_order_relaxed);
+		VkDeviceSize const used = offset - region_offset();
 		if (used + data_size > capacity_)
 		{
 			throw std::runtime_error(overflow_message + " (" + std::to_string(static_cast<unsigned long long>(used)) + " of "
 				+ std::to_string(static_cast<unsigned long long>(capacity_)) + " bytes used this frame, "
 				+ std::to_string(data_size) + " more asked for)");
 		}
-		VkDeviceSize const offset = next_offset_;
-		next_offset_ += round_up(data_size, stride_);
 		std::memcpy(static_cast<char *>(mapped_) + offset, data, data_size);
 		return static_cast<uint32_t>(offset);
 	}
@@ -197,7 +199,7 @@ public:
 	VkDeviceSize stride() const { return stride_; }
 	VkDeviceSize buffer_size() const { return buffer_size_; }
 	VkDeviceSize block_size() const { return block_size_; }
-	VkDeviceSize next_offset() const { return next_offset_; }
+	VkDeviceSize next_offset() const { return next_offset_.load(std::memory_order_relaxed); }
 	/// Where the current region begins: the dynamic offset of its first block.
 	uint32_t region_offset() const { return static_cast<uint32_t>(region_size_ * region_); }
 	bool is_valid() const { return mapped_ != nullptr; }
@@ -245,7 +247,7 @@ private:
 	bool packed_ = false;            // written by write_packed(): stride_ is the offset alignment
 	uint32_t regions_ = 0;
 	uint32_t region_ = 0;
-	VkDeviceSize next_offset_ = 0;
+	std::atomic<VkDeviceSize> next_offset_{0};
 	VkDeviceSize block_size_ = 0;
 	std::vector<char> static_bytes_;     // what write_static() last wrote: a region taken later gets it too
 };

@@ -39,6 +39,9 @@ public:
 	VkPipeline pipeline(VkDevice device, VkPipelineLayout pipeline_layout,
 		VkRenderPass render_pass, uint32_t color_attachments, uint32_t pass_type,
 		VertexTraits const *traits, std::shared_ptr<Material> const &material);
+	/// The pipeline pipeline() would return without making one, or VK_NULL_HANDLE.  It changes nothing: several threads may ask
+	/// at once, while none is in pipeline().
+	VkPipeline find(VkRenderPass render_pass, uint32_t pass_type, VertexTraits const *traits, std::shared_ptr<Material> const &material) const;
 
 	void destroy_all(VkDevice device);
 
@@ -71,6 +74,8 @@ private:
 			return dest_blend_mode < rhs.dest_blend_mode;
 		}
 	};
+
+	static PipelineKey key_of(VkRenderPass render_pass, uint32_t pass_type, VertexTraits const *traits, std::shared_ptr<Material> const &material);
 
 	std::map<PipelineKey, VkPipeline> pipelines_;
 };

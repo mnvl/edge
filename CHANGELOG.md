@@ -12,8 +12,21 @@ versions follow [Semantic Versioning](https://semver.org/).
   reads its `.edge` files with the reader `read_edge_files_with()` gives it, by the name `load()` was given, and never asks the disk.
 - A font from its bytes: `Font::from_bytes()`, the constructor of a file being this of the file's bytes, with the same errors,
   named by the name given.
+- `BasicModelCache<Holder>`: how a cache holds its prototypes is its template's. `ModelCache` is `BasicModelCache<std::weak_ptr>`, as
+  before; `StrongModelCache`, `BasicModelCache<std::shared_ptr>`, holds them itself, so a file is read once for the cache's life
+  whether or not an instance of it lives (a program that places models, lets them go and places them again), and its `sweep()`
+  releases the prototypes no instance holds. pyedge: `pyedge.StrongModelCache`; both take `keep_cpu_copy` (`GltfOptions::keep_cpu_copy`).
+
+### Fixed
+
+- Two lists of a split pass drawing meshes of one index buffer (instances of one model) no longer corrupt its memory: the ranges
+  `IndexBuffer::highest_index()` keeps answers for, which every recorded draw is checked against, were a `std::map` both threads
+  wrote. Several threads may now ask at once.
 
 ### Changed
+
+- A mesh's copies (`Mesh::shallow_copy()`, so every instance of a `ModelCache`'s model) share its CPU copy of the geometry
+  (`vertices()`, `indices()`, the morph targets) instead of each copying it; it is copied on write (`SharedVector`).
 
 - A model no longer has a scheduler: it is given one at each draw, and draws into as many as it is given. `Model::draw()` and
   `draw_instances()` (and `Mesh::draw()`, `draw_instances()`) take the `Scheduler &` first, and throw `std::invalid_argument` for one

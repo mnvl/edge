@@ -73,6 +73,10 @@ public:
 	bool written() const { return current_layout_ != VK_IMAGE_LAYOUT_UNDEFINED; }
 	void record_download(VkCommandBuffer command_buffer) const;
 	void finish_download();
+	/// The same of @p rects alone (none: the whole level), each copied to where it lies in the staging buffer and taken from
+	/// there: the rest of the CPU copy is left as it was.
+	void record_download(VkCommandBuffer command_buffer, std::vector<TextureRect> const &rects) const;
+	void finish_download(std::vector<TextureRect> const &rects);
 
 	VkImage image() const { return image_; }
 	VkImageView image_view() const { return image_view_; }

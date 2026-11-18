@@ -35,6 +35,16 @@ void Scheduler::change_draw_calls_camera(std::shared_ptr<Camera> const &camera)
 
 void Scheduler::flush(bool clear)
 {
+	flush_into(nullptr, clear);
+}
+
+void Scheduler::flush(DrawList &list, bool clear)
+{
+	flush_into(&list, clear);
+}
+
+void Scheduler::flush_into(DrawList *list, bool clear)
+{
 	visible_calls_count_ = invisible_calls_count_ = 0;
 
 	// By priority, and within one priority in the order the calls were
@@ -68,7 +78,10 @@ void Scheduler::flush(bool clear)
 			++visible_calls_count_;
 			++executed_calls_;
 			executed_triangles_ += draw_call->triangles_count() * draw_call->instance_count();
-			draw_call->execute();
+			if (list)
+				draw_call->execute(*list);
+			else
+				draw_call->execute();
 		}
 		else
 		{

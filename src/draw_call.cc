@@ -173,4 +173,16 @@ void DrawCall::execute()
 	}
 }
 
+void DrawCall::execute(DrawList &list)
+{
+	if (!committed_)
+	{
+		throw std::logic_error("a draw call executed before commit()");
+	}
+	if (triangles_count_)
+	{
+		list.draw(*this);
+	}
+}
+
 }

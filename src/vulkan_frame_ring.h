@@ -39,6 +39,10 @@ public:
 	void submit(VkQueue queue, uint64_t serial);
 	/// Waits for the frame in @p slot, if one is in flight there, and retires it.
 	void wait(uint32_t slot);
+	/// Waits for the frame submitted as @p serial, if it is in flight, and retires it (and no other).
+	void wait_serial(uint64_t serial);
+	/// Whether the frame submitted as @p serial is drawn (retiring it if it is); true for one not in flight.
+	bool drawn(uint64_t serial);
 	/// Waits for every frame in flight, the oldest first (its times are read before a later one's).
 	void wait_all();
 	/// Retires every frame in flight without waiting: for when the queue is known idle.

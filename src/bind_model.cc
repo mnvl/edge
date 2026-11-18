@@ -42,15 +42,51 @@ std::shared_ptr<ModelType> create_render_model(std::shared_ptr<edge::Renderer> c
 }
 
 // cache.load<M>(filename) with other Python threads running meanwhile; the Python object is made after, with the GIL
-template <typename M>
-nb::object load_letting_python_run(edge::ModelCache &cache, std::string const &filename)
+template <typename M, class Cache>
+nb::object load_letting_python_run(Cache &cache, std::string const &filename)
 {
     std::shared_ptr<M> model;
     {
         nb::gil_scoped_release release;
-        model = cache.load<M>(filename);
+        model = cache.template load<M>(filename);
     }
     return nb::cast(model);
+}
+
+template <template <class> class Holder>
+void bind_model_cache(nb::module_ &m, char const *name, char const *doc)
+{
+    using Cache = edge::BasicModelCache<Holder>;
+    nb::class_<Cache>(m, name, doc)
+        .def("__init__", [](Cache *self, std::shared_ptr<edge::Renderer> const &renderer, bool keep_cpu_copy) {
+                edge::GltfOptions options;
+                options.keep_cpu_copy = keep_cpu_copy;
+                new (self) Cache(renderer, options);
+            }, "renderer"_a, "keep_cpu_copy"_a = true,
+            "keep_cpu_copy: whether the models' textures keep their texels on the CPU (GltfOptions::keep_cpu_copy); a cache whose\n"
+            "models are only measured, never drawn or read back, saves their memory with False.")
+        .def("sweep", &Cache::sweep,
+            "Forget the models no instance holds any more; returns how many.")
+        .def("load", [name](Cache &self, nb::handle cls, std::string const &filename) -> nb::object {
+                if (cls.is(nb::type<edge::StaticModelPNT>()))
+                    return load_letting_python_run<edge::StaticModelPNT>(self, filename);
+                if (cls.is(nb::type<edge::StaticModelPTBNT>()))
+                    return load_letting_python_run<edge::StaticModelPTBNT>(self, filename);
+                if (cls.is(nb::type<edge::AnimatedModelPNJWT>()))
+                    return load_letting_python_run<edge::AnimatedModelPNJWT>(self, filename);
+                if (cls.is(nb::type<edge::AnimatedModelPTBNJWT>()))
+                    return load_letting_python_run<edge::AnimatedModelPTBNJWT>(self, filename);
+                if (cls.is(nb::type<edge::StaticModelPTBNTC>()))
+                    return load_letting_python_run<edge::StaticModelPTBNTC>(self, filename);
+                if (cls.is(nb::type<edge::AnimatedModelPTBNJWTC>()))
+                    return load_letting_python_run<edge::AnimatedModelPTBNJWTC>(self, filename);
+                throw nb::type_error((std::string(name) + ".load: cls must be one of StaticModelPNT, StaticModelPTBNT, "
+                    "StaticModelPTBNTC, AnimatedModelPNJWT, AnimatedModelPTBNJWT, AnimatedModelPTBNJWTC").c_str());
+            }, "cls"_a, "filename"_a,
+            "A new model of class cls holding filename; it draws into any scheduler of the cache's renderer.")
+        .def("clear", &Cache::clear)
+        .def_prop_ro("renderer", &Cache::renderer)
+        .def_prop_ro("prototypes_count", &Cache::prototypes_count);
 }
 
 template <typename ModelType>
@@ -301,31 +337,13 @@ void bind_model(nb::module_ &m)
         "model at each level, level 0 first.");
 #endif
 
-    nb::class_<edge::ModelCache>(m, "ModelCache",
+    bind_model_cache<std::weak_ptr>(m, "ModelCache",
         "Reads each model file once per renderer; every load() is a new model\n"
         "sharing the file's GPU buffers and textures, with its own joints,\n"
-        "animations and materials.  See edge/src/model_cache.h.")
-        .def(nb::init<std::shared_ptr<edge::Renderer> const &>(), "renderer"_a)
-        .def("sweep", &edge::ModelCache::sweep,
-            "Forget the models no instance holds any more (their memory went with their last instance); returns how many.")
-        .def("load", [](edge::ModelCache &self, nb::handle cls, std::string const &filename) -> nb::object {
-                if (cls.is(nb::type<edge::StaticModelPNT>()))
-                    return load_letting_python_run<edge::StaticModelPNT>(self, filename);
-                if (cls.is(nb::type<edge::StaticModelPTBNT>()))
-                    return load_letting_python_run<edge::StaticModelPTBNT>(self, filename);
-                if (cls.is(nb::type<edge::AnimatedModelPNJWT>()))
-                    return load_letting_python_run<edge::AnimatedModelPNJWT>(self, filename);
-                if (cls.is(nb::type<edge::AnimatedModelPTBNJWT>()))
-                    return load_letting_python_run<edge::AnimatedModelPTBNJWT>(self, filename);
-                if (cls.is(nb::type<edge::StaticModelPTBNTC>()))
-                    return load_letting_python_run<edge::StaticModelPTBNTC>(self, filename);
-                if (cls.is(nb::type<edge::AnimatedModelPTBNJWTC>()))
-                    return load_letting_python_run<edge::AnimatedModelPTBNJWTC>(self, filename);
-                throw nb::type_error("ModelCache.load: cls must be one of StaticModelPNT, StaticModelPTBNT, StaticModelPTBNTC, "
-                    "AnimatedModelPNJWT, AnimatedModelPTBNJWT, AnimatedModelPTBNJWTC");
-            }, "cls"_a, "filename"_a,
-            "A new model of class cls holding filename; it draws into any scheduler of the cache's renderer.")
-        .def("clear", &edge::ModelCache::clear)
-        .def_prop_ro("renderer", &edge::ModelCache::renderer)
-        .def_prop_ro("prototypes_count", &edge::ModelCache::prototypes_count);
+        "animations and materials.  Holds the files' models weakly: one no\n"
+        "instance holds is read again.  See edge/src/model_cache.h.");
+    bind_model_cache<std::shared_ptr>(m, "StrongModelCache",
+        "ModelCache holding the files' models itself (edge::StrongModelCache):\n"
+        "each file is read once for the cache's life; sweep() lets go of the\n"
+        "models no instance holds.  See edge/src/model_cache.h.");
 }

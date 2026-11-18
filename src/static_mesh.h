@@ -9,6 +9,7 @@
 #include "index.h"
 #include "index_array.h"
 #include "mesh.h"
+#include "shared_vector.h"
 
 namespace edge
 {
@@ -87,9 +88,10 @@ protected:
 	std::shared_ptr<vertex_array_type> vertex_array_;
 	std::shared_ptr<index_array_type> index_array_;
 	bool always_visible_;
-	std::vector<vertex_type> base_vertices_;
-	std::vector<index_type> base_indices_;
-	std::vector<std::vector<vertex_type>> morph_target_deltas_;
+	// shared by the mesh's copies (shallow_copy()): set once when it is loaded and read by every copy after
+	SharedVector<vertex_type> base_vertices_;
+	SharedVector<index_type> base_indices_;
+	SharedVector<std::vector<vertex_type>> morph_target_deltas_;
 	std::vector<float> morph_weights_;
 
 	void apply_morph_weights_to_vertex_array();
