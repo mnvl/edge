@@ -48,6 +48,11 @@ protected:
 	void do_set_frame_constants(void const *data, size_t size) override;
 	void do_set_global_texture(unsigned slot, std::shared_ptr<Texture> const &texture, bool compare) override;
 	std::shared_ptr<RenderTarget> do_create_render_target(int width, int height, RenderTargetFormat const &format) override;
+	/// No GPU, nothing to read: a download leaves the CPU copy as it is, and every frame is drawn when it is submitted.
+	void do_download_in_frame(Texture &texture, std::vector<TextureRect> const &rects) override;
+	void do_finish_download(Texture &texture, std::vector<TextureRect> const &rects) override;
+	void do_wait_frame(uint64_t serial) override;
+	bool do_frame_drawn(uint64_t serial) override;
 	/// One that is not available(): there is no GPU to time.
 	GpuTimer &gpu_timer() const override { return *gpu_timer_; }
 

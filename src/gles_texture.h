@@ -49,6 +49,10 @@ public:
 	std::shared_ptr<GLESContext> const &context() const { return context_; }
 
 	void download() override;
+	/// @p rects of level 0 (none: the whole) read from the GPU now, as GL has drawn it so far, into a staging copy; finish_download()
+	/// of the same rectangles takes them into the CPU copy, the rest of it left as it was.
+	void record_download(std::vector<TextureRect> const &rects);
+	void finish_download(std::vector<TextureRect> const &rects);
 
 protected:
 	const void *do_lock() const override;
@@ -61,8 +65,12 @@ private:
 	GLuint id_ = 0;
 	GLenum target_ = GL_TEXTURE_2D;
 	mutable std::vector<unsigned char> cpu_;
+	std::vector<unsigned char> staging_;     // what record_download() read, laid out as level 0
 	bool uploaded_ = false;    // the CPU copy has been sent once
 	bool depth_ = false;
+
+	/// Reads @p rects of level 0 (none: the whole) from the GPU into @p into, laid out as level 0, each where it lies.
+	void read_level(std::vector<TextureRect> const &rects, unsigned char *into);
 };
 
 }

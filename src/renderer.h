@@ -72,6 +72,11 @@ public:
 
 	/// Frames begun since the renderer was made: the number of the frame open, or of the last one (0 before the first).
 	virtual uint64_t frame_serial() const = 0;
+	/// Waits until the GPU has drawn frame @p serial, a frame submitted (submit_frame(), finish_frame()); nothing for one drawn
+	/// already.  std::logic_error for the open frame or one not begun.
+	void wait_frame(uint64_t serial);
+	/// Whether frame @p serial is drawn, without waiting.  std::logic_error for the open frame or one not begun.
+	bool frame_drawn(uint64_t serial);
 
 	// GPU timing of the passes, the same on every renderer (gpu_timer.h): a frame's durations come once the GPU has drawn it, frames
 	// after it is ended where the renderer keeps frames in flight or the GPU answers late (WebGL 2), and are asked for by its number.
@@ -196,6 +201,21 @@ public:
 	/// path.
 	void batch_download_textures(std::vector<std::shared_ptr<Texture>> const &textures);
 
+	/// Downloads that ride in the open frame: each texture as the frame has drawn it so far (what it draws after is not in it),
+	/// with no submit of its own and no wait, unlike batch_download_textures().  finish_downloads() takes the texels into the CPU
+	/// copies, which are left as they were until then.  With @p rects, only those rectangles of each texture are taken (an atlas of
+	/// which the frame drew some tiles), and the rest of its CPU copy is left as it was.  A texture has one download pending at a
+	/// time, and is not downloaded otherwise (Texture::download(), batch_download_textures()) while it is.
+	///
+	/// std::logic_error outside a frame, inside a pass, for a texture without its CPU copy, an array, a block-compressed one, or
+	/// one whose download is pending; std::invalid_argument for a null entry, one named twice, or a texture of another renderer;
+	/// std::out_of_range for a rectangle of no area or not inside a texture.  When one is refused, none is pending.
+	void download_in_frame(std::vector<std::shared_ptr<Texture>> const &textures, std::vector<TextureRect> const &rects = {});
+	/// Waits for the frame that carried each texture's download (wait_frame) and puts its texels in the texture's CPU copy.
+	/// Anywhere but in that frame.  std::logic_error for a texture whose download is not pending or whose frame is open;
+	/// std::invalid_argument for a null entry or one named twice.  All refused before anything is taken.
+	void finish_downloads(std::vector<std::shared_ptr<Texture>> const &textures);
+
 	/// Uploads multiple textures to the GPU in a single command-buffer submission: those written through
 	/// @ref Texture::write() and not sent (Mapping::release()), each as the end of its mapping would send it.
 	///
@@ -241,6 +261,15 @@ protected:
 	virtual std::shared_ptr<RenderTarget> do_create_render_target(int width, int height, RenderTargetFormat const &format) = 0;
 	/// No entry null (downloads: outside a frame; uploads: none twice).  The defaults download, unlock, one texture at a time.
 	virtual void do_batch_download_textures(std::vector<std::shared_ptr<Texture>> const &textures);
+	/// In a frame, not in a pass: @p texture as the frame has drawn it so far, @p rects of it (none: the whole of level 0; inside it),
+	/// kept where finish_download() takes it from, leaving the CPU copy as it is.  The texture has its CPU copy, is one image and not
+	/// block-compressed, and has no download pending; std::invalid_argument for one of another renderer.
+	virtual void do_download_in_frame(Texture &texture, std::vector<TextureRect> const &rects) = 0;
+	/// The frame that carried do_download_in_frame(@p texture, @p rects) is drawn: its texels into the CPU copy.
+	virtual void do_finish_download(Texture &texture, std::vector<TextureRect> const &rects) = 0;
+	/// @p serial is a frame submitted: waits for the GPU to have drawn it / says whether it has.
+	virtual void do_wait_frame(uint64_t serial) = 0;
+	virtual bool do_frame_drawn(uint64_t serial) = 0;
 	virtual void do_batch_upload_textures(std::vector<std::shared_ptr<Texture>> const &textures);
 	/// Not in a pass, no entry null or twice.  The default uploads them as batch_upload_textures(), outside a frame or not.
 	virtual void do_stream_textures(std::vector<std::shared_ptr<Texture>> const &textures);

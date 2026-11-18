@@ -19,6 +19,12 @@ versions follow [Semantic Versioning](https://semver.org/).
   for each (`max_draw_lists()`; 1 on the other renderers, where a pass of more is `std::invalid_argument`): its uniform buffers
   hand out blocks atomically, its pipelines and descriptor sets are looked up under a shared lock and made under an exclusive
   one, and `IndexBuffer::highest_index()` may be asked by several threads at once.
+- Downloads that ride in a frame, on every renderer: `Renderer::download_in_frame(textures, rects)` takes each texture as the frame
+  has drawn it so far, with no submit of its own and no wait, and `finish_downloads(textures)` waits for that frame and puts the
+  texels in the CPU copies (left as they were until then). With rectangles (`TextureRect`), only those are taken and the rest of the
+  copy is left as it was: an atlas of which a frame drew some tiles. A texture has one download pending at a time and is not
+  downloaded otherwise meanwhile. Vulkan records the copy into the frame's command buffer, Metal blits in it, OpenGL ES reads at
+  once. `wait_frame(serial)` and `frame_drawn(serial)` wait for or ask about one frame submitted.
 - `Material::revision()`, moved on by every setter: a Vulkan list remembers each material's pipeline and descriptor set until the
   material changes.
 

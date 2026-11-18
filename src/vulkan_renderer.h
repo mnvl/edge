@@ -27,6 +27,7 @@ class VulkanGpuTimer;
 class VulkanPipelineBuilder;
 class VulkanPresenter;
 class VulkanRenderPassCache;
+class VulkanTexture;
 class VulkanUploader;
 
 // Always-offscreen Vulkan renderer. No window or display surface is created,
@@ -212,6 +213,11 @@ protected:
 	/// Every texture's VulkanTexture::record_download() into one command buffer, submitted with one wait instead of
 	/// one per texture: each wait drains the pipeline (and a PCIe round trip on a discrete GPU).
 	void do_batch_download_textures(std::vector<std::shared_ptr<Texture>> const &textures) override;
+	/// The copy recorded into the frame's command buffer, into the texture's staging buffer (VulkanTexture::record_download()).
+	void do_download_in_frame(Texture &texture, std::vector<TextureRect> const &rects) override;
+	void do_finish_download(Texture &texture, std::vector<TextureRect> const &rects) override;
+	void do_wait_frame(uint64_t serial) override;
+	bool do_frame_drawn(uint64_t serial) override;
 	void do_batch_upload_textures(std::vector<std::shared_ptr<Texture>> const &textures) override;
 	void do_stream_textures(std::vector<std::shared_ptr<Texture>> const &textures) override;
 	/// A VulkanGpuTimer: a frame's durations are read back when the renderer waits for the frame (finish_frame(), wait_frames(), or
@@ -255,6 +261,9 @@ private:
 
 	/// Frees the retired sets no frame in flight can hold, and retires the sets of materials that have died.  Between frames.
 	void reclaim_material_descriptor_sets();
+	/// @p texture as a VulkanTexture of this renderer that can be downloaded: std::invalid_argument naming @p what for one of another,
+	/// std::logic_error as VulkanTexture::check_downloadable().
+	VulkanTexture &downloadable(Texture &texture, char const *what) const;
 
 	/// The frames in flight (VulkanFrameRing), as many as the renderer was made with.
 	uint32_t frames_in_flight_ = 1;

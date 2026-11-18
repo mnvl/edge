@@ -377,6 +377,38 @@ std::vector<DrawList *> GLESRenderer::do_begin_pass(std::shared_ptr<RenderTarget
 	return {&list_};
 }
 
+namespace
+{
+
+GLESTexture &gles_texture(Texture &texture, GLESContext const *context, char const *what)
+{
+	GLESTexture *const gles = dynamic_cast<GLESTexture *>(&texture);
+	if (!gles || gles->context().get() != context)
+		throw std::invalid_argument(std::string(what) + ": not a texture of this renderer");
+	return *gles;
+}
+
+}
+
+void GLESRenderer::do_download_in_frame(Texture &texture, std::vector<TextureRect> const &rects)
+{
+	gles_texture(texture, context_.get(), "download_in_frame").record_download(rects);
+}
+
+void GLESRenderer::do_finish_download(Texture &texture, std::vector<TextureRect> const &rects)
+{
+	gles_texture(texture, context_.get(), "finish_downloads").finish_download(rects);
+}
+
+void GLESRenderer::do_wait_frame(uint64_t)
+{
+}
+
+bool GLESRenderer::do_frame_drawn(uint64_t)
+{
+	return true;
+}
+
 void GLESRenderer::do_end_pass()
 {
 	gpu_timer_->end_pass();

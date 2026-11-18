@@ -291,6 +291,9 @@ void commit(MetalRenderer::Impl &impl)
 	uint64_t const serial = impl.frame_serial;
 	dispatch_semaphore_t slots = impl.slots;
 	impl.timer->end_frame((__bridge void *)commands);
+	while (!impl.submitted.empty() && impl.submitted.front().first <= context->completed_frames())
+		impl.submitted.pop_front();
+	impl.submitted.emplace_back(serial, commands);
 	[commands addCompletedHandler:^(id<MTLCommandBuffer> done) {
 		if (done.error)
 			context->report_gpu_error([done.error.localizedDescription UTF8String]);
@@ -318,6 +321,50 @@ void MetalRenderer::do_finish_frame()
 	if (commands.error)
 		throw std::runtime_error(std::string("Metal: the frame failed: ") + [commands.error.localizedDescription UTF8String]);
 	impl.context->throw_gpu_error();
+}
+
+void MetalRenderer::do_wait_frame(uint64_t serial)
+{
+	Impl &impl = *impl_;
+	if (serial <= impl.context->completed_frames())
+		return;
+	auto const frame = std::find_if(impl.submitted.begin(), impl.submitted.end(),
+		[serial](std::pair<uint64_t, id<MTLCommandBuffer>> const &each) { return each.first == serial; });
+	if (frame == impl.submitted.end())
+		throw std::logic_error("Metal: frame " + std::to_string(serial) + " is neither drawn nor submitted");
+	id<MTLCommandBuffer> commands = frame->second;
+	[commands waitUntilCompleted];
+	impl.context->frame_completed(serial);
+	if (commands.error)
+		throw std::runtime_error(std::string("Metal: the frame failed: ") + [commands.error.localizedDescription UTF8String]);
+}
+
+bool MetalRenderer::do_frame_drawn(uint64_t serial)
+{
+	return serial <= impl_->context->completed_frames();
+}
+
+namespace
+{
+
+MetalTexture &metal_texture(Texture &texture, MetalContext const *context, char const *what)
+{
+	MetalTexture *const metal = dynamic_cast<MetalTexture *>(&texture);
+	if (!metal || metal->context().get() != context)
+		throw std::invalid_argument(std::string(what) + ": not a texture of this renderer");
+	return *metal;
+}
+
+}
+
+void MetalRenderer::do_download_in_frame(Texture &texture, std::vector<TextureRect> const &rects)
+{
+	metal_texture(texture, impl_->context.get(), "download_in_frame").record_download((__bridge void *)impl_->commands, rects);
+}
+
+void MetalRenderer::do_finish_download(Texture &texture, std::vector<TextureRect> const &rects)
+{
+	metal_texture(texture, impl_->context.get(), "finish_downloads").finish_download(rects);
 }
 
 std::vector<DrawList *> MetalRenderer::do_begin_pass(std::shared_ptr<RenderTarget> const &target,
