@@ -5,7 +5,9 @@
 
 #include <vulkan/vulkan.h>
 #include <cstdint>
+#include <limits>
 #include <optional>
+#include <shared_mutex>
 #include <vector>
 #include <memory>
 #include <string>
@@ -17,6 +19,7 @@ namespace edge
 // The renderer's own parts, edge's business: their headers are not installed, and nothing here needs more than their names.
 class VulkanDeviceContext;
 class VulkanDescriptorCache;
+class VulkanDrawList;
 class VulkanDynamicUniformBuffer;
 class VulkanFrameRing;
 class VulkanGpuTimer;
@@ -122,8 +125,9 @@ public:
 	/// The device's maxColorAttachments, or its maxFragmentOutputAttachments where that is fewer.
 	unsigned max_color_attachments() const override;
 	std::shared_ptr<Material> create_material() override;
-
-
+	/// As many as asked for: a pass of one list is recorded into the frame's command buffer, a pass of several into a secondary
+	/// command buffer for each, recorded by threads of their own.
+	size_t max_draw_lists() const override { return std::numeric_limits<size_t>::max(); }
 
 	VkPhysicalDevice physical_device() const { return physical_device_; }
 	VkDevice device() const { return device_; }
@@ -194,12 +198,14 @@ protected:
 	/// Ends the frame and submits it with no wait: the GPU draws it while the host builds the next frames, each in a share of
 	/// the host's memory of its own.  A download, a texture written, or wait_frames() waits for it.  One submit, as finish_frame().
 	void do_submit_frame() override;
-	void do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state, uint32_t pass_type) override;
+	/// One list: the pass recorded into the frame's command buffer.  Several: a secondary command buffer for each, from a pool of
+	/// its own (a thread records it) of the frame's share of the host's memory, reset when the share is taken again.
+	std::vector<std::unique_ptr<DrawList>> do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state,
+		uint32_t pass_type, size_t lists) override;
+	/// The lists' secondary command buffers, if any, executed in their order.
 	void do_end_pass() override;
-	void do_set_viewport(int x, int y, int width, int height) override;
 	void do_set_frame_constants(void const *data, size_t size) override;
 	void do_set_global_texture(unsigned slot, std::shared_ptr<Texture> const &texture, bool compare) override;
-	void do_draw(DrawCall const &call) override;
 	/// std::invalid_argument for a colour format the device cannot draw into, more layers than its maxImageArrayLayers, a cube larger than
 	/// its maxImageDimensionCube.
 	std::shared_ptr<RenderTarget> do_create_render_target(int width, int height, RenderTargetFormat const &format) override;
@@ -258,6 +264,32 @@ private:
 	uint64_t frame_serial_ = 0;        // frames begun
 	/// Makes the current share free (waiting for its frame) and rewinds it: before the host writes anything a frame reads.
 	void prepare_current();
+
+	friend class VulkanDrawList;
+	/// The render pass begun into the frame's command buffer, for draws recorded inline or (@p secondary) in secondary command
+	/// buffers.
+	void begin_render_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state, bool secondary);
+	/// A draw of @p call recorded into @p list's command buffer: any thread, one for each list.  What the threads share is taken a
+	/// block at a time (the uniform buffers) or under cache_mutex_ (pipelines, descriptor sets); the list remembers each material's
+	/// pipeline and descriptor set while the material's revision stands, so that only its first draw of it looks them up.
+	void record_draw(VulkanDrawList &list, DrawCall const &call);
+	static void record_viewport(VkCommandBuffer command_buffer, int x, int y, int width, int height);
+
+	/// The command pools the lists of passes of several lists record from, for each share of the host's memory: pool i is the i-th
+	/// list's of every such pass of the frame, with the buffers it has handed out this frame (kept, and begun again by the next).
+	struct ListPool
+	{
+		VkCommandPool pool = VK_NULL_HANDLE;
+		std::vector<VkCommandBuffer> buffers;
+		size_t used = 0;
+	};
+	std::vector<std::vector<ListPool>> list_pools_;
+	void destroy_list_pools();
+	/// The active pass's secondary command buffers, in the order they are drawn: none for a pass of one list.
+	std::vector<VkCommandBuffer> pass_secondaries_;
+	VkFramebuffer active_pass_framebuffer_ = VK_NULL_HANDLE;
+	/// The pipelines and the materials' descriptor sets: looked up by any number of threads at once (shared), made by one alone.
+	std::shared_mutex cache_mutex_;
 
 	VkCommandBuffer active_command_buffer_;
 	VkRenderPass active_pass_render_pass_;

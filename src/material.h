@@ -52,6 +52,9 @@ public:
 	std::shared_ptr<Material> clone() const;
 
 	std::shared_ptr<Renderer> const &renderer() const { return renderer_; }
+	/// Moves on with every change made to the material (every setter): a renderer that remembers what the material draws with (a
+	/// Vulkan DrawList: its pipeline and descriptor set) looks again when it has moved on.
+	uint64_t revision() const { return revision_; }
 
 	enum
 	{
@@ -106,13 +109,13 @@ public:
 	float alpha_cutoff() const { return alpha_cutoff_; }
 	/// glTF's normalTexture.scale: the normal map's x and y times this (1: as the map has them).
 	float normal_scale() const { return normal_scale_; }
-	void set_metallic_roughness_texture(std::shared_ptr<Texture> const &texture) { metallic_roughness_texture_ = texture; }
-	void set_emissive_texture(std::shared_ptr<Texture> const &texture) { emissive_texture_ = texture; }
-	void set_metallic_factor(float factor) { metallic_factor_ = factor; }
-	void set_roughness_factor(float factor) { roughness_factor_ = factor; }
-	void set_emissive_factor(rove::vec<3> const &factor) { emissive_factor_ = factor; }
-	void set_alpha_cutoff(float cutoff) { alpha_cutoff_ = cutoff; }
-	void set_normal_scale(float scale) { normal_scale_ = scale; }
+	void set_metallic_roughness_texture(std::shared_ptr<Texture> const &texture) { metallic_roughness_texture_ = texture; ++revision_; }
+	void set_emissive_texture(std::shared_ptr<Texture> const &texture) { emissive_texture_ = texture; ++revision_; }
+	void set_metallic_factor(float factor) { metallic_factor_ = factor; ++revision_; }
+	void set_roughness_factor(float factor) { roughness_factor_ = factor; ++revision_; }
+	void set_emissive_factor(rove::vec<3> const &factor) { emissive_factor_ = factor; ++revision_; }
+	void set_alpha_cutoff(float cutoff) { alpha_cutoff_ = cutoff; ++revision_; }
+	void set_normal_scale(float scale) { normal_scale_ = scale; ++revision_; }
 	/// Whether the metallic-roughness texture's red is ambient occlusion (glTF's occlusionTexture, which glTF loading packs there:
 	/// glTF's ORM, occlusion red, roughness green, metallic blue), and how much of it the surface takes, glTF's occlusionTexture.strength
 	/// from 0 (none) to 1 (all): 1 + strength * (red - 1).  A shader reads both (EDGE_FLAG_OCCLUSION_MAP, EDGE_OCCLUSION_STRENGTH;
@@ -120,7 +123,7 @@ public:
 	/// texture to hold it is std::logic_error.
 	bool occlusion() const { return occlusion_; }
 	float occlusion_strength() const { return occlusion_strength_; }
-	void set_occlusion(bool occlusion) { occlusion_ = occlusion; }
+	void set_occlusion(bool occlusion) { occlusion_ = occlusion; ++revision_; }
 	/// std::invalid_argument for a strength outside 0 to 1, or not a number.
 	void set_occlusion_strength(float strength);
 	rove::vec<4> const &extra_parameter(size_t index) const;
@@ -132,17 +135,17 @@ public:
 	std::vector<unsigned char> const &parameters() const { return parameters_; }
 	rove::vec<4> const &base_color_factor() const { return base_color_factor_; }
 
-	void set_name(std::string const &name) { name_ = name; }
-	void set_cull_mode(CullMode cull_mode) { cull_mode_ = cull_mode; }
-	void set_zwrite_enabled(bool zwrite_enabled) { zwrite_enabled_ = zwrite_enabled; }
-	void set_stencil_write(std::optional<uint8_t> value) { stencil_write_ = value; }
-	void set_alpha_blend_enabled(bool alpha_blend_enabled) { alpha_blend_enabled_ = alpha_blend_enabled; }
-	void set_preserve_destination_alpha(bool preserve) { preserve_destination_alpha_ = preserve; }
-	void set_src_blend_mode(BlendMode src_blend_mode) { src_blend_mode_ = src_blend_mode; }
-	void set_dest_blend_mode(BlendMode dest_blend_mode) { dest_blend_mode_ = dest_blend_mode; }
-	void set_shader_program(std::shared_ptr<ShaderProgram> const &shader_program) { shader_program_ = shader_program; }
+	void set_name(std::string const &name) { name_ = name; ++revision_; }
+	void set_cull_mode(CullMode cull_mode) { cull_mode_ = cull_mode; ++revision_; }
+	void set_zwrite_enabled(bool zwrite_enabled) { zwrite_enabled_ = zwrite_enabled; ++revision_; }
+	void set_stencil_write(std::optional<uint8_t> value) { stencil_write_ = value; ++revision_; }
+	void set_alpha_blend_enabled(bool alpha_blend_enabled) { alpha_blend_enabled_ = alpha_blend_enabled; ++revision_; }
+	void set_preserve_destination_alpha(bool preserve) { preserve_destination_alpha_ = preserve; ++revision_; }
+	void set_src_blend_mode(BlendMode src_blend_mode) { src_blend_mode_ = src_blend_mode; ++revision_; }
+	void set_dest_blend_mode(BlendMode dest_blend_mode) { dest_blend_mode_ = dest_blend_mode; ++revision_; }
+	void set_shader_program(std::shared_ptr<ShaderProgram> const &shader_program) { shader_program_ = shader_program; ++revision_; }
 	void set_extra_parameter(size_t index, rove::vec<4> const &value);
-	void set_base_color_factor(rove::vec<4> const &factor) { base_color_factor_ = factor; }
+	void set_base_color_factor(rove::vec<4> const &factor) { base_color_factor_ = factor; ++revision_; }
 
 	/// Diffuse texture @p index (0 is the colour texture, 1 to 3 the texture-blending layers): @p texture, or the one in @p filename.
 	void set_diffuse_texture(std::shared_ptr<Texture> const &texture, size_t index = 0);
@@ -182,6 +185,7 @@ protected:
 	float normal_scale_ = 1.0f;
 	bool occlusion_ = false;
 	float occlusion_strength_ = 1.0f;
+	uint64_t revision_ = 0;
 };
 
 }

@@ -149,7 +149,8 @@ void Renderer::submit_frame()
 	frame_resources_.clear();
 }
 
-void Renderer::begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state, uint32_t pass_type)
+void Renderer::begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state, uint32_t pass_type,
+	size_t lists)
 {
 	if (!in_frame())
 		throw std::logic_error("begin_pass() outside a frame");
@@ -160,11 +161,28 @@ void Renderer::begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPas
 	if (target->layers() > 0 && target->layer_index() < 0)
 		throw std::invalid_argument("begin_pass() of a target of " + std::to_string(target->layers())
 			+ " layers: a pass draws one, begin_pass(target->layer(i))");
-	do_begin_pass(target, clear_state, pass_type);
+	if (lists == 0)
+		throw std::invalid_argument("begin_pass() of no lists");
+	if (lists > max_draw_lists())
+		throw std::invalid_argument("begin_pass() of " + std::to_string(lists) + " lists: this renderer records a pass in at most "
+			+ std::to_string(max_draw_lists()));
+	std::vector<std::unique_ptr<DrawList>> made = do_begin_pass(target, clear_state, pass_type, lists);
+	if (made.size() != lists)
+		throw std::logic_error("the backend began a pass of " + std::to_string(made.size()) + " lists for " + std::to_string(lists));
+	draw_lists_ = std::move(made);
 	frame_resources_.push_back(target);
 	state_ = State::PASS;
 	pass_type_ = pass_type;
 	pass_target_ = target;
+}
+
+DrawList &Renderer::draw_list(size_t index)
+{
+	if (!in_pass())
+		throw std::logic_error("a draw list outside a pass");
+	if (index >= draw_lists_.size())
+		throw std::out_of_range("draw list " + std::to_string(index) + " of a pass of " + std::to_string(draw_lists_.size()));
+	return *draw_lists_[index];
 }
 
 void Renderer::end_pass()
@@ -172,6 +190,10 @@ void Renderer::end_pass()
 	if (!in_pass())
 		throw std::logic_error("end_pass() outside a pass");
 	do_end_pass();
+	// what the lists drew with is the frame's to hold until it is submitted
+	for (std::unique_ptr<DrawList> const &list : draw_lists_)
+		frame_resources_.insert(frame_resources_.end(), list->resources_.begin(), list->resources_.end());
+	draw_lists_.clear();
 	state_ = State::FRAME;
 	pass_type_ = 0;
 	pass_target_.reset();
@@ -181,13 +203,36 @@ void Renderer::set_viewport(int x, int y, int width, int height)
 {
 	if (!in_pass())
 		throw std::logic_error("set_viewport() outside a pass");
-	if (x < 0 || y < 0 || width <= 0 || height <= 0 || x + width > pass_target_->width() || y + height > pass_target_->height())
+	draw_lists_.front()->set_viewport(x, y, width, height);
+}
+
+DrawList::DrawList(Renderer &renderer):
+	renderer_(renderer)
+{
+}
+
+DrawList::~DrawList() = default;
+
+void DrawList::set_viewport(int x, int y, int width, int height)
+{
+	RenderTarget const &target = *renderer_.pass_target();
+	if (x < 0 || y < 0 || width <= 0 || height <= 0 || x + width > target.width() || y + height > target.height())
 	{
 		throw std::out_of_range("viewport " + std::to_string(x) + ", " + std::to_string(y) + ", " + std::to_string(width) + " x " +
-			std::to_string(height) + " is not inside the target of " + std::to_string(pass_target_->width()) + " x " +
-			std::to_string(pass_target_->height()));
+			std::to_string(height) + " is not inside the target of " + std::to_string(target.width()) + " x " +
+			std::to_string(target.height()));
 	}
 	do_set_viewport(x, y, width, height);
+}
+
+void DrawList::draw(DrawCall const &call)
+{
+	renderer_.check_draw(call);
+	do_draw(call);
+	hold(call.vertex_buffer());
+	if (call.index_buffer())
+		hold(call.index_buffer());
+	hold(call.material());
 }
 
 void Renderer::set_frame_constants(void const *data, size_t size)
@@ -272,7 +317,7 @@ void Renderer::check_ranges(DrawCall const &call) const
 	check_texture(material.emissive_texture());
 }
 
-void Renderer::draw(DrawCall const &call)
+void Renderer::check_draw(DrawCall const &call) const
 {
 	if (!in_pass())
 		throw std::logic_error("a draw outside a pass");
@@ -285,11 +330,6 @@ void Renderer::draw(DrawCall const &call)
 		throw std::invalid_argument("an instanced draw of no instances");
 	if (call.material()->occlusion() && !call.material()->metallic_roughness_texture())
 		throw std::logic_error("material '" + call.material()->name() + "' has occlusion and no metallic-roughness texture to hold it");
-	do_draw(call);
-	frame_resources_.push_back(call.vertex_buffer());
-	if (call.index_buffer())
-		frame_resources_.push_back(call.index_buffer());
-	frame_resources_.push_back(call.material());
 }
 
 namespace

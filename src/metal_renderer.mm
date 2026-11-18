@@ -320,7 +320,8 @@ void MetalRenderer::do_finish_frame()
 	impl.context->throw_gpu_error();
 }
 
-void MetalRenderer::do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear, uint32_t)
+std::vector<std::unique_ptr<DrawList>> MetalRenderer::do_begin_pass(std::shared_ptr<RenderTarget> const &target,
+	RenderPassClearState const &clear, uint32_t, size_t)
 {
 	Impl &impl = *impl_;
 	auto *metal_target = dynamic_cast<MetalRenderTarget *>(target.get());
@@ -351,6 +352,7 @@ void MetalRenderer::do_begin_pass(std::shared_ptr<RenderTarget> const &target, R
 	if (!impl.encoder)
 		throw std::runtime_error("Metal gives no render encoder");
 	impl.target = metal_target;
+	return InlineDrawList<MetalRenderer>::one(*this);
 }
 
 void MetalRenderer::do_end_pass()

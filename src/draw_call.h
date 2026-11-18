@@ -18,8 +18,8 @@ namespace edge
 /// A list of matrices shared, not copied, by the draw calls it is handed to (a model's mesh hands one to each call it makes).
 using SharedMatrices = std::shared_ptr<std::vector<rove::matrix<4,4>> const>;
 
-/// A draw: what is drawn, set on the call, and where, worked out by commit().  execute() gives the call itself to its renderer
-/// (Renderer::do_draw), which reads it through the getters below.
+/// A draw: what is drawn, set on the call, and where, worked out by commit().  execute() gives the call itself to a list of its
+/// renderer's pass (DrawList::do_draw), which reads it through the getters below.
 class DrawCall: public std::enable_shared_from_this<DrawCall> {
 public:
 	DrawCall(DrawCall const &) = delete;
@@ -81,8 +81,12 @@ public:
 	/// the mean centre of the instances in view).  What Scheduler::sort_blended orders blended calls by.
 	float view_depth() const { return view_depth_; }
 
-	/// Draws, in the renderer's pass (Renderer::draw); nothing for no triangles.  std::logic_error before commit().
+	/// Draws, in the renderer's pass (its list 0, Renderer::draw_list()); nothing for no triangles.  std::logic_error before
+	/// commit(), and for a call of triangles outside a pass.
 	void execute();
+	/// The same into @p list, a list of the renderer's pass (Renderer::draw_list()): std::invalid_argument for a list of another
+	/// renderer.
+	void execute(DrawList &list);
 
 protected:
 	std::shared_ptr<Renderer> const renderer_;

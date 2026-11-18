@@ -19,6 +19,7 @@ SET(EDGE_TEST_SOURCES
   test_depth_texture.cc
   test_draw_call.cc
   test_draw_checks.cc
+  test_draw_lists.cc
   test_dynamic_mesh.cc
   test_edge_file.cc
   test_untrusted_files.cc
@@ -79,6 +80,7 @@ SET(EDGE_TEST_SOURCES
   test_vulkan_descriptor_sets.cc
   test_vulkan_fixture.h
   test_vulkan_frames_in_flight.cc
+  test_vulkan_draw_lists.cc
   test_vulkan_gpu_timer.cc
   test_vulkan_instance.cc
   test_vulkan_pipeline_cache.cc
@@ -116,6 +118,7 @@ IF(NOT EDGE_USE_VULKAN)
     test_vulkan_instance.cc
     test_vulkan_uploader.cc
     test_vulkan_frames_in_flight.cc
+    test_vulkan_draw_lists.cc
     test_vulkan_render_pass_cache.cc
     test_vulkan_buffer_memory.cc
     test_vulkan_descriptor_sets.cc

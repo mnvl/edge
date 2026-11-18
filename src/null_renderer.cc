@@ -68,11 +68,13 @@ void NullRenderer::do_finish_frame()
 {
 	*in_a_frame_ = false;
 }
-void NullRenderer::do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &, uint32_t)
+std::vector<std::unique_ptr<DrawList>> NullRenderer::do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &,
+	uint32_t, size_t)
 {
 	NullRenderTarget const *const null_target = dynamic_cast<NullRenderTarget const *>(target.get());
 	if (!null_target || null_target->renderer() != this)
 		throw std::invalid_argument("a null render pass into a target of another renderer");
+	return InlineDrawList<NullRenderer>::one(*this);
 }
 void NullRenderer::do_end_pass() {}
 void NullRenderer::do_set_viewport(int, int, int, int) {}

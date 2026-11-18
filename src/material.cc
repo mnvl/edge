@@ -40,6 +40,7 @@ void Material::set_occlusion_strength(float strength)
 		throw std::invalid_argument("material '" + name_ + "': an occlusion strength of " + std::to_string(strength) + ", not 0 to 1");
 	}
 	occlusion_strength_ = strength;
+	++revision_;
 }
 
 std::shared_ptr<Material> Material::clone() const
@@ -81,6 +82,7 @@ void Material::set_parameters(void const *data, size_t size)
 		throw std::invalid_argument("material parameters of " + std::to_string(size) + " bytes from nowhere");
 	unsigned char const *bytes = static_cast<unsigned char const *>(data);
 	parameters_.assign(bytes, bytes + size);
+	++revision_;
 }
 
 rove::vec<4> const &Material::extra_parameter(size_t index) const
@@ -101,6 +103,7 @@ void Material::set_extra_parameter(size_t index, rove::vec<4> const &value)
 	}
 
 	extra_parameters_[index] = value;
+	++revision_;
 }
 
 std::shared_ptr<ShaderProgram> const &Material::shader_program(uint32_t pass_type) const
@@ -127,6 +130,7 @@ void Material::set_shader_program(uint32_t pass_type, std::shared_ptr<ShaderProg
 	{
 		pass_shader_programs_[pass_type] = shader_program;
 	}
+	++revision_;
 }
 
 void Material::clear_shader_program(uint32_t pass_type)
@@ -139,38 +143,40 @@ void Material::clear_shader_program(uint32_t pass_type)
 	{
 		pass_shader_programs_.erase(pass_type);
 	}
+	++revision_;
 }
 
 void Material::set_diffuse_texture(std::shared_ptr<Texture> const &texture, size_t index) {
 	if (diffuse_textures_.size() <= index) diffuse_textures_.resize(index + 1);
 	diffuse_textures_[index] = texture;
+	++revision_;
 }
 
 void Material::set_diffuse_texture(std::string const &filename, size_t index)
 {
-	if (diffuse_textures_.size() <= index) diffuse_textures_.resize(index + 1);
-
-	diffuse_textures_[index] = Texture::load_from_file(renderer_, filename);
+	set_diffuse_texture(Texture::load_from_file(renderer_, filename), index);
 }
 
 void Material::set_texture_blending_weights_texture(std::string const &filename)
 {
-	texture_blending_weights_texture_ = Texture::load_from_file(renderer_, filename);
+	set_texture_blending_weights_texture(Texture::load_from_file(renderer_, filename));
 }
 
 void Material::set_texture_blending_weights_texture(std::shared_ptr<Texture> const &texture)
 {
 	texture_blending_weights_texture_ = texture;
+	++revision_;
 }
 
 void Material::set_normal_map_texture(std::string const &filename)
 {
-	normal_map_texture_ = Texture::load_from_file(renderer_, filename);
+	set_normal_map_texture(Texture::load_from_file(renderer_, filename));
 }
 
 void Material::set_normal_map_texture(std::shared_ptr<Texture> const &texture)
 {
 	normal_map_texture_ = texture;
+	++revision_;
 }
 
 }

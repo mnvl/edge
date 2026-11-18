@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <memory>
 #include <rove/matrix.h>
@@ -24,6 +25,68 @@ namespace edge
 {
 
 class GpuTimer;
+class Renderer;
+
+/// A part of a pass: its viewport and its draws, drawn after those of the lists before it.  Renderer::begin_pass() makes a pass's
+/// lists (one unless it asks for more) and end_pass() takes them away: a list is the renderer's, and gone with its pass.  One thread
+/// at a time uses a list; a pass's lists are used by different threads at once where the renderer records on several
+/// (Renderer::max_draw_lists()).  A list may remember what a material draws with for its later draws of it, and looks again when
+/// the material has changed (Material::revision()): a material is not changed while another thread draws it.
+class DrawList {
+public:
+	DrawList(DrawList const &) = delete;
+	DrawList &operator=(DrawList const &) = delete;
+	virtual ~DrawList();
+
+	/// This list's draws from now on go to the rectangle of the pass's target x, y (from its top left corner), w x h pixels, and
+	/// nowhere else (scissored): several views in one target, a shadow atlas.  A list starts with the whole target.
+	/// std::out_of_range for a rectangle not inside the target.
+	void set_viewport(int x, int y, int width, int height);
+
+protected:
+	explicit DrawList(Renderer &renderer);
+	/// The rectangle is inside the pass's target.
+	virtual void do_set_viewport(int x, int y, int width, int height) = 0;
+	/// @p call committed, of this list's renderer, and checked as Renderer checks a draw.
+	virtual void do_draw(DrawCall const &call) = 0;
+
+private:
+	friend class DrawCall;
+	friend class Renderer;
+	/// Checks and draws @p call in the pass; DrawCall::execute() gives it here once committed.
+	void draw(DrawCall const &call);
+
+	Renderer &renderer_;
+	/// What the list's draws draw with, each once: the frame's to hold once the pass ends (Renderer::end_pass).
+	std::vector<std::shared_ptr<void const>> resources_;
+	std::unordered_set<void const *> held_;
+	template<class T> void hold(std::shared_ptr<T> const &resource)
+	{
+		// (once a list: a copy for every draw is a count every thread drawing the same buffer or material fights over)
+		if (held_.insert(resource.get()).second)
+			resources_.push_back(resource);
+	}
+};
+
+/// The one list of a pass of a renderer that records a pass on one thread: its viewport and draws are @p R's own,
+/// R::do_set_viewport() and R::do_draw() (R befriends it).
+template<class R> class InlineDrawList final: public DrawList {
+public:
+	explicit InlineDrawList(R &renderer): DrawList(renderer), renderer_(renderer) {}
+
+	/// What R::do_begin_pass() returns: one of these.
+	static std::vector<std::unique_ptr<DrawList>> one(R &renderer)
+	{
+		std::vector<std::unique_ptr<DrawList>> lists;
+		lists.push_back(std::make_unique<InlineDrawList>(renderer));
+		return lists;
+	}
+
+private:
+	R &renderer_;
+	void do_set_viewport(int x, int y, int width, int height) override { renderer_.do_set_viewport(x, y, width, height); }
+	void do_draw(DrawCall const &call) override { renderer_.do_draw(call); }
+};
 
 class Renderer: public std::enable_shared_from_this<Renderer> {
 public:
@@ -49,18 +112,25 @@ public:
 	void submit_frame();
 	/// A pass into @p target, cleared as @p clear_state says (every colour attachment to the clear colour); @p pass_type picks each
 	/// material's shader program for it.  A target of layers is drawn a layer at a time: @p target is RenderTarget::layer(i).
-	/// std::logic_error outside a frame or inside a pass, std::invalid_argument for no target, one of another renderer, or a target of
-	/// layers itself.
+	/// The pass is drawn through @p lists lists (draw_list()), each by one thread at a time and all at once where there are several;
+	/// they are drawn in their order, each one's draws in the order it was given them.  std::logic_error outside a frame or inside
+	/// a pass, std::invalid_argument for no target, one of another renderer, a target of layers itself, no lists or more than
+	/// max_draw_lists().
 	void begin_pass(std::shared_ptr<RenderTarget> const &target,
 		RenderPassClearState const &clear_state = RenderPassClearState(),
-		uint32_t pass_type = 0);
-	/// std::logic_error outside a pass.
+		uint32_t pass_type = 0, size_t lists = 1);
+	/// The lists a pass may be drawn through at once: 1 where the renderer records a pass on one thread.
+	virtual size_t max_draw_lists() const { return 1; }
+	/// The active pass's lists (0 outside a pass).
+	size_t draw_lists_count() const { return draw_lists_.size(); }
+	/// List @p index of the active pass: list 0 is the one the renderer's own draws and viewport are (DrawCall::execute(),
+	/// Scheduler::flush(), set_viewport()).  The renderer's until the pass ends.  std::logic_error outside a pass,
+	/// std::out_of_range for an index past draw_lists_count().
+	DrawList &draw_list(size_t index = 0);
+	/// Ends the pass: its lists are drawn, in their order, and are gone.  Whatever threads drew them are done with them (the
+	/// caller's to have waited for).  std::logic_error outside a pass.
 	void end_pass();
-	/// Draws of the active pass from now on go to the rectangle of the target
-	/// x, y (from its top left corner), w x h pixels, and nowhere else
-	/// (scissored): several views in one target, a shadow atlas.  begin_pass
-	/// starts with the whole target.  std::logic_error outside a pass,
-	/// std::out_of_range for a rectangle not inside the target.
+	/// draw_list(0).set_viewport(): std::logic_error outside a pass, std::out_of_range for a rectangle not inside the target.
 	void set_viewport(int x, int y, int width, int height);
 
 	/// Frames begun since the renderer was made: the number of the frame open, or of the last one (0 before the first).
@@ -217,17 +287,16 @@ protected:
 	virtual void do_begin_frame() = 0;
 	virtual void do_finish_frame() = 0;
 	virtual void do_submit_frame() { do_finish_frame(); }
-	/// @p target is not null.
-	virtual void do_begin_pass(std::shared_ptr<RenderTarget> const &target, RenderPassClearState const &clear_state, uint32_t pass_type) = 0;
+	/// @p target is not null, @p lists 1 to max_draw_lists(): the pass begun, and its @p lists lists, which start with the whole
+	/// target and are drawn in their order (InlineDrawList::one() where the renderer records on one thread).
+	virtual std::vector<std::unique_ptr<DrawList>> do_begin_pass(std::shared_ptr<RenderTarget> const &target,
+		RenderPassClearState const &clear_state, uint32_t pass_type, size_t lists) = 0;
+	/// The pass's lists are there until it returns.
 	virtual void do_end_pass() = 0;
-	/// The rectangle is inside the pass's target.
-	virtual void do_set_viewport(int x, int y, int width, int height) = 0;
 	/// Outside a frame, @p size bytes at most FRAME_CONSTANTS_SIZE.
 	virtual void do_set_frame_constants(void const *data, size_t size) = 0;
 	/// Outside a frame, @p slot below GLOBAL_TEXTURES_COUNT; @p compare: a readable depth, sampled with a comparison.
 	virtual void do_set_global_texture(unsigned slot, std::shared_ptr<Texture> const &texture, bool compare) = 0;
-	/// In a pass, @p call committed.
-	virtual void do_draw(DrawCall const &call) = 0;
 	/// A target of @p format as create_render_target() has checked it (the size positive, layers 0 or more, a cube square and of no
 	/// layers, something to draw into, no block-compressed colour, no more colours than max_color_attachments()); the backend
 	/// refuses what its device cannot make (std::invalid_argument naming the limit) and makes the layers' targets.
@@ -244,14 +313,16 @@ private:
 	/// What a draw of @p call reads is all there, and the renderer's own: std::invalid_argument otherwise.
 	void check_ranges(DrawCall const &call) const;
 
-	friend class DrawCall;
-	/// Draws @p call in the active pass (std::logic_error outside one): DrawCall::execute() gives it here once committed.
-	void draw(DrawCall const &call);
+	friend class DrawList;
+	/// What a draw refuses of @p call before the backend sees it; reads the call and the renderer's pass alone (any thread, in a
+	/// pass).
+	void check_draw(DrawCall const &call) const;
 
 	enum class State { IDLE, FRAME, PASS };
 	State state_ = State::IDLE;
 	uint32_t pass_type_ = 0;
 	std::shared_ptr<RenderTarget> pass_target_;
+	std::vector<std::unique_ptr<DrawList>> draw_lists_;
 	/// What the open frame draws with or into (targets, materials and their textures, buffers, streamed textures): held until the
 	/// frame is submitted, from when a resource's destructor waits for the GPU to be done with it.  Its last owner may let it go
 	/// inside the frame.
