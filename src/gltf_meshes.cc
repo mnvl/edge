@@ -365,7 +365,7 @@ void GltfReader::build_primitive(fastgltf::Primitive const &primitive, std::vect
 }
 
 std::int64_t GltfReader::build_mesh(std::size_t mesh_index, std::optional<std::size_t> skin_index, std::size_t node_index,
-	std::vector<float> const &initial_morph_weights, std::size_t &imported_primitives)
+	std::size_t &imported_primitives)
 {
 	check_index(mesh_index, asset_.meshes.size(), "mesh");
 	std::size_t const skin_cache_key = skin_index ? *skin_index : std::numeric_limits<std::size_t>::max();
@@ -501,7 +501,7 @@ std::int64_t GltfReader::build_mesh(std::size_t mesh_index, std::optional<std::s
 	}
 	if (!mesh.morph_target_deltas.empty())
 	{
-		mesh.morph_weights = initial_morph_weights;
+		refuse_morph_weights(node_index, mesh);
 	}
 
 	// what the model's vertex type has and the glTF does not: a color is not made up (white, say), the rest left as nothing
@@ -548,74 +548,36 @@ std::size_t GltfReader::build_meshes_for_nodes()
 			check_index(*skin_index, asset_.skins.size(), "skin");
 		}
 
-		std::vector<float> const initial_morph_weights = node_initial_morph_weights(node_index);
 		model_.joints[std::size_t(node_to_joint_[node_index])].mesh_index =
-			build_mesh(static_cast<std::size_t>(*node.meshIndex), skin_index, node_index, initial_morph_weights, imported_primitives);
+			build_mesh(static_cast<std::size_t>(*node.meshIndex), skin_index, node_index, imported_primitives);
 	}
 
 	return imported_primitives;
 }
 
-std::size_t GltfReader::mesh_morph_targets_count(std::size_t mesh_index) const
+void GltfReader::refuse_morph_weights(std::size_t node_index, SerializedMesh const &mesh) const
 {
-	if (mesh_index >= asset_.meshes.size())
-	{
-		return 0;
-	}
-
-	std::size_t max_targets_count = 0;
-	fastgltf::Mesh const &mesh = asset_.meshes[mesh_index];
-	for (auto const &primitive : mesh.primitives)
-	{
-		max_targets_count = std::max(max_targets_count, primitive.targets.size());
-	}
-
-	return max_targets_count;
-}
-
-std::vector<float> GltfReader::node_initial_morph_weights(std::size_t node_index) const
-{
-	if (node_index >= asset_.nodes.size())
-	{
-		return std::vector<float>();
-	}
-
 	fastgltf::Node const &node = asset_.nodes[node_index];
-	if (!node.meshIndex)
+	// a node's weights stand in for its mesh's
+	auto const refuse = [&](auto const &weights)
 	{
-		return std::vector<float>();
-	}
-
-	std::size_t const mesh_index = static_cast<std::size_t>(*node.meshIndex);
-	if (mesh_index >= asset_.meshes.size())
-	{
-		return std::vector<float>();
-	}
-
-	std::size_t const morph_targets_count = mesh_morph_targets_count(mesh_index);
-	if (morph_targets_count == 0)
-	{
-		return std::vector<float>();
-	}
-
-	std::vector<float> result(morph_targets_count, 0.0f);
+		for (auto const weight : weights)
+		{
+			if (weight != 0)
+			{
+				throw load_error("glTF '" + filename_ + "': mesh '" + mesh.name + "' has a morph weight of " + std::to_string(weight) +
+					", and edge does not play morph targets: it is not drawn as it should be without (a weight of 0 is)");
+			}
+		}
+	};
 	if (!node.weights.empty())
 	{
-		for (std::size_t i = 0; i < result.size() && i < node.weights.size(); ++i)
-		{
-			result[i] = static_cast<float>(node.weights[i]);
-		}
+		refuse(node.weights);
 	}
-	else if (!asset_.meshes[mesh_index].weights.empty())
+	else if (node.meshIndex)
 	{
-		fastgltf::Mesh const &mesh = asset_.meshes[mesh_index];
-		for (std::size_t i = 0; i < result.size() && i < mesh.weights.size(); ++i)
-		{
-			result[i] = static_cast<float>(mesh.weights[i]);
-		}
+		refuse(asset_.meshes[*node.meshIndex].weights);
 	}
-
-	return result;
 }
 
 }

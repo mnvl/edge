@@ -116,67 +116,6 @@ BOOST_AUTO_TEST_CASE(add_triangles)
 	BOOST_CHECK_EQUAL(mesh->triangles()[1].first_index_offset, 3u);
 }
 
-BOOST_AUTO_TEST_CASE(morph_targets)
-{
-	auto model = make_model();
-	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
-
-	std::vector<edge::MeshBuilder::vertex_type> verts(3);
-	std::memset(verts.data(), 0, sizeof(verts[0]) * verts.size());
-	verts[0].position.set(0.0f, 0.0f, 0.0f);
-	verts[1].position.set(1.0f, 0.0f, 0.0f);
-	verts[2].position.set(0.0f, 1.0f, 0.0f);
-	verts[0].normal.set(0.0f, 0.0f, 1.0f);
-	verts[1].normal.set(0.0f, 0.0f, 1.0f);
-	verts[2].normal.set(0.0f, 0.0f, 1.0f);
-
-	std::vector<edge::MeshBuilder::index_type> indices = {0, 1, 2};
-	mesh->set_geometry(verts, indices);
-
-	// Create morph target deltas
-	edge::GenericVertex delta;
-	std::memset(&delta, 0, sizeof(delta));
-	delta.position.set(1.0f, 0.0f, 0.0f);
-
-	std::vector<std::vector<edge::GenericVertex>> targets;
-	targets.push_back({delta, delta, delta});
-	mesh->set_morph_targets(targets, edge::GenericVertex::FORMAT_POSITION);
-	BOOST_CHECK_EQUAL(mesh->morph_targets_count(), 1u);
-
-	// Apply weight = 1.0 — positions should shift by (1,0,0)
-	mesh->set_morph_weights({1.0f});
-	BOOST_CHECK_SMALL(std::abs(mesh->vertex_buffer()[0].position.x - 1.0f), 1e-4f);
-	BOOST_CHECK_SMALL(std::abs(mesh->vertex_buffer()[1].position.x - 2.0f), 1e-4f);
-}
-
-BOOST_AUTO_TEST_CASE(morph_targets_weight_zero_keeps_base)
-{
-	auto model = make_model();
-	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
-
-	std::vector<edge::MeshBuilder::vertex_type> verts(3);
-	std::memset(verts.data(), 0, sizeof(verts[0]) * verts.size());
-	verts[0].position.set(0.0f, 0.0f, 0.0f);
-	verts[1].position.set(1.0f, 0.0f, 0.0f);
-	verts[2].position.set(0.0f, 1.0f, 0.0f);
-
-	std::vector<edge::MeshBuilder::index_type> indices = {0, 1, 2};
-	mesh->set_geometry(verts, indices);
-
-	edge::GenericVertex delta;
-	std::memset(&delta, 0, sizeof(delta));
-	delta.position.set(10.0f, 0.0f, 0.0f);
-
-	std::vector<std::vector<edge::GenericVertex>> targets;
-	targets.push_back({delta, delta, delta});
-	mesh->set_morph_targets(targets, edge::GenericVertex::FORMAT_POSITION);
-
-	// Weight = 0 — positions should remain at base
-	mesh->set_morph_weights({0.0f});
-	BOOST_CHECK_SMALL(std::abs(mesh->vertex_buffer()[0].position.x), 1e-4f);
-	BOOST_CHECK_SMALL(std::abs(mesh->vertex_buffer()[1].position.x - 1.0f), 1e-4f);
-}
-
 BOOST_AUTO_TEST_CASE(serialization_type_contains_format)
 {
 	auto model = make_model();

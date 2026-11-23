@@ -73,7 +73,8 @@ pixels = rt.color_texture.download()  # bytes, BGRX format
 
 Binary format using cereal serialization (the structures of `src/serialized_model.h`, laid out by `src/serialized_model_archive.h`,
 which is edge's own: a program reads and writes a file with `Model::read_file()` and `Model::write_file()`). Versions
-`MODEL_BINARY_OLDEST_VERSION` (10, whose materials have no occlusion) to `MODEL_BINARY_VERSION` (11, which is written): a file of another
+`MODEL_BINARY_OLDEST_VERSION` (10, whose materials have no occlusion) to `MODEL_BINARY_VERSION` (12, which is written; to 11 meshes had
+morph weights and clips moved them, and a file with any to play is refused): a file of another
 version is refused with a message to convert it again from its glTF. So is a damaged
 one: a length the rest of the file has no room for is refused before anything that long is allocated. Stores everything a model is
 except what the renderer owns, and what made it:
@@ -82,13 +83,19 @@ except what the renderer owns, and what made it:
 - Materials: every setting (cull and blend state, extra parameters, base colour, metallic, roughness, emissive, alpha cutoff, normal
   scale, occlusion and its strength) and their textures (diffuse, blend weights, normal, metallic-roughness with occlusion in its red,
   emissive)
-- Meshes: vertex and index data (a vertex as the components of the mesh's vertex type and no more, packed), morph targets and weights, triangle groups with material indices, skin (inverse bind matrices), custom attributes (any glTF vertex attribute whose name starts with an underscore, kept as floats for the application), and for a
+- Meshes: vertex and index data (a vertex as the components of the mesh's vertex type and no more, packed), morph targets (data: below), triangle groups with material indices, skin (inverse bind matrices), custom attributes (any glTF vertex attribute whose name starts with an underscore, kept as floats for the application), and for a
   skinned mesh its pose box
 - Joints: hierarchy (parent and the order of the children), matrices, transforms
-- Animations: the clips, joint samplers and morph weight samplers
+- Animations: the clips and their joint samplers
 
 **Not stored**: shader programs, GPU resources. Whether the CPU keeps a copy of the texels is the loader's choice
 (`load_from_file(filename, keep_cpu_copy)`; `ModelCache` takes it from its `GltfOptions`).
+
+**Morph targets** are data: a mesh has a glTF's targets (`morph_targets_count()`, `BasicStaticMesh::morph_target_deltas()`, the offset of
+every vertex a target) for the application to read, through a .edge file too, and edge does not play them. A model that is not drawn as it should be without -- default
+weights that are not zero, a clip that moves them -- is refused by name (`GltfLoader::load_error`, `std::runtime_error` for a file), never drawn
+unmorphed. They were played on the CPU to November 2026; why that was taken out, and how to do it again (in the vertex shader), is at
+`morph_target_deltas()` in `src/static_mesh.h`.
 
 **`edge_convert`** (`tools/edge_convert.cc`, built with edge) makes the file from a glTF:
 `edge_convert [--srgb-color] [--mipmaps] [--no-compress] [--astc] [--pose-margin FRACTION] [--lods RATIO,...] [--lod-min-triangles N] [--lod-lock-border] [--tile METRES] [--atlas none|grid|xatlas] [--atlas-size N] [--atlas-keep MATERIAL]... [--no-emissive] [--no-occlusion] in.glb out.edge` (`--inputs`, `--version` for a build). A glTF with a skin becomes

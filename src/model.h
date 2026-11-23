@@ -48,7 +48,7 @@ public:
 
 	/// An instance of @p prototype: shallow copies of its meshes (sharing their GPU buffers), clones of its materials (sharing their
 	/// textures), deep copies of its joints, and copies of its animations that share their keyframes (Sampler).  Whatever a caller
-	/// changes on one -- pose, material settings, mesh flags, morph weights -- stays on that instance.  The instance holds
+	/// changes on one -- pose, material settings, mesh flags -- stays on that instance.  The instance holds
 	/// @p prototype for as long as it lives (prototype()).  Call bind_animations() on the new model once it is owned by a shared_ptr
 	/// (ModelCache does).  Throws std::invalid_argument for a null @p prototype.
 	explicit Model(std::shared_ptr<Model const> const &prototype);

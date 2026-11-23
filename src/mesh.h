@@ -131,9 +131,7 @@ public:
 	virtual void set_vertices(GenericVertex *vertices, GenericVertex::format_type format, size_t count) = 0;
 	virtual void set_indices(unsigned *indices, size_t count) = 0;
 	virtual void set_always_visible(bool flag) = 0;
-	virtual void set_morph_targets(std::vector<std::vector<GenericVertex>> const &targets,
-		GenericVertex::format_type format);
-	virtual void set_morph_weights(std::vector<float> const &weights);
+	/// The morph targets the mesh has as data; edge does not play them (BasicStaticMesh::morph_target_deltas()).
 	virtual std::size_t morph_targets_count() const;
 
 	virtual void check();
@@ -147,14 +145,13 @@ public:
 		unsigned lod = 0);
 
 	virtual std::string serialization_type() const;
-	/// Puts what a .edge file keeps of the mesh's own into @p serialized: its vertices, indices, morph targets and weights, the
+	/// Puts what a .edge file keeps of the mesh's own into @p serialized: its vertices, indices, morph targets, the
 	/// always-visible flag and a skinned mesh's pose box (the rest is the model's to fill).  Throws std::logic_error for a
 	/// skinned mesh whose pose box was never worked out, std::runtime_error for a mesh of a type that is not saved.
 	virtual void save_geometry(SerializedMesh &serialized) const;
 	/// save_geometry() undone, the pose box of a skinned mesh the one @p serialized has where @p pose_box_given, and none (to be worked
 	/// out, Model::compute_pose_bounds()) otherwise.  Throws std::runtime_error when what it has is not what the mesh needs: a pose box
-	/// for a mesh that has no use for one, none for a skinned mesh that is given one or one that is not, or morph weights of another
-	/// count than the targets.
+	/// for a mesh that has no use for one, none for a skinned mesh that is given one or one that is not.
 	virtual void load_geometry(SerializedMesh const &serialized, bool pose_box_given);
 
 protected:

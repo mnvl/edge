@@ -53,6 +53,7 @@ SET(EDGE_TEST_SOURCES
   test_model_convert.cc
   test_model_textures.cc
   test_model_lod.cc
+  test_morph_targets.cc
   test_occlusion.cc
   test_pose_bounds.cc
   test_renderer.cc
@@ -91,7 +92,6 @@ SET(EDGE_TEST_SOURCES
   test_vulkan_render_pass_cache.cc
   test_vulkan_renderer.cc
   test_vulkan_uploader.cc
-  test_weights_sampler.cc
 )
 
 SET(EDGE_GLES_TEST_SOURCES

@@ -249,7 +249,7 @@ BOOST_AUTO_TEST_CASE(figure_skinned_vertex_bounds)
 				float w_sum = 0.0f;
 				for (float weight : mesh->vertices()[vi].weights.i)
 					w_sum += weight;
-				if (w_sum < edge::ZERO_WEIGHT)
+				if (w_sum < 1e-6f)
 					zero_weight_vertices++;
 			}
 		}

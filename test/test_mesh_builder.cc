@@ -100,32 +100,6 @@ BOOST_AUTO_TEST_CASE(set_indices_generic)
 	BOOST_CHECK_EQUAL(static_cast<unsigned>(mesh->index_buffer()[2]), 0u);
 }
 
-BOOST_AUTO_TEST_CASE(morph_targets_applied_to_position)
-{
-	auto model = make_model();
-	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
-
-	std::vector<edge::MeshBuilder::vertex_type> verts(2);
-	std::memset(verts.data(), 0, sizeof(verts[0]) * verts.size());
-	verts[0].position.set(0.0f, 0.0f, 0.0f);
-	verts[1].position.set(1.0f, 0.0f, 0.0f);
-	std::vector<edge::MeshBuilder::index_type> indices = {0, 1, 0};
-	mesh->set_geometry(verts, indices);
-
-	edge::GenericVertex delta;
-	std::memset(&delta, 0, sizeof(delta));
-	delta.position.set(0.0f, 5.0f, 0.0f);
-
-	std::vector<std::vector<edge::GenericVertex>> targets;
-	targets.push_back({delta, delta});
-	mesh->set_morph_targets(targets, edge::GenericVertex::FORMAT_POSITION);
-	BOOST_CHECK_EQUAL(mesh->morph_targets_count(), 1u);
-
-	mesh->set_morph_weights({0.5f});
-	BOOST_CHECK_SMALL(std::abs(mesh->vertex_buffer()[0].position.y - 2.5f), 1e-4f);
-	BOOST_CHECK_SMALL(std::abs(mesh->vertex_buffer()[1].position.y - 2.5f), 1e-4f);
-}
-
 BOOST_AUTO_TEST_CASE(a_mesh_builder_holds_no_skin)
 {
 	// it is saved as a static mesh: joints and weights are refused, not dropped

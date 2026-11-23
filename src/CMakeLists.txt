@@ -95,7 +95,6 @@ SET(EDGE_CORE_SOURCES
   shader_interface.cc
   shader_interface.h
   shader_program.h
-  shared_vector.h
   static_mesh.cc
   static_mesh.h
   static_model.cc
@@ -118,8 +117,6 @@ SET(EDGE_CORE_SOURCES
   vertex_buffer.h
   vertex_traits.cc
   vertex_traits.h
-  weights_sampler.cc
-  weights_sampler.h
 )
 
 # pyedge's, apart from edge (below)

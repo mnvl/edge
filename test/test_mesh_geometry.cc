@@ -3,7 +3,6 @@
 
 // Contract of a mesh's geometry on the CPU (BasicStaticMesh::vertices(), indices()): it is there once, the copy its buffers keep, and
 // so what is collided with, skinned and saved is what is drawn.  Instances read one copy; geometry given to one of them is its own.
-// A mesh with morph targets keeps its base vertices beside its buffer, which holds them morphed.
 
 #include <algorithm>
 #include <cstddef>
@@ -23,7 +22,6 @@
 #include "index_buffer.h"
 #include "model_cache.h"
 #include "renderer.h"
-#include "serialized_model.h"
 #include "static_mesh.h"
 #include "static_model.h"
 #include "test_backends.h"
@@ -74,16 +72,6 @@ std::vector<GenericVertex> moved_to(std::size_t count, float x)
 	for (std::size_t i = 0; i < count; ++i)
 		vertices[i].position = rove::vec<3>(x, float(i), 2);
 	return vertices;
-}
-
-/// One morph target that lifts every vertex by @p z.
-void morph(Mesh_ &mesh, float z, float weight)
-{
-	std::vector<std::vector<GenericVertex>> targets(1, std::vector<GenericVertex>(mesh.vertices().size()));
-	for (GenericVertex &delta : targets[0])
-		delta.position = rove::vec<3>(0, 0, z);
-	mesh.set_morph_targets(targets, GenericVertex::FORMAT_POSITION);
-	mesh.set_morph_weights({weight});
 }
 
 rove::matrix<4,4> identity()
@@ -189,89 +177,6 @@ BOOST_FIXTURE_TEST_CASE(more_or_fewer_vertices_are_as_many_as_are_given, NullCac
 		BOOST_TEST(mesh.vertices().back().position.y == float(count - 1));
 		BOOST_CHECK(contents(*mesh.vertex_buffer()) == bytes_of(mesh.vertices()));
 	}
-}
-
-BOOST_FIXTURE_TEST_CASE(a_morphed_meshs_vertices_are_its_base_and_its_buffer_is_morphed, NullCache)
-{
-	auto const model = std::make_shared<StaticModelPTBNT>(renderer);
-	model->load_from_gltf(asset("cylinder_30_degrees.glb"));
-	Mesh_ &mesh = mesh_of(model);
-	std::vector<VERTEX_PTBNT> const base = copy_of(mesh.vertices());
-	morph(mesh, 4, 0.5f);
-	BOOST_CHECK(bytes_of(mesh.vertices()) == bytes_of(base));
-	auto const drawn = std::as_const(*mesh.vertex_buffer()).read();
-	for (std::size_t i = 0; i < base.size(); ++i)
-		BOOST_REQUIRE_SMALL(drawn.as<VERTEX_PTBNT const>()[i].position.z - (base[i].position.z + 2.0f), 1e-5f);
-	SerializedMesh saved;
-	mesh.save_geometry(saved);
-	BOOST_REQUIRE(saved.vertices.size() == base.size());
-	for (std::size_t i = 0; i < base.size(); ++i)
-		BOOST_REQUIRE(saved.vertices[i].position == base[i].position);
-	BOOST_CHECK(saved.morph_weights == std::vector<float>{0.5f});
-}
-
-BOOST_FIXTURE_TEST_CASE(morphed_again_a_mesh_is_morphed_from_its_base, NullCache)
-{
-	auto const model = std::make_shared<StaticModelPTBNT>(renderer);
-	model->load_from_gltf(asset("cylinder_30_degrees.glb"));
-	Mesh_ &mesh = mesh_of(model);
-	std::vector<VERTEX_PTBNT> const base = copy_of(mesh.vertices());
-	morph(mesh, 4, 1.0f);
-	morph(mesh, 1, 1.0f);                     // other targets: from the base, not from what the first made
-	BOOST_CHECK(bytes_of(mesh.vertices()) == bytes_of(base));
-	auto drawn = std::as_const(*mesh.vertex_buffer()).read();
-	BOOST_REQUIRE_SMALL(drawn.as<VERTEX_PTBNT const>()[3].position.z - (base[3].position.z + 1.0f), 1e-5f);
-	drawn.unmap();
-
-	auto given = moved_to(base.size(), 5);    // vertices given to a morphed mesh are its base, and are morphed
-	mesh.set_vertices(given.data(), GenericVertex::FORMAT_POSITION, given.size());
-	BOOST_TEST(mesh.vertices()[3].position.z == 2.0f);
-	BOOST_CHECK(bytes_of(std::vector{mesh.vertices()[3].normal}) == bytes_of(std::vector{base[3].normal}));
-	auto const again = std::as_const(*mesh.vertex_buffer()).read();
-	BOOST_REQUIRE_SMALL(again.as<VERTEX_PTBNT const>()[3].position.z - 3.0f, 1e-5f);
-}
-
-BOOST_FIXTURE_TEST_CASE(a_mesh_whose_targets_are_taken_away_is_drawn_as_its_base, NullCache)
-{
-	auto const model = std::make_shared<StaticModelPTBNT>(renderer);
-	model->load_from_gltf(asset("cylinder_30_degrees.glb"));
-	Mesh_ &mesh = mesh_of(model);
-	std::vector<VERTEX_PTBNT> const base = copy_of(mesh.vertices());
-	morph(mesh, 4, 1.0f);
-	mesh.set_morph_targets({}, GenericVertex::FORMAT_POSITION);
-	BOOST_TEST(mesh.morph_targets_count() == 0u);
-	BOOST_CHECK(bytes_of(mesh.vertices()) == bytes_of(base));
-	BOOST_CHECK(contents(*mesh.vertex_buffer()) == bytes_of(base));
-	BOOST_CHECK(std::as_const(*mesh.vertex_buffer()).read().data() == reinterpret_cast<std::byte const *>(mesh.vertices().data()));
-}
-
-BOOST_FIXTURE_TEST_CASE(as_many_vertices_as_the_targets_have_not_take_the_targets_away, NullCache)
-{
-	auto const model = std::make_shared<StaticModelPTBNT>(renderer);
-	model->load_from_gltf(asset("cylinder_30_degrees.glb"));
-	Mesh_ &mesh = mesh_of(model);
-	morph(mesh, 4, 1.0f);
-	auto given = moved_to(9, 5);
-	mesh.set_vertices(given.data(), VERTEX_PTBNT::FORMAT, given.size());
-	BOOST_TEST(mesh.morph_targets_count() == 0u);
-	BOOST_TEST(mesh.vertices().size() == 9u);
-	BOOST_TEST(mesh.vertices()[8].position.z == 2.0f);
-	BOOST_CHECK(contents(*mesh.vertex_buffer()) == bytes_of(mesh.vertices()));
-}
-
-BOOST_FIXTURE_TEST_CASE(instances_of_a_morphed_model_share_its_base_and_not_its_weights, NullCache)
-{
-	std::string const file = asset("test_gltf_loder_animation_weights_path.gltf");
-	auto const a = cache.load<StaticModelPTBNT>(file), b = cache.load<StaticModelPTBNT>(file);
-	Mesh_ &ma = mesh_of(a), &mb = mesh_of(b);
-	BOOST_REQUIRE(ma.morph_targets_count() > 0u);
-	BOOST_CHECK(ma.vertices().data() == mb.vertices().data());
-	BOOST_CHECK(ma.vertex_buffer() != mb.vertex_buffer());
-	std::vector<std::byte> const before = contents(*ma.vertex_buffer()), base = bytes_of(ma.vertices());
-	mb.set_morph_weights(std::vector<float>(mb.morph_targets_count(), 0.75f));
-	BOOST_CHECK(contents(*ma.vertex_buffer()) == before);
-	BOOST_CHECK(contents(*mb.vertex_buffer()) != before);
-	BOOST_CHECK(bytes_of(mb.vertices()) == base);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

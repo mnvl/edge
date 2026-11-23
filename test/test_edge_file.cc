@@ -142,7 +142,7 @@ struct Fixture
 	}
 };
 
-/// The mesh's vertices, indices, morph targets and weights, pose box and flags as the file has them.
+/// The mesh's vertices, indices, morph targets, pose box and flags as the file has them.
 edge::SerializedMesh geometry(edge::Mesh const &mesh)
 {
 	edge::SerializedMesh serialized;
@@ -163,7 +163,6 @@ void same_geometry(edge::Mesh const &a, edge::Mesh const &b, std::string const &
 	BOOST_REQUIRE_EQUAL(ga.morph_target_deltas.size(), gb.morph_target_deltas.size());
 	for (size_t t = 0; t < ga.morph_target_deltas.size(); ++t)
 		BOOST_CHECK_MESSAGE(same_vertices(ga.morph_target_deltas[t], gb.morph_target_deltas[t]), what << ": morph target " << t);
-	BOOST_CHECK_MESSAGE(ga.morph_weights == gb.morph_weights, what << ": morph weights");
 	BOOST_CHECK_MESSAGE(ga.always_visible == gb.always_visible, what << ": always visible");
 	BOOST_REQUIRE_MESSAGE(bool(ga.pose_bounds) == bool(gb.pose_bounds), what << ": pose box");
 	if (ga.pose_bounds)
@@ -307,7 +306,6 @@ void same_animations(edge::Model &a, edge::Model &b)
 		edge::Animation &x = *a.animations()[i], &y = *b.animations()[i];
 		BOOST_CHECK_EQUAL(x.name, y.name);
 		BOOST_REQUIRE_EQUAL(x.samplers.size(), y.samplers.size());
-		BOOST_REQUIRE_EQUAL(x.weight_samplers.size(), y.weight_samplers.size());
 		BOOST_CHECK_EQUAL(x.duration(), y.duration());
 		float const length = float(x.duration());
 		for (int step = -1; step <= 20; ++step)
@@ -346,7 +344,7 @@ BOOST_AUTO_TEST_CASE(every_test_model_is_the_same_from_its_gltf_and_from_its_edg
 	for (char const *name : {"cone.glb", "cylinder_30_degrees.glb", "test_attributes.glb", "test_attributes_two.glb", "test_gltf_loader_pbr.glb",
 		"test_gltf_loader_dds.glb", "test_gltf_loder_plane.glb", "test_gltf_loder_directions.glb", "test_gltf_loder_materials.glb",
 		"test_gltf_loder_tbn.glb", "test_gltf_loder_animation.glb", "test_gltf_loder_animation_cubic_valid.gltf",
-		"test_gltf_loder_animation_weights_path.gltf", "test_gltf_scene_after_an_empty_one.gltf", "test_uv_set_1.gltf", "test_uv_transform.gltf",
+		"test_gltf_scene_after_an_empty_one.gltf", "test_uv_set_1.gltf", "test_uv_transform.gltf",
 		"test_uv_transform_turned.gltf", "test_external_buffer.gltf", "test_vertex_colors.glb", "test_vertex_colors_ubyte.glb",
 		"test_vertex_colors_ushort.glb", "test_vertex_colors_vec3.glb", "test_vertex_colors_two.glb", "test_figure.glb", "test_gltf_loder_joint.glb",
 		"test_skinned_groups.glb"})
@@ -486,24 +484,6 @@ BOOST_AUTO_TEST_CASE(a_dds_textures_provided_mip_levels_come_back)
 			if (auto const t = m->diffuse_texture(i))
 				saw_levels = saw_levels || t->usage().provided_mip_levels > 1;
 	BOOST_CHECK(saw_levels);
-}
-
-BOOST_AUTO_TEST_CASE(morph_targets_and_their_animated_weights_come_back)
-{
-	auto original = from_gltf<edge::StaticModelPTBNT>("test_gltf_loder_animation_weights_path.gltf");
-	BOOST_REQUIRE(!original->animations().empty());
-	BOOST_REQUIRE(!original->animations().at(0)->weight_samplers.empty());
-	auto loaded = reloaded(*original);
-	same_model(*original, *loaded);
-	same_animations(*original, *loaded);
-	for (size_t i = 0; i < original->animations().size(); ++i)
-		for (float t : {0.0f, 0.25f, 0.5f, 1.0f})
-		{
-			original->animations()[i]->pose(t);
-			loaded->animations()[i]->pose(t);
-			BOOST_CHECK_MESSAGE(geometry(*original->meshes().at(0)).morph_weights == geometry(*loaded->meshes().at(0)).morph_weights,
-				"morph weights at t=" << t);
-		}
 }
 
 BOOST_AUTO_TEST_CASE(joint_animations_come_back)
@@ -696,17 +676,6 @@ BOOST_AUTO_TEST_CASE(a_custom_attribute_of_another_length_than_the_vertices_is_n
 	attributes.begin()->second.values.push_back(0);
 	mesh->set_custom_attributes(attributes);
 	BOOST_CHECK_THROW(original->save_to_file(file.string()), std::logic_error);
-}
-
-BOOST_AUTO_TEST_CASE(morph_weights_of_another_count_than_the_targets_are_refused)
-{
-	auto original = from_gltf<edge::StaticModelPTBNT>("test_gltf_loder_animation_weights_path.gltf");
-	original->save_to_file(file.string());
-	edge::SerializedModel model = serialized();
-	BOOST_REQUIRE(!model.meshes.at(0).morph_weights.empty());
-	model.meshes.at(0).morph_weights.pop_back();
-	write(model);
-	refused<edge::StaticModelPTBNT>("morph weights");
 }
 
 /// A rotation key of no length is damage, as glTF refuses one: rove refuses to turn by it (it was the identity), and the file says which clip.

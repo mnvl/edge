@@ -32,7 +32,6 @@ template <skinned_vertex_layout V>
 std::shared_ptr<Mesh> BasicAnimatedMesh<V>::shallow_copy() const
 {
 	std::shared_ptr<BasicAnimatedMesh<V>> copy(new BasicAnimatedMesh(*this));
-	copy->unshare_morphed_vertex_array();
 	copy->palette_.clear();
 	copy->palette_pose_ = 0;
 	copy->pose_cache_ = pose_cache();      // (made now if this is the first copy: the prototype is never posed)

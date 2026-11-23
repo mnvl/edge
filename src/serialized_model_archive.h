@@ -156,16 +156,31 @@ void save(Archive &archive, SerializedMesh const &m)
 		deltas.push_back(pack_vertices(target, format));
 	}
 	archive(m.serialization_type, m.id, m.name, m.bind_shape_matrix, m.inverted_bind_matrices, m.joint_index_transform, m.triangles,
-		m.custom_attributes, m.pose_bounds, m.always_visible, pack_vertices(m.vertices, format), m.indices, deltas, m.morph_weights, m.lods);
+		m.custom_attributes, m.pose_bounds, m.always_visible, pack_vertices(m.vertices, format), m.indices, deltas, m.lods);
 }
 
+/// A mesh as a file of @p version has it: with morph weights to 11.
 template <class Archive>
-void load(Archive &archive, SerializedMesh &m)
+void load_mesh(Archive &archive, SerializedMesh &m, std::uint32_t version)
 {
 	std::vector<std::uint8_t> packed;
 	std::vector<std::vector<std::uint8_t>> deltas;
 	archive(m.serialization_type, m.id, m.name, m.bind_shape_matrix, m.inverted_bind_matrices, m.joint_index_transform, m.triangles,
-		m.custom_attributes, m.pose_bounds, m.always_visible, packed, m.indices, deltas, m.morph_weights, m.lods);
+		m.custom_attributes, m.pose_bounds, m.always_visible, packed, m.indices, deltas);
+	if (version < 12)
+	{
+		std::vector<float> weights;
+		archive(weights);
+		for (float const weight : weights)
+		{
+			if (weight != 0)
+			{
+				throw std::runtime_error("mesh '" + m.name + "' in the model file has a morph weight of " + std::to_string(weight) +
+					", and edge does not play morph targets: it is not drawn as it should be without (a weight of 0 is)");
+			}
+		}
+	}
+	archive(m.lods);
 	GenericVertex::format_type const format = serialized_vertex_format(m.serialization_type);
 	m.vertices = unpack_vertices(packed, format);
 	m.morph_target_deltas.clear();
@@ -173,6 +188,12 @@ void load(Archive &archive, SerializedMesh &m)
 	{
 		m.morph_target_deltas.push_back(unpack_vertices(target, format));
 	}
+}
+
+template <class Archive>
+void load(Archive &archive, SerializedMesh &m)
+{
+	load_mesh(archive, m, MODEL_BINARY_VERSION);
 }
 
 template <class Archive>
@@ -200,15 +221,31 @@ void serialize(Archive &archive, SerializedSampler &s)
 }
 
 template <class Archive>
-void serialize(Archive &archive, SerializedWeightsSampler &s)
+void save(Archive &archive, SerializedAnimation const &a)
 {
-	archive(s.mesh_index, s.interpolation, s.keyframes);
+	archive(a.name, a.samplers);
+}
+
+/// A clip as a file of @p version has it: with what moves morph weights to 11.
+template <class Archive>
+void load_animation(Archive &archive, SerializedAnimation &a, std::uint32_t version)
+{
+	archive(a.name, a.samplers);
+	if (version < 12)
+	{
+		cereal::size_type weight_samplers = 0;
+		archive(cereal::make_size_tag(weight_samplers));
+		if (weight_samplers != 0)
+		{
+			throw std::runtime_error("clip '" + a.name + "' in the model file moves morph weights, and edge does not play morph targets");
+		}
+	}
 }
 
 template <class Archive>
-void serialize(Archive &archive, SerializedAnimation &a)
+void load(Archive &archive, SerializedAnimation &a)
 {
-	archive(a.name, a.samplers, a.weight_samplers);
+	load_animation(archive, a, MODEL_BINARY_VERSION);
 }
 
 template <class Archive>
@@ -232,15 +269,22 @@ void load(Archive &archive, SerializedModel &m)
 			" (convert the model again from its glTF)");
 	}
 	archive(m.pipeline, m.options, m.textures);
-	// the materials as a vector is saved (a length, then each), each as the file's version has it
-	cereal::size_type count = 0;
-	archive(cereal::make_size_tag(count));
-	m.materials.assign(static_cast<std::size_t>(count), SerializedMaterial());
-	for (SerializedMaterial &material : m.materials)
+	// a vector as it is saved (a length, then each), each as the file's version has it
+	auto const load_each = [&](auto &list, auto const &load_one)
 	{
-		load_material(archive, material, m.version);
-	}
-	archive(m.meshes, m.joints, m.animations);
+		cereal::size_type count = 0;
+		archive(cereal::make_size_tag(count));
+		list.clear();
+		list.resize(static_cast<std::size_t>(count));
+		for (auto &one : list)
+		{
+			load_one(archive, one, m.version);
+		}
+	};
+	load_each(m.materials, [](auto &from, SerializedMaterial &material, std::uint32_t version) { load_material(from, material, version); });
+	load_each(m.meshes, [](auto &from, SerializedMesh &mesh, std::uint32_t version) { load_mesh(from, mesh, version); });
+	archive(m.joints);
+	load_each(m.animations, [](auto &from, SerializedAnimation &clip, std::uint32_t version) { load_animation(from, clip, version); });
 }
 
 }  // namespace edge
