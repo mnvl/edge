@@ -4,7 +4,6 @@
 #pragma once
 
 #include <cstddef>
-#include <memory>
 #include "forward.h"
 #include "mapping.h"
 
@@ -31,12 +30,6 @@ public:
 		return Mapping<VertexBuffer>(*this, {static_cast<std::byte *>(do_lock(contents == Contents::DISCARD)), size()});
 	}
 
-	/// @p bytes, as many as the buffer has (@p size says so), become the buffer's and are sent to the GPU as a write of them all is.  Its
-	/// CPU copy is the bytes themselves, held and not copied, until a write() copies them first: whoever made them may read them
-	/// on, and may not change them while the buffer holds them.  (OpenGL ES and Metal keep a copy of their own.)
-	/// std::invalid_argument for none (but to a buffer of no bytes), or for another size than the buffer's.
-	void share(std::shared_ptr<std::byte const> bytes, size_t size);
-
 	virtual size_t size() const = 0;
 
 	/// What is in the buffer (null where the maker did not say): a draw counts its vertices by it.
@@ -54,8 +47,6 @@ protected:
 	virtual void do_unlock() const = 0;
 	virtual void *do_lock(bool discard) = 0;
 	virtual void do_unlock() = 0;
-	/// share() once its arguments are checked; the default writes a copy.
-	virtual void do_share(std::shared_ptr<std::byte const> bytes);
 
 private:
 	void const *owner_ = nullptr;

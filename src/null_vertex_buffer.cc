@@ -3,25 +3,23 @@
 
 #include "null_vertex_buffer.h"
 
-#include <utility>
-
 namespace edge
 {
 
 NullVertexBuffer::NullVertexBuffer(VertexTraits const *vertex_traits, size_t size):
-	copy_(size),
+	size_(size),
 	traits_(vertex_traits)
 {
+	buffer_.resize(size);
 }
 
 NullVertexBuffer::~NullVertexBuffer() = default;
 
-const void *NullVertexBuffer::do_lock() const { return copy_.read(); }
+const void *NullVertexBuffer::do_lock() const { return buffer_.empty() ? nullptr : &buffer_[0]; }
 void NullVertexBuffer::do_unlock() const {}
-void *NullVertexBuffer::do_lock(bool discard) { return copy_.write(discard); }
+void *NullVertexBuffer::do_lock(bool discard) { return buffer_.empty() ? nullptr : &buffer_[0]; }
 void NullVertexBuffer::do_unlock() {}
-void NullVertexBuffer::do_share(std::shared_ptr<std::byte const> bytes) { copy_.share(std::move(bytes)); }
-size_t NullVertexBuffer::size() const { return copy_.size(); }
+size_t NullVertexBuffer::size() const { return size_; }
 
 
 }

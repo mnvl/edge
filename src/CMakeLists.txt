@@ -14,7 +14,6 @@ SET(EDGE_CORE_SOURCES
   buffer_usage.h
   camera.cc
   camera.h
-  cpu_copy.h
   draw_call.cc
   draw_call.h
   draw_list.cc

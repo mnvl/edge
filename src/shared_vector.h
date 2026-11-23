@@ -11,7 +11,7 @@ namespace edge
 {
 
 /// A std::vector its copies share until one of them is written (copy on write): what a mesh and its copies (Mesh::shallow_copy(),
-/// every instance of a ModelCache's model) hold of the CPU geometry they all draw, read by each and written by none once loaded.
+/// every instance of a ModelCache's model) hold of their morph targets, read by each and written by none once loaded.
 /// Read through the const members or as the vector itself; written through write(), which copies first if a copy shares it.
 /// Of one thread at a time, as the meshes holding it are.
 template <class T>
@@ -38,12 +38,6 @@ public:
 		if (data_.use_count() > 1)
 			data_ = std::make_shared<std::vector<T>>(*data_);
 		return *data_;
-	}
-
-	/// The vector's bytes, held by whoever is given them: the vector is copied before it is next written while they are.
-	std::shared_ptr<std::byte const> shared_bytes() const
-	{
-		return std::shared_ptr<std::byte const>(data_, reinterpret_cast<std::byte const *>(data_->data()));
 	}
 
 	/// Empty, sharing nothing.

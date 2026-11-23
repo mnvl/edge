@@ -263,7 +263,7 @@ std::shared_ptr<AnimatedMeshCache> const &BasicAnimatedMesh<V>::pose_cache() con
 		rove::aabb<3> null_box;
 		null_box.null();
 		std::vector<rove::aabb<3>> boxes(this->joint_index_transform().size(), null_box);
-		for (V const &vertex : this->base_vertices_)
+		for (V const &vertex : this->vertices())
 			for_each_influence(vertex, boxes.size(), this->name(), [&](std::size_t joint, rove::scalar) {
 				boxes[joint].extend(vertex.position);
 			});
@@ -298,8 +298,8 @@ std::vector<typename BasicAnimatedMesh<V>::SkinnedVertex> BasicAnimatedMesh<V>::
 	std::vector<rove::matrix<4,4>> const skin_matrices = this->skin_matrices(joints);
 
 	std::vector<SkinnedVertex> result;
-	result.reserve(this->base_vertices_.size());
-	for (typename BasicAnimatedMesh<V>::vertex_type const &vertex : this->base_vertices_)
+	result.reserve(this->vertices().size());
+	for (typename BasicAnimatedMesh<V>::vertex_type const &vertex : this->vertices())
 	{
 		// vertex_skin.glsl: the weighted sum of the joints' images of the
 		// position; a vertex with no weight at all lands on the origin.
@@ -319,8 +319,8 @@ std::vector<V> BasicAnimatedMesh<V>::skinned_vertices(std::vector<std::shared_pt
 	std::vector<rove::matrix<4,4>> const skin_matrices = this->skin_matrices(joints);
 
 	std::vector<V> result;
-	result.reserve(this->base_vertices_.size());
-	for (V const &vertex : this->base_vertices_)
+	result.reserve(this->vertices().size());
+	for (V const &vertex : this->vertices())
 	{
 		V out = vertex;
 		out.position = rove::vec<3>(0, 0, 0);
@@ -360,7 +360,7 @@ template <skinned_vertex_layout V>
 rove::aabb<3> BasicAnimatedMesh<V>::exact_bounds(std::vector<std::shared_ptr<Joint>> const &joints, Joint const &,
 	rove::matrix<4,4> const &world_matrix) const
 {
-	if (this->base_vertices_.empty())
+	if (this->vertices().empty())
 	{
 		throw std::runtime_error("failed to compute bounds: no vertices in mesh '" + this->name() + "'");
 	}
@@ -380,7 +380,7 @@ void BasicAnimatedMesh<V>::insert_triangles(Mesh::octree_type &octree, int id, s
 {
 	std::vector<SkinnedVertex> const vertices = skin(joints);
 	TriangleIterator<SkinnedVertex, typename BasicAnimatedMesh<V>::index_type, Mesh::Triangles>
-		tris(vertices, this->base_indices_, this->triangles_of_lod(lod), world_matrix);
+		tris(vertices, this->indices(), this->triangles_of_lod(lod), world_matrix);
 	for (auto const &tri : tris)
 	{
 		octree.insert(tri, id);

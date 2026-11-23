@@ -3,8 +3,7 @@
 
 #pragma once
 
-#include <memory>
-#include "cpu_copy.h"
+#include <vector>
 #include "vertex_buffer.h"
 #include "vertex_traits.h"
 
@@ -25,10 +24,10 @@ protected:
 	void do_unlock() const override;
 	void *do_lock(bool discard) override;
 	void do_unlock() override;
-	void do_share(std::shared_ptr<std::byte const> bytes) override;
 
 private:
-	CpuCopy copy_;
+	std::vector<char> buffer_;
+	size_t size_;
 	VertexTraits const *traits_;
 };
 

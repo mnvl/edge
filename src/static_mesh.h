@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <span>
+#include <vector>
 #include <rove/aabb.h>
 #include "vertex.h"
 #include "vertex_array.h"
@@ -54,11 +56,12 @@ public:
 	void save_geometry(SerializedMesh &serialized) const override;
 	void load_geometry(SerializedMesh const &serialized, bool pose_box_given) override;
 
-	/// Returns the CPU-side vertex buffer (base vertices before morph targets).
-	std::vector<vertex_type> const &vertices() const { return base_vertices_; }
+	/// The base vertices (before morph targets) on the CPU: the vertex buffer's own copy, or, beside a buffer that holds them morphed, the
+	/// mesh's.  None before set_vertices(); good until the mesh's geometry is next set or the mesh goes.
+	std::span<vertex_type const> vertices() const;
 
-	/// Returns the CPU-side index buffer (triangle-list indices).
-	std::vector<index_type> const &indices() const { return base_indices_; }
+	/// The triangle-list indices on the CPU: the index buffer's own copy, for as long as vertices() is good.
+	std::span<index_type const> indices() const;
 
 	/// The morph targets' offsets from the base vertices, a vector of them a target.
 	std::vector<std::vector<vertex_type>> const &morph_target_deltas() const { return morph_target_deltas_; }
@@ -89,12 +92,17 @@ protected:
 	std::shared_ptr<index_array_type> index_array_;
 	bool always_visible_;
 	// shared by the mesh's copies (shallow_copy()): set once when it is loaded and read by every copy after
-	SharedVector<vertex_type> base_vertices_;
-	SharedVector<index_type> base_indices_;
+	SharedVector<vertex_type> morph_base_;      // the vertices of a mesh with morph targets, whose buffer holds them morphed; else none
 	SharedVector<std::vector<vertex_type>> morph_target_deltas_;
 	std::vector<float> morph_weights_;
 
 	void apply_morph_weights_to_vertex_array();
+
+	/// The mesh without its morph targets, if it has any: the buffer holds its base vertices.
+	void drop_morph_targets();
+
+	/// A vertex array of @p count vertices that no copy of the mesh shares, holding those the mesh had (the rest zero).
+	void own_vertex_array(std::size_t count);
 
 	/// Model::ensure_joints() of the mesh's model, if it has one.
 	void build_model_joints() const;

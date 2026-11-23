@@ -43,6 +43,7 @@ SET(EDGE_TEST_SOURCES
   test_material_parameters.cc
   test_mesh.cc
   test_mesh_builder.cc
+  test_mesh_geometry.cc
   test_mesh_lod.cc
   test_mesh_tiles.cc
   test_model.cc
@@ -59,7 +60,6 @@ SET(EDGE_TEST_SOURCES
   test_render_targets.cc
   test_sampler.cc
   test_scheduler.cc
-  test_shared_buffers.cc
   test_shader_dirs.cc
   test_shader_includes.cc
   test_shader_interface.cc

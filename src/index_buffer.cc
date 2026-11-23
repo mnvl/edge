@@ -10,33 +10,11 @@
 #include <cstring>
 #include <mutex>
 #include <shared_mutex>
-#include <stdexcept>
-#include <string>
-#include <utility>
 
 namespace edge
 {
 
 IndexBuffer::~IndexBuffer() = default;
-
-void IndexBuffer::share(std::shared_ptr<std::byte const> bytes, size_t size)
-{
-	if ((!bytes && size != 0) || size != this->size())
-		throw std::invalid_argument("IndexBuffer::share: " + (bytes ? std::to_string(size) + " bytes" : std::string("no bytes"))
-			+ " for a buffer of " + std::to_string(this->size()));
-	{
-		std::unique_lock const lock(highest_mutex_);
-		highest_.clear();
-	}
-	do_share(std::move(bytes));
-}
-
-void IndexBuffer::do_share(std::shared_ptr<std::byte const> bytes)
-{
-	auto mapping = write(Contents::DISCARD);
-	std::copy_n(bytes.get(), mapping.size(), mapping.data());
-	mapping.unmap();
-}
 
 size_t IndexBuffer::highest_index(size_t first, size_t count) const
 {

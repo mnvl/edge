@@ -4,9 +4,8 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
-#include <memory>
+#include <vector>
 
-#include "cpu_copy.h"
 #include "index_buffer.h"
 #include "vulkan_device_context.h"
 
@@ -37,7 +36,6 @@ protected:
 	void do_unlock() const override;
 	void *do_lock(bool discard) override;
 	void do_unlock() override;
-	void do_share(std::shared_ptr<std::byte const> bytes) override;
 
 private:
 	std::shared_ptr<VulkanDeviceContext> context_;     // the device, not the renderer: a buffer kept after it can still be let go
@@ -46,7 +44,7 @@ private:
 	VkBuffer buffer_;
 	VkDeviceMemory memory_;
 	VkMemoryPropertyFlags memory_properties_;
-	CpuCopy copy_;
+	std::vector<char> clone_;
 
 	VulkanIndexBuffer(std::shared_ptr<VulkanRenderer> const &renderer, IndexFormat index_format, size_t size);
 };
