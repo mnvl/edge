@@ -94,6 +94,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 - pyedge from `pip install -e .` finds its compiled module: it looked only beside `__init__.py`, where an editable install has none, so every name
   of the binding raised `AttributeError`, saying to build what was built.
+- A checkout has the same bytes on every platform (`.gitattributes`): with Windows' `core.autocrlf` the sources had CRLF, and
+  `edge::pipeline_hash()` was another than elsewhere, so a `.edge` file made on one platform looked stale on the other.
 
 ## [3.0.1] - 2026-11-07
 

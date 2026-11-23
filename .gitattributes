@@ -1,0 +1,13 @@
+# The same bytes on every platform, whatever core.autocrlf says: a wheel built on Windows has LF in its .py files too, and
+# edge::pipeline_hash() is of the sources' bytes.
+* text=auto eol=lf
+
+# Never text, however few their bytes
+*.bin binary
+*.dds binary
+*.edge binary
+*.glb binary
+*.jpeg binary
+*.jpg binary
+*.png binary
+*.spv binary
