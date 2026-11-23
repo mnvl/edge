@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <shared_mutex>
 #include <utility>
@@ -37,6 +38,9 @@ public:
 		return Mapping<IndexBuffer>(*this, {static_cast<std::byte *>(do_lock(contents == Contents::DISCARD)), size()});
 	}
 
+	/// VertexBuffer::share().
+	void share(std::shared_ptr<std::byte const> bytes, size_t size);
+
 	virtual size_t size() const = 0;
 
 	/// The bytes of one index
@@ -57,6 +61,8 @@ protected:
 	virtual void do_unlock() const = 0;
 	virtual void *do_lock(bool discard) = 0;
 	virtual void do_unlock() = 0;
+	/// share() once its arguments are checked; the default writes a copy.
+	virtual void do_share(std::shared_ptr<std::byte const> bytes);
 
 private:
 	void const *owner_ = nullptr;

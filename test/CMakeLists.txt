@@ -59,6 +59,7 @@ SET(EDGE_TEST_SOURCES
   test_render_targets.cc
   test_sampler.cc
   test_scheduler.cc
+  test_shared_buffers.cc
   test_shader_dirs.cc
   test_shader_includes.cc
   test_shader_interface.cc

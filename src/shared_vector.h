@@ -40,6 +40,12 @@ public:
 		return *data_;
 	}
 
+	/// The vector's bytes, held by whoever is given them: the vector is copied before it is next written while they are.
+	std::shared_ptr<std::byte const> shared_bytes() const
+	{
+		return std::shared_ptr<std::byte const>(data_, reinterpret_cast<std::byte const *>(data_->data()));
+	}
+
 	/// Empty, sharing nothing.
 	void clear() { data_ = std::make_shared<std::vector<T>>(); }
 

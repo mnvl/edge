@@ -200,11 +200,20 @@ void BasicStaticMesh<V>::set_vertices(GenericVertex *vertices, GenericVertex::fo
 		vertex_array_ = Mesh::model()->renderer()->
 			template create_vertex_array<vertex_type>(count);
 	}
-	auto mapped = vertex_array_->write(created ? Contents::DISCARD : Contents::KEEP);
-	std::span<vertex_type> const buffer = mapped.template as<vertex_type>();
+	// Made here, the vertices are the CPU's one copy, the buffer's with it; set again, they are written into the buffer's.
+	Mapping<VertexBuffer> mapped;
+	std::span<vertex_type> buffer;
 	if (created)
 	{
-		std::memset(buffer.data(), 0, buffer.size_bytes());
+		std::vector<vertex_type> &base = base_vertices_.write();
+		base.resize(count);
+		buffer = std::span<vertex_type>(base);
+		std::memset(static_cast<void *>(buffer.data()), 0, buffer.size_bytes());
+	}
+	else
+	{
+		mapped = vertex_array_->write(Contents::KEEP);
+		buffer = mapped.template as<vertex_type>();
 	}
 
 	if (initialized_vertex_components_ == 0 || vertex_type::FORMAT == format)
@@ -245,9 +254,15 @@ void BasicStaticMesh<V>::set_vertices(GenericVertex *vertices, GenericVertex::fo
 
 	initialized_vertex_components_ |= format;
 
-	base_vertices_.write().assign(buffer.begin(), buffer.begin() + count);
-
-	mapped.unmap();
+	if (created)
+	{
+		vertex_array_->vertex_buffer()->share(base_vertices_.shared_bytes(), buffer.size_bytes());
+	}
+	else
+	{
+		base_vertices_.write().assign(buffer.begin(), buffer.begin() + count);
+		mapped.unmap();
+	}
 
 	if (!morph_target_deltas_.empty())
 	{
@@ -265,15 +280,11 @@ void BasicStaticMesh<T>::set_indices(unsigned *buffer, size_t count)
 	std::vector<index_type> &cpu_indices = base_indices_.write();
 	cpu_indices.resize(count);
 
-	auto mapped = index_array_->write(Contents::DISCARD);
-	std::span<index_type> const indices = mapped.template as<index_type>();
 	for (size_t i = 0; i < count; i++)
 	{
-		index_type const value = index_type(buffer[i]);
-		cpu_indices[i] = value;
-		indices[i] = value;
+		cpu_indices[i] = index_type(buffer[i]);
 	}
-	mapped.unmap();
+	index_array_->index_buffer()->share(base_indices_.shared_bytes(), count * sizeof(index_type));
 }
 
 template <vertex_layout T>

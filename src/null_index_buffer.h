@@ -4,7 +4,8 @@
 #pragma once
 
 #include "index.h"
-#include <vector>
+#include <memory>
+#include "cpu_copy.h"
 #include "index_buffer.h"
 
 namespace edge
@@ -15,7 +16,7 @@ public:
 	NullIndexBuffer(IndexFormat index_format, size_t size);
 	~NullIndexBuffer() override;
 
-	size_t size() const override { return size_; }
+	size_t size() const override { return copy_.size(); }
 	size_t index_size() const override { return index_format_ == IndexFormat::U16 ? 2 : 4; }
 
 
@@ -24,10 +25,10 @@ protected:
 	void do_unlock() const override;
 	void *do_lock(bool discard) override;
 	void do_unlock() override;
+	void do_share(std::shared_ptr<std::byte const> bytes) override;
 
 private:
-	std::vector<char> buffer_;
-	size_t size_;
+	CpuCopy copy_;
 	IndexFormat index_format_;
 };
 

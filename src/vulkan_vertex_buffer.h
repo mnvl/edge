@@ -4,8 +4,9 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
-#include <vector>
+#include <memory>
 
+#include "cpu_copy.h"
 #include "vertex_buffer.h"
 #include "vulkan_device_context.h"
 #include "vertex_traits.h"
@@ -37,13 +38,14 @@ protected:
 	void do_unlock() const override;
 	void *do_lock(bool discard) override;
 	void do_unlock() override;
+	void do_share(std::shared_ptr<std::byte const> bytes) override;
 
 private:
 	std::shared_ptr<VulkanDeviceContext> context_;     // the device, not the renderer: a buffer kept after it can still be let go
 	VkBuffer buffer_;
 	VkDeviceMemory memory_;
 	VkMemoryPropertyFlags memory_properties_;
-	std::vector<char> clone_;
+	CpuCopy copy_;
 	VertexTraits const *traits_;
 
 	VulkanVertexBuffer(std::shared_ptr<VulkanRenderer> const &renderer, size_t size, VertexTraits const *traits);

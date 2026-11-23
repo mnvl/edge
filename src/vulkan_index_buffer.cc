@@ -39,7 +39,7 @@ VulkanIndexBuffer::VulkanIndexBuffer(std::shared_ptr<VulkanRenderer> const &rend
 	buffer_(VK_NULL_HANDLE),
 	memory_(VK_NULL_HANDLE),
 	memory_properties_(0),
-	clone_(size)
+	copy_(size)
 {
 	VkDeviceSize const allocation_size = size > 0 ? static_cast<VkDeviceSize>(size) : 1;
 
@@ -72,7 +72,7 @@ VulkanIndexBuffer::~VulkanIndexBuffer()
 
 const void *VulkanIndexBuffer::do_lock() const
 {
-	return clone_.empty() ? nullptr : &clone_[0];
+	return copy_.read();
 }
 
 void VulkanIndexBuffer::do_unlock() const
@@ -81,25 +81,24 @@ void VulkanIndexBuffer::do_unlock() const
 
 void *VulkanIndexBuffer::do_lock(bool discard)
 {
-	(void)discard;
-	return clone_.empty() ? nullptr : &clone_[0];
+	return copy_.write(discard);
 }
 
 void VulkanIndexBuffer::do_unlock()
 {
-	if (clone_.empty())
-	{
-		return;
-	}
+	context_->require_renderer().upload_to_buffer(buffer_, copy_.read(), copy_.size());
+}
 
-	context_->require_renderer().upload_to_buffer(buffer_, &clone_[0], clone_.size());
+void VulkanIndexBuffer::do_share(std::shared_ptr<std::byte const> bytes)
+{
+	// staged here, so the bytes are the GPU's before they are the buffer's: refused (inside a pass), the buffer is as it was
+	context_->require_renderer().upload_to_buffer(buffer_, bytes.get(), copy_.size());
+	copy_.share(std::move(bytes));
 }
 
 size_t VulkanIndexBuffer::size() const
 {
-	return clone_.size();
+	return copy_.size();
 }
-
-
 
 }
