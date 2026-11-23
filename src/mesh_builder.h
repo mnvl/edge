@@ -31,7 +31,7 @@ public:
 	rove::obb<3> conservative_bounds(std::vector<std::shared_ptr<Joint>> const &joints, Joint const &owner,
 		rove::matrix<4,4> const &world_matrix) const override;
 	void insert_triangles(octree_type &octree, int id, std::vector<std::shared_ptr<Joint>> const &joints,
-		Joint const &owner, rove::matrix<4,4> const &world_matrix) const override;
+		Joint const &owner, rove::matrix<4,4> const &world_matrix, unsigned lod) const override;
 	std::shared_ptr<Mesh> shallow_copy() const override;
 
 	std::vector<vertex_type> const &vertex_buffer() const { return vertices_; }

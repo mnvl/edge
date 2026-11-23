@@ -69,11 +69,11 @@ rove::obb<3> BasicStaticMesh<T>::conservative_bounds(std::vector<std::shared_ptr
 
 template <vertex_layout T>
 void BasicStaticMesh<T>::insert_triangles(octree_type &octree, int id, std::vector<std::shared_ptr<Joint>> const &,
-	Joint const &owner, rove::matrix<4,4> const &world_matrix) const
+	Joint const &owner, rove::matrix<4,4> const &world_matrix, unsigned lod) const
 {
 	build_model_joints();
 	TriangleIterator<T, index_type, Mesh::Triangles>
-		tris(base_vertices_, base_indices_, triangles_, world_matrix * owner.matrix);
+		tris(base_vertices_, base_indices_, this->triangles_of_lod(lod), world_matrix * owner.matrix);
 	for (auto const &tri : tris)
 	{
 		octree.insert(tri, id);

@@ -119,9 +119,9 @@ public:
 	virtual rove::obb<3> conservative_bounds(std::vector<std::shared_ptr<Joint>> const &joints, Joint const &owner,
 		rove::matrix<4,4> const &world_matrix) const = 0;
 
-	/// Inserts the placed triangles into `octree` with payload `id`.
+	/// Inserts the placed triangles of level of detail @p lod (a level past the last is the last) into `octree` with payload `id`.
 	virtual void insert_triangles(octree_type &octree, int id, std::vector<std::shared_ptr<Joint>> const &joints,
-		Joint const &owner, rove::matrix<4,4> const &world_matrix) const = 0;
+		Joint const &owner, rove::matrix<4,4> const &world_matrix, unsigned lod) const = 0;
 
 	virtual std::shared_ptr<Mesh> shallow_copy() const = 0;
 

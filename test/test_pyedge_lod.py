@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 import pyedge
+import pyrove
 
 needs_convert = pytest.mark.skipif(not hasattr(pyedge, "convert_gltf_to_edge"),
                                    reason="pyedge is built without edge's asset tools (EDGE_ASSET_TOOLS)")
@@ -121,3 +122,18 @@ def test_a_models_levels_scaled_as_placed_are_chosen_where_each_error_fits(tmp_p
         for level, error in enumerate(scaled):
             assert pyedge.lod_level(scaled, error, 1.0) == level
             assert pyedge.lod_level(scaled, error * 0.999, 1.0) == max(level - 1, 0) or scaled[level - 1] == scaled[level]
+
+
+@needs_convert
+def test_an_octree_is_of_the_level_asked_for_and_of_level_zero_unasked(tmp_path):
+    edge_file = tmp_path / "m.edge"
+    triangles = pyedge.convert_gltf_to_edge(str(SKINNED), str(edge_file), lods=[0.5, 0.2])
+    model = pyedge.AnimatedModelPTBNJWT(_renderer())
+    model.load_from_file(str(edge_file))
+    world = pyrove.mat4()
+    world.identity()
+    assert [model.build_octree(world, level).size for level in range(3)] == list(triangles)
+    assert model.build_octree(world).size == triangles[0]
+    assert model.build_octree(world, lod=9).size == triangles[2]
+    with pytest.raises(TypeError):
+        model.build_octree(world, -1)

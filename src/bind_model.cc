@@ -80,7 +80,7 @@ void bind_render_model(nb::module_ &m, char const *model_name)
                 std::vector<rove::matrix<4,4>> const &world_matrices, unsigned lod) { model.draw_instances(scheduler, camera, world_matrices, lod); },
             "scheduler"_a, "camera"_a, "world_matrices"_a, "lod"_a = 0u,
             "The model once for each world matrix, in one instanced draw for each triangle group, each instance culled on its own.")
-        .def("build_octree", &ModelType::build_octree, "world_matrix"_a, nb::call_guard<nb::gil_scoped_release>())
+        .def("build_octree", &ModelType::build_octree, "world_matrix"_a, "lod"_a = 0u, nb::call_guard<nb::gil_scoped_release>())
         .def("bounds", static_cast<rove::aabb<3> (ModelType::*)(rove::matrix<4,4> const &) const>(&ModelType::bounds), "world_matrix"_a)
         .def("get_bounds", pyedge::deprecated<ModelType>("Model.get_bounds(w) is Model.bounds(w)",
             static_cast<rove::aabb<3> (ModelType::*)(rove::matrix<4,4> const &) const>(&ModelType::bounds)), "world_matrix"_a)
@@ -205,7 +205,7 @@ void bind_model(nb::module_ &m)
         .def("draw", [](edge::ModelBuilder &model, edge::Scheduler &scheduler, std::shared_ptr<edge::Camera> const &camera,
                 rove::matrix<4,4> const &world_matrix, unsigned lod) { model.draw(scheduler, camera, world_matrix, lod); },
             "scheduler"_a, "camera"_a, "world_matrix"_a, "lod"_a = 0u)
-        .def("build_octree", &edge::ModelBuilder::build_octree, "world_matrix"_a, nb::call_guard<nb::gil_scoped_release>())
+        .def("build_octree", &edge::ModelBuilder::build_octree, "world_matrix"_a, "lod"_a = 0u, nb::call_guard<nb::gil_scoped_release>())
         .def("bounds", static_cast<rove::aabb<3> (edge::ModelBuilder::*)(rove::matrix<4,4> const &) const>(&edge::ModelBuilder::bounds), "world_matrix"_a)
         .def("get_bounds", pyedge::deprecated<edge::ModelBuilder>("ModelBuilder.get_bounds(w) is ModelBuilder.bounds(w)",
             static_cast<rove::aabb<3> (edge::ModelBuilder::*)(rove::matrix<4,4> const &) const>(&edge::ModelBuilder::bounds)), "world_matrix"_a)

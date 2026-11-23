@@ -210,13 +210,14 @@ public:
 
 	using octree_type = Mesh::octree_type;
 
-	/// A collision octree of the triangles draw(camera, @p world_matrix) would
-	/// draw, at the pose Animation::pose() last set (Mesh::insert_triangles):
+	/// A collision octree of the triangles draw(camera, @p world_matrix, @p lod)
+	/// would draw (a level past a mesh's last is its last), at the pose Animation::pose() last set (Mesh::insert_triangles):
 	/// a skinned mesh skinned, not in its bind pose.  Each triangle's payload
 	/// is the index of its mesh among the joints that hold one, in joint order;
-	/// the root box is bounds(@p world_matrix).
+	/// the root box is bounds(@p world_matrix), whatever the level: a level's
+	/// triangles are of the mesh's own vertices.
 	/// @throws std::runtime_error if the model has no triangles.
-	octree_type build_octree(rove::matrix<4,4> const &world_matrix) const;
+	octree_type build_octree(rove::matrix<4,4> const &world_matrix, unsigned lod = 0) const;
 
 protected:
 	std::shared_ptr<Renderer> const renderer_;
