@@ -1025,7 +1025,7 @@ rove::aabb<3> Model::bounds(rove::matrix<4,4> const &world_matrix) const
 	return bounds;
 }
 
-Model::octree_type Model::build_octree(rove::matrix<4,4> const &world_matrix) const
+Model::octree_type Model::build_octree(rove::matrix<4,4> const &world_matrix, unsigned lod) const
 {
 	octree_type octree(bounds(world_matrix), 16, rove::scalar(1e-5));
 	int mesh_id = 0;
@@ -1033,7 +1033,7 @@ Model::octree_type Model::build_octree(rove::matrix<4,4> const &world_matrix) co
 	{
 		if (std::shared_ptr<Mesh> mesh_ptr = joint->mesh.lock())
 		{
-			mesh_ptr->insert_triangles(octree, mesh_id++, joints(), *joint, world_matrix);
+			mesh_ptr->insert_triangles(octree, mesh_id++, joints(), *joint, world_matrix, lod);
 		}
 	}
 

@@ -69,10 +69,10 @@ rove::obb<3> MeshBuilder::conservative_bounds(std::vector<std::shared_ptr<Joint>
 }
 
 void MeshBuilder::insert_triangles(octree_type &octree, int id, std::vector<std::shared_ptr<Joint>> const &,
-	Joint const &owner, rove::matrix<4,4> const &world_matrix) const
+	Joint const &owner, rove::matrix<4,4> const &world_matrix, unsigned lod) const
 {
 	TriangleIterator<vertex_type, index_type, Mesh::Triangles>
-		tris(vertices_, indices_, triangles_, world_matrix * owner.matrix);
+		tris(vertices_, indices_, triangles_of_lod(lod), world_matrix * owner.matrix);
 	for (auto const &tri : tris)
 	{
 		octree.insert(tri, id);

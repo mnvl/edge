@@ -376,11 +376,11 @@ rove::aabb<3> BasicAnimatedMesh<V>::exact_bounds(std::vector<std::shared_ptr<Joi
 
 template <skinned_vertex_layout V>
 void BasicAnimatedMesh<V>::insert_triangles(Mesh::octree_type &octree, int id, std::vector<std::shared_ptr<Joint>> const &joints,
-	Joint const &, rove::matrix<4,4> const &world_matrix) const
+	Joint const &, rove::matrix<4,4> const &world_matrix, unsigned lod) const
 {
 	std::vector<SkinnedVertex> const vertices = skin(joints);
 	TriangleIterator<SkinnedVertex, typename BasicAnimatedMesh<V>::index_type, Mesh::Triangles>
-		tris(vertices, this->base_indices_, this->triangles(), world_matrix);
+		tris(vertices, this->base_indices_, this->triangles_of_lod(lod), world_matrix);
 	for (auto const &tri : tris)
 	{
 		octree.insert(tri, id);

@@ -3,19 +3,25 @@
 
 // Contract of levels of detail in a model: edge_convert can give every mesh of the .edge file coarser versions of itself (add_lods()), the
 // loaded model knows how many levels it has and how far each strays from the first, and draws any of them: Model::draw(camera, world, level)
-// submits the triangles of that level, a level past the last being the last.  Level 0 is what the model always was: its collision octree and
-// the file's other contents do not change with the levels.
+// submits the triangles of that level, a level past the last being the last.  Level 0 is what the model always was: the collision octree
+// it builds unless asked for another level and the file's other contents do not change with the levels.  Model::build_octree(world, level)
+// is of the triangles draw(camera, world, level) submits, where that pose puts them.
 
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <cereal/archives/binary.hpp>
 #include <memory>
+#include <set>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include <boost/test/unit_test.hpp>
+
+#include <rove/intersect.h>
 
 #include "animated_mesh.h"
 #include "animated_model.h"
@@ -81,6 +87,33 @@ struct Fixture
 		return scheduler->offered_triangles_count() - before;
 	}
 };
+
+/// Every corner of every triangle of `octree`.
+std::set<rove::vec<3>> corners(edge::Model::octree_type const &octree)
+{
+	std::set<rove::vec<3>> found;
+	for (std::size_t i = 0; i < octree.size(); ++i)
+	{
+		rove::triangle<3> const &t = octree[i].primitive;
+		for (rove::vec<3> const &v : {t.A, t.B, t.C})
+			found.insert(v);
+	}
+	return found;
+}
+
+/// How far the farthest of `from` is from the triangles of `to`.
+float farthest_corner(std::set<rove::vec<3>> const &from, edge::Model::octree_type const &to)
+{
+	float worst = 0;
+	for (rove::vec<3> const &corner : from)
+	{
+		float nearest = std::numeric_limits<float>::infinity();
+		for (std::size_t i = 0; i < to.size(); ++i)
+			nearest = std::min(nearest, rove::point_triangle_distance_sq(corner, to[i].primitive));
+		worst = std::max(worst, std::sqrt(nearest));
+	}
+	return worst;
+}
 
 edge::LodOptions two_levels()
 {
@@ -228,7 +261,59 @@ BOOST_AUTO_TEST_CASE(a_levels_materials_are_the_models_own_not_the_prototypes)
 			}
 }
 
-BOOST_AUTO_TEST_CASE(the_collision_octree_is_made_of_level_zero_only)
+BOOST_AUTO_TEST_CASE(an_octree_of_a_level_holds_the_triangles_drawn_at_it)
+{
+	auto plain = loaded<Animated>(shared_models().plain);
+	auto lod = loaded<Animated>(shared_models().lod);
+	rove::matrix<4,4> identity;
+	identity.identity();
+	for (unsigned level : {0u, 1u, 2u, 7u})  // 7: past the last, which is the last
+		BOOST_CHECK_EQUAL(lod->build_octree(identity, level).size(), offered(*lod, level));
+	BOOST_CHECK_LT(lod->build_octree(identity, 2).size(), lod->build_octree(identity, 1).size());
+	BOOST_CHECK_EQUAL(lod->build_octree(identity).size(), offered(*lod, 0));        // no level asked for is level 0
+	BOOST_CHECK_EQUAL(plain->build_octree(identity, 3).size(), offered(*plain, 0)); // no levels: itself
+}
+
+BOOST_AUTO_TEST_CASE(an_octree_of_a_level_is_in_the_pose_and_at_the_place_the_first_levels_is)
+{
+	auto lod = loaded<Animated>(shared_models().lod);
+	rove::matrix<4,4> world;
+	world.identity();
+	world.rotate(rove::vec<3>(0, 0, 1), 0.7f);
+	world.translate(3.0f, -2.0f, 0.5f);
+	std::set<rove::vec<3>> before;
+	for (float time : {0.1f, 0.6f})
+	{
+		lod->pose(time);
+		auto const full = lod->build_octree(world, 0);
+		auto const coarse = lod->build_octree(world, 2);
+		// A level's triangles are the mesh's own vertices, each where the pose puts it: every corner is one of level 0's, to the bit.
+		std::set<rove::vec<3>> const all = corners(full), kept = corners(coarse);
+		BOOST_CHECK_LT(kept.size(), all.size());
+		BOOST_CHECK(std::includes(all.begin(), all.end(), kept.begin(), kept.end(), all.value_comp()));
+		BOOST_CHECK(kept != before);  // the pose moved it
+		before = kept;
+		// The root box holds the pose whatever the level.
+		BOOST_CHECK(coarse.bounds().lo == full.bounds().lo && coarse.bounds().hi == full.bounds().hi);
+	}
+}
+
+BOOST_AUTO_TEST_CASE(an_octree_of_a_level_found_by_a_box_has_the_meshs_number)
+{
+	auto lod = loaded<Animated>(shared_models().lod);
+	rove::matrix<4,4> identity;
+	identity.identity();
+	std::set<int> full, coarse;
+	auto const a = lod->build_octree(identity, 0), b = lod->build_octree(identity, 2);
+	for (int id : a.query_intersection(a.bounds()))
+		full.insert(id);
+	std::vector<int> const found = b.query_intersection(b.bounds());
+	coarse.insert(found.begin(), found.end());
+	BOOST_CHECK_EQUAL(found.size(), b.size());  // built: a box round everything meets everything
+	BOOST_CHECK(coarse == full);
+}
+
+BOOST_AUTO_TEST_CASE(the_collision_octree_is_made_of_level_zero_unless_another_is_asked_for)
 {
 	// a static model of a welded grid of 8192 triangles, with and without levels
 	std::shared_ptr<edge::Renderer> r = renderer;
@@ -268,6 +353,17 @@ BOOST_AUTO_TEST_CASE(the_collision_octree_is_made_of_level_zero_only)
 	BOOST_CHECK_EQUAL(plain->build_octree(identity).size(), 8192u);
 	BOOST_CHECK_EQUAL(lod->build_octree(identity).size(), 8192u);
 	BOOST_CHECK_EQUAL(offered(*plain, 0), 8192u);
+	auto const full = lod->build_octree(identity, 0);
+	std::set<rove::vec<3>> const all = corners(full);
+	for (unsigned level : {1u, 2u})
+	{
+		auto const octree = lod->build_octree(identity, level);
+		BOOST_CHECK_EQUAL(octree.size(), offered(*lod, level));
+		BOOST_CHECK_LT(octree.size(), 8192u);
+		// The level strays no farther from level 0's vertices than it says (a hair for the measuring of it).
+		BOOST_CHECK_LE(farthest_corner(all, octree), lod->lod_error(level) + 1e-4f);
+	}
+	BOOST_CHECK_EQUAL(plain->build_octree(identity, 2).size(), 8192u);
 }
 
 BOOST_AUTO_TEST_CASE(a_model_converted_with_tiles_is_many_meshes_with_the_same_triangles)

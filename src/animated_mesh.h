@@ -78,9 +78,9 @@ public:
 	/// they are.  A vertex with no joint weight lands on the origin, as there.
 	std::vector<V> skinned_vertices(std::vector<std::shared_ptr<Joint>> const &joints) const;
 
-	/// The triangles of the skinned vertices: the pose draw() shows.
+	/// The triangles of level @p lod over the skinned vertices: the pose draw() shows.
 	void insert_triangles(Mesh::octree_type &octree, int id, std::vector<std::shared_ptr<Joint>> const &joints,
-		Joint const &owner, rove::matrix<4,4> const &world_matrix) const override;
+		Joint const &owner, rove::matrix<4,4> const &world_matrix, unsigned lod) const override;
 
 	/// The matrices draw() hands vertex_skin.glsl, one per skin joint.  For a model set to a cached pose (Model::set_cached_pose()) the
 	/// palette in the mesh's pose cache, worked out by the first instance to stand in that pose.  Otherwise for the pose the model's joints
