@@ -8,7 +8,6 @@
 // is of the triangles draw(camera, world, level) submits, where that pose puts them.
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -90,27 +89,27 @@ struct Fixture
 };
 
 /// Every corner of every triangle of `octree`.
-std::set<std::array<float, 3>> corners(edge::Model::octree_type const &octree)
+std::set<rove::vec<3>> corners(edge::Model::octree_type const &octree)
 {
-	std::set<std::array<float, 3>> found;
+	std::set<rove::vec<3>> found;
 	for (std::size_t i = 0; i < octree.size(); ++i)
 	{
 		rove::triangle<3> const &t = octree[i].primitive;
 		for (rove::vec<3> const &v : {t.A, t.B, t.C})
-			found.insert({v.x, v.y, v.z});
+			found.insert(v);
 	}
 	return found;
 }
 
 /// How far the farthest of `from` is from the triangles of `to`.
-float farthest_corner(std::set<std::array<float, 3>> const &from, edge::Model::octree_type const &to)
+float farthest_corner(std::set<rove::vec<3>> const &from, edge::Model::octree_type const &to)
 {
 	float worst = 0;
-	for (std::array<float, 3> const &c : from)
+	for (rove::vec<3> const &corner : from)
 	{
 		float nearest = std::numeric_limits<float>::infinity();
 		for (std::size_t i = 0; i < to.size(); ++i)
-			nearest = std::min(nearest, rove::point_triangle_distance_sq(rove::vec<3>(c[0], c[1], c[2]), to[i].primitive));
+			nearest = std::min(nearest, rove::point_triangle_distance_sq(corner, to[i].primitive));
 		worst = std::max(worst, std::sqrt(nearest));
 	}
 	return worst;
@@ -282,16 +281,16 @@ BOOST_AUTO_TEST_CASE(an_octree_of_a_level_is_in_the_pose_and_at_the_place_the_fi
 	world.identity();
 	world.rotate(rove::vec<3>(0, 0, 1), 0.7f);
 	world.translate(3.0f, -2.0f, 0.5f);
-	std::set<std::array<float, 3>> before;
+	std::set<rove::vec<3>> before;
 	for (float time : {0.1f, 0.6f})
 	{
 		lod->pose(time);
 		auto const full = lod->build_octree(world, 0);
 		auto const coarse = lod->build_octree(world, 2);
 		// A level's triangles are the mesh's own vertices, each where the pose puts it: every corner is one of level 0's, to the bit.
-		std::set<std::array<float, 3>> const all = corners(full), kept = corners(coarse);
+		std::set<rove::vec<3>> const all = corners(full), kept = corners(coarse);
 		BOOST_CHECK_LT(kept.size(), all.size());
-		BOOST_CHECK(std::includes(all.begin(), all.end(), kept.begin(), kept.end()));
+		BOOST_CHECK(std::includes(all.begin(), all.end(), kept.begin(), kept.end(), all.value_comp()));
 		BOOST_CHECK(kept != before);  // the pose moved it
 		before = kept;
 		// The root box holds the pose whatever the level.
@@ -355,7 +354,7 @@ BOOST_AUTO_TEST_CASE(the_collision_octree_is_made_of_level_zero_unless_another_i
 	BOOST_CHECK_EQUAL(lod->build_octree(identity).size(), 8192u);
 	BOOST_CHECK_EQUAL(offered(*plain, 0), 8192u);
 	auto const full = lod->build_octree(identity, 0);
-	std::set<std::array<float, 3>> const all = corners(full);
+	std::set<rove::vec<3>> const all = corners(full);
 	for (unsigned level : {1u, 2u})
 	{
 		auto const octree = lod->build_octree(identity, level);
