@@ -280,7 +280,6 @@ BOOST_AUTO_TEST_CASE(a_model_that_is_not_one_static_mesh_is_refused_and_left_as_
 
 	edge::SerializedModel morphed = ground(8, 8);
 	morphed.meshes[0].morph_target_deltas.push_back(morphed.meshes[0].vertices);
-	morphed.meshes[0].morph_weights.push_back(0);
 	BOOST_CHECK_THROW(edge::split_into_tiles(morphed, 4.0f), std::invalid_argument);
 
 	edge::SerializedModel leveled = ground(8, 8);

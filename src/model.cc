@@ -65,7 +65,7 @@ Model::Model(std::shared_ptr<Model const> const &prototype):
 	std::unordered_map<std::shared_ptr<Material>, std::shared_ptr<Material>> materials_tt;
 
 	// Everything a copied mesh, joint or sampler points at must be this model's
-	// copy: one left pointing into the prototype would pose or morph it,
+	// copy: one left pointing into the prototype would pose it,
 	// and with it every other instance.
 	auto remap = [](auto const &table, auto const &source, char const *what) {
 		auto found = table.find(source);
@@ -158,14 +158,6 @@ Model::Model(std::shared_ptr<Model const> const &prototype):
 			if (std::shared_ptr<Joint> joint = sampler.joint())
 			{
 				sampler.set_joint(remap(joints_tt, joint, "sampler's joint"));
-			}
-		}
-
-		for (WeightsSampler &sampler : animation->weight_samplers)
-		{
-			if (std::shared_ptr<Mesh> mesh = sampler.mesh())
-			{
-				sampler.set_mesh(remap(meshes_tt, mesh, "weights sampler's mesh"));
 			}
 		}
 	}
@@ -388,23 +380,6 @@ SerializedModel Model::serialize() const
 			}
 			serialized_animation.samplers.push_back(serialized_sampler);
 		}
-		for (WeightsSampler const &sampler : animation->weight_samplers)
-		{
-			SerializedWeightsSampler serialized_sampler;
-			std::shared_ptr<Mesh> const mesh = sampler.mesh();
-			auto const found = mesh ? mesh_index_by_ptr.find(mesh.get()) : mesh_index_by_ptr.end();
-			if (found == mesh_index_by_ptr.end())
-			{
-				throw std::logic_error("clip '" + animation->name + "' moves the weights of a mesh that is not in the model");
-			}
-			serialized_sampler.mesh_index = found->second;
-			serialized_sampler.interpolation = static_cast<int>(sampler.interpolation());
-			for (std::size_t k = 0; k < sampler.samples_count(); ++k)
-			{
-				serialized_sampler.keyframes.push_back(SerializedKeyframe{sampler.sample_time(k), sampler.sample_weights(k)});
-			}
-			serialized_animation.weight_samplers.push_back(serialized_sampler);
-		}
 		serialized.animations.push_back(serialized_animation);
 	}
 	serialized.textures = textures.textures();
@@ -509,6 +484,11 @@ void validate_mesh(SerializedMesh const &mesh, std::size_t joints_count)
 	check_groups(mesh.triangles);
 	for (SerializedLod const &lod : mesh.lods)
 		check_groups(lod.triangles);
+
+	for (std::size_t target = 0; target < mesh.morph_target_deltas.size(); ++target)
+		if (mesh.morph_target_deltas[target].size() != vertices)
+			throw fail("morph target " + std::to_string(target) + " of " + std::to_string(mesh.morph_target_deltas[target].size()) + " offsets for " +
+				std::to_string(vertices) + " vertices");
 
 	for (unsigned const index : mesh.indices)
 		if (index >= vertices)
@@ -739,21 +719,6 @@ void Model::load(SerializedModel const &serialized, bool keep_cpu_copy, bool pos
 					rove::vec<3>(v[7], v[8], v[9])});
 			}
 			animation->samplers.push_back(sampler);
-		}
-		for (SerializedWeightsSampler const &serialized_sampler : serialized_animation.weight_samplers)
-		{
-			if (serialized_sampler.mesh_index < 0 || static_cast<std::size_t>(serialized_sampler.mesh_index) >= loaded_meshes.size())
-			{
-				throw std::runtime_error("clip '" + animation->name + "' in the model file moves the weights of a mesh that is not there");
-			}
-			WeightsSampler sampler;
-			sampler.set_target(loaded_meshes[static_cast<std::size_t>(serialized_sampler.mesh_index)]);
-			sampler.set_interpolation(static_cast<WeightsSampler::Interpolation>(serialized_sampler.interpolation));
-			for (SerializedKeyframe const &keyframe : serialized_sampler.keyframes)
-			{
-				sampler.add_sample(keyframe.time, keyframe.values);
-			}
-			animation->weight_samplers.push_back(sampler);
 		}
 		animations_.push_back(animation);
 	}

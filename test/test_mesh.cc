@@ -46,30 +46,6 @@ BOOST_AUTO_TEST_CASE(morph_targets_count_defaults_to_zero)
 	BOOST_CHECK_EQUAL(mesh->morph_targets_count(), 0u);
 }
 
-BOOST_AUTO_TEST_CASE(set_morph_weights_no_op_without_targets)
-{
-	auto model = make_model();
-	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
-	std::vector<float> weights = {1.0f, 0.5f};
-	mesh->set_morph_weights(weights);
-	BOOST_CHECK_EQUAL(mesh->morph_targets_count(), 0u);
-}
-
-BOOST_AUTO_TEST_CASE(set_morph_targets_no_op_without_vertices)
-{
-	auto model = make_model();
-	std::shared_ptr<edge::MeshBuilder> mesh = model->add_mesh_builder();
-
-	edge::GenericVertex delta;
-	std::memset(&delta, 0, sizeof(delta));
-	delta.position.set(1.0f, 0.0f, 0.0f);
-
-	std::vector<std::vector<edge::GenericVertex>> targets;
-	targets.push_back({delta});
-	mesh->set_morph_targets(targets, edge::GenericVertex::FORMAT_POSITION);
-	BOOST_CHECK_EQUAL(mesh->morph_targets_count(), 0u);
-}
-
 BOOST_AUTO_TEST_CASE(triangles_list_initially_empty)
 {
 	auto model = make_model();

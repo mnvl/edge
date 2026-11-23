@@ -191,10 +191,10 @@ private:
 		std::map<std::string, SerializedCustomAttribute> &custom_attributes);
 	/// The index in the model of the mesh of glTF mesh @p mesh_index as node @p node_index has it (skinned by @p skin_index).
 	std::int64_t build_mesh(std::size_t mesh_index, std::optional<std::size_t> skin_index, std::size_t node_index,
-		std::vector<float> const &initial_morph_weights, std::size_t &imported_primitives);
+		std::size_t &imported_primitives);
 	std::size_t build_meshes_for_nodes();
-	std::size_t mesh_morph_targets_count(std::size_t mesh_index) const;
-	std::vector<float> node_initial_morph_weights(std::size_t node_index) const;
+	/// Edge plays no morph targets: load_error for a node whose mesh has weights of them, its own or the mesh's, that are not zero.
+	void refuse_morph_weights(std::size_t node_index, SerializedMesh const &mesh) const;
 
 	// --- gltf_animation.cc: clips
 	void build_animations();

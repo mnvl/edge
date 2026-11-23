@@ -25,8 +25,10 @@
 namespace edge {
 
 constexpr std::uint32_t MODEL_BINARY_MAGIC = 0x4544424dU;  // "EDBM"
-constexpr std::uint32_t MODEL_BINARY_VERSION = 11U;
-/// The oldest version read: 10, whose materials have no occlusion (11 has SerializedMaterial::occlusion and its strength).
+constexpr std::uint32_t MODEL_BINARY_VERSION = 12U;
+/// The oldest version read: 10, whose materials have no occlusion (11 has SerializedMaterial::occlusion and its strength).  To 11 meshes
+/// had morph weights and clips moved them: a file of those versions that has any to play -- weights that are not zero, clips of
+/// them -- is refused, as edge plays none (BasicStaticMesh::morph_target_deltas()).
 constexpr std::uint32_t MODEL_BINARY_OLDEST_VERSION = 10U;
 
 /// The vertex format a mesh's serialization type names (`static_mesh:<format>`, Mesh::serialization_type()).  Throws
@@ -120,8 +122,7 @@ struct SerializedMesh
 	bool always_visible = false;
 	std::vector<GenericVertex> vertices;
 	std::vector<unsigned> indices;
-	std::vector<std::vector<GenericVertex>> morph_target_deltas;
-	std::vector<float> morph_weights;
+	std::vector<std::vector<GenericVertex>> morph_target_deltas;      // as many as the vertices, each
 	std::vector<SerializedLod> lods;      // levels 1, 2, ... (level 0 is `triangles`); their indices follow the others' in `indices`
 };
 
@@ -157,19 +158,10 @@ struct SerializedSampler
 	std::vector<SerializedKeyframe> keyframes;
 };
 
-/// What a clip writes to a mesh's morph weights.
-struct SerializedWeightsSampler
-{
-	std::int64_t mesh_index = -1;
-	int interpolation = 0;
-	std::vector<SerializedKeyframe> keyframes;
-};
-
 struct SerializedAnimation
 {
 	std::string name;
 	std::vector<SerializedSampler> samplers;
-	std::vector<SerializedWeightsSampler> weight_samplers;
 };
 
 struct SerializedModel

@@ -532,32 +532,6 @@ BOOST_AUTO_TEST_CASE(a_rotation_key_that_is_no_rotation_is_an_error_that_names_i
 	expect_load_error_contains("test_gltf_loder_animation_nan_rotation.gltf", "rotation keyframe 1");
 }
 
-BOOST_AUTO_TEST_CASE(animation_weights_path)
-{
-	std::shared_ptr<edge::ModelBuilder> model = load_model_from_asset("test_gltf_loder_animation_weights_path.gltf");
-	check_common_loaded_model(*model);
-
-	BOOST_REQUIRE_EQUAL(model->animations().size(), 1u);
-	BOOST_REQUIRE_EQUAL(model->animations()[0]->weight_samplers.size(), 1u);
-
-	edge::MeshBuilder const *mesh = dynamic_cast<edge::MeshBuilder const *>(model->meshes()[0].get());
-	BOOST_REQUIRE(mesh);
-	BOOST_REQUIRE(!mesh->vertex_buffer().empty());
-
-	model->pose(0.0f);
-	float const x0 = mesh->vertex_buffer()[0].position.x;
-
-	model->pose(0.5f);
-	float const xmid = mesh->vertex_buffer()[0].position.x;
-
-	model->pose(1.0f);
-	float const x1 = mesh->vertex_buffer()[0].position.x;
-
-	BOOST_CHECK_LT(x0, xmid);
-	BOOST_CHECK_LT(xmid, x1);
-	BOOST_CHECK_SMALL(std::abs(x1 - x0 - 0.5f), 1e-4f);
-}
-
 BOOST_AUTO_TEST_CASE(materials)
 {
 	std::shared_ptr<edge::ModelBuilder> model = load_model_from_asset("test_gltf_loder_materials.glb");

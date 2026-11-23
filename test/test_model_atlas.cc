@@ -906,7 +906,6 @@ BOOST_AUTO_TEST_CASE(vertices_that_carry_more_than_coordinates_keep_everything_t
 	}
 	mesh.custom_attributes.push_back(attribute);
 	mesh.morph_target_deltas.push_back(deltas);
-	mesh.morph_weights.push_back(0.5f);
 	edge::atlas_materials(model, xatlas_options());
 	auto const &made = model.meshes.at(0);
 	BOOST_REQUIRE_EQUAL(made.custom_attributes.at(0).values.size(), made.vertices.size() * 2);
@@ -917,7 +916,6 @@ BOOST_AUTO_TEST_CASE(vertices_that_carry_more_than_coordinates_keep_everything_t
 		BOOST_REQUIRE_EQUAL(made.custom_attributes.at(0).values[2 * v + 1], 7.0f);
 		BOOST_REQUIRE_EQUAL(made.morph_target_deltas.at(0)[v].position.x, made.vertices[v].position.x * 2);
 	}
-	BOOST_TEST(made.morph_weights.size() == 1u);
 }
 
 BOOST_AUTO_TEST_CASE(a_material_that_is_not_packed_and_the_meshes_that_have_none_are_left_as_they_are)

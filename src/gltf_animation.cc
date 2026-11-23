@@ -2,7 +2,7 @@
 // Copyright (c) 2004-2026 Manvel Avetisian
 
 // GltfReader's clips (gltf_reader.h): each node's channels sampled at their keys (and between a cubic spline's) into translation,
-// rotation and scale keyframes, and the weights of its mesh's morph targets.
+// rotation and scale keyframes.  A clip that moves morph weights is refused: edge plays none.
 
 #include "gltf_reader.h"
 
@@ -11,8 +11,6 @@
 #include <rove/scalar.h>
 #include <sstream>
 #include <stdexcept>
-
-#include "weights_sampler.h"
 
 namespace edge
 {
@@ -40,16 +38,6 @@ struct QuatChannelTrack
 	std::vector<fastgltf::math::fquat> out_tangents;
 };
 
-struct WeightsChannelTrack
-{
-	fastgltf::AnimationInterpolation interpolation = fastgltf::AnimationInterpolation::Linear;
-	std::vector<float> times;
-	std::vector<std::vector<float>> values;
-	std::vector<std::vector<float>> in_tangents;
-	std::vector<std::vector<float>> out_tangents;
-	std::size_t weights_count = 0;
-};
-
 struct NodeAnimationTracks
 {
 	bool has_translation = false;
@@ -58,8 +46,6 @@ struct NodeAnimationTracks
 	QuatChannelTrack rotation;
 	bool has_scale = false;
 	Vec3ChannelTrack scale;
-	bool has_weights = false;
-	WeightsChannelTrack weights;
 };
 
 std::string animation_path_to_string(fastgltf::AnimationPath path)
@@ -265,85 +251,6 @@ void read_animation_quat_values(fastgltf::Asset const &asset_, std::size_t acces
 	}
 }
 
-void read_animation_weights_values(fastgltf::Asset const &asset_, std::size_t accessor_index,
-	fastgltf::AnimationInterpolation interpolation,
-	std::size_t keyframes_count,
-	std::size_t weights_count,
-	WeightsChannelTrack &track,
-	std::string const &context)
-{
-	if (accessor_index >= asset_.accessors.size() || keyframes_count == 0 || weights_count == 0)
-	{
-		throw load_error(context + ": invalid weights output accessor or empty keyframe/weights count");
-	}
-
-	fastgltf::Accessor const &accessor = asset_.accessors[accessor_index];
-	std::vector<float> raw_values;
-	raw_values.reserve(accessor.count);
-	read_checked<float>(asset_, accessor, context,
-		[&](float value, std::size_t)
-		{
-			raw_values.push_back(value);
-		});
-
-	if (raw_values.empty())
-	{
-		throw load_error(context + ": empty weights output accessor");
-	}
-
-	for (float raw_value : raw_values)
-	{
-		if (!std::isfinite(raw_value))
-		{
-			throw load_error(context + ": weights output accessor contains non-finite value");
-		}
-	}
-
-	track.weights_count = weights_count;
-	track.values.assign(keyframes_count, std::vector<float>(weights_count, 0.0f));
-	track.in_tangents.clear();
-	track.out_tangents.clear();
-
-	if (interpolation == fastgltf::AnimationInterpolation::CubicSpline)
-	{
-		std::size_t const expected_count = keyframes_count * weights_count * 3;
-		if (raw_values.size() != expected_count)
-		{
-			throw load_error(context + ": cubic-spline weights output count does not match 3x keyframe count * weights count");
-		}
-
-		track.in_tangents.assign(keyframes_count, std::vector<float>(weights_count, 0.0f));
-		track.out_tangents.assign(keyframes_count, std::vector<float>(weights_count, 0.0f));
-		for (std::size_t keyframe_index = 0; keyframe_index < keyframes_count; ++keyframe_index)
-		{
-			std::size_t const base_index = keyframe_index * weights_count * 3;
-			for (std::size_t weight_index = 0; weight_index < weights_count; ++weight_index)
-			{
-				track.in_tangents[keyframe_index][weight_index] = raw_values[base_index + weight_index];
-				track.values[keyframe_index][weight_index] = raw_values[base_index + weights_count + weight_index];
-				track.out_tangents[keyframe_index][weight_index] = raw_values[base_index + weights_count * 2 + weight_index];
-			}
-		}
-	}
-	else
-	{
-		std::size_t const expected_count = keyframes_count * weights_count;
-		if (raw_values.size() != expected_count)
-		{
-			throw load_error(context + ": weights output count does not match keyframe count * weights count");
-		}
-
-		for (std::size_t keyframe_index = 0; keyframe_index < keyframes_count; ++keyframe_index)
-		{
-			std::size_t const base_index = keyframe_index * weights_count;
-			for (std::size_t weight_index = 0; weight_index < weights_count; ++weight_index)
-			{
-				track.values[keyframe_index][weight_index] = raw_values[base_index + weight_index];
-			}
-		}
-	}
-}
-
 template<class T>
 std::size_t find_upper_keyframe_index(std::vector<float> const &times, T time)
 {
@@ -458,67 +365,6 @@ fastgltf::math::fquat sample_quat_track(QuatChannelTrack const &track, float tim
 			fastgltf::math::slerp(track.values[lower_index], track.values[upper_index], k));
 	}
 
-std::vector<float> sample_weights_track(WeightsChannelTrack const &track, float time)
-{
-	if (track.times.empty() || track.values.empty() || track.weights_count == 0)
-	{
-		return std::vector<float>();
-	}
-
-	if (track.times.size() == 1 || track.values.size() == 1 || time <= track.times.front())
-	{
-		return track.values.front();
-	}
-
-	if (time >= track.times.back())
-	{
-		return track.values.back();
-	}
-
-	std::size_t const upper_index = find_upper_keyframe_index(track.times, time);
-	if (upper_index == 0 || upper_index >= track.times.size())
-	{
-		return track.values.back();
-	}
-
-	std::size_t const lower_index = upper_index - 1;
-	if (track.interpolation == fastgltf::AnimationInterpolation::Step)
-	{
-		return track.values[lower_index];
-	}
-
-	float const t0 = track.times[lower_index];
-	float const t1 = track.times[upper_index];
-	float const time_span = t1 - t0;
-	if (std::abs(time_span) <= 1e-6f)
-	{
-		return track.values[lower_index];
-	}
-
-	float const k = (time - t0) / time_span;
-	std::vector<float> result(track.weights_count, 0.0f);
-	for (std::size_t weight_index = 0; weight_index < track.weights_count; ++weight_index)
-	{
-		float const p0 = track.values[lower_index][weight_index];
-		float const p1 = track.values[upper_index][weight_index];
-
-		if (track.interpolation == fastgltf::AnimationInterpolation::CubicSpline &&
-			!track.in_tangents.empty() &&
-			!track.out_tangents.empty())
-		{
-			float const m0 = track.out_tangents[lower_index][weight_index] * time_span;
-			float const m1 = track.in_tangents[upper_index][weight_index] * time_span;
-			result[weight_index] = cubic_hermite(p0, p1, m0, m1, k);
-		}
-		else
-		{
-			result[weight_index] = p0 * (1.0f - k) + p1 * k;
-		}
-	}
-
-	return result;
-}
-
 fastgltf::TRS node_default_trs(fastgltf::Node const &node)
 {
 	if (auto const *trs_ptr = std::get_if<fastgltf::TRS>(&node.transform))
@@ -626,30 +472,7 @@ void GltfReader::build_animations()
 			}
 			else if (channel.path == fastgltf::AnimationPath::Weights)
 			{
-				std::int64_t const mesh_index = model_.joints[std::size_t(node_to_joint_[node_index])].mesh_index;
-				if (mesh_index < 0)
-				{
-					continue;
-				}
-
-				std::size_t const weights_count = model_.meshes[std::size_t(mesh_index)].morph_target_deltas.size();
-				if (weights_count == 0)
-				{
-					throw load_error(channel_context + ": morph target weights animation targets a mesh without morph targets");
-				}
-
-				WeightsChannelTrack track;
-				track.interpolation = gltf_sampler.interpolation;
-				track.times = times;
-				read_animation_weights_values(asset_, gltf_sampler.outputAccessor,
-					track.interpolation,
-					track.times.size(),
-					weights_count,
-					track,
-					channel_context);
-
-				tracks[node_index].weights = track;
-				tracks[node_index].has_weights = true;
+				throw load_error(channel_context + ": the clip moves morph weights, and edge does not play morph targets");
 			}
 			else
 			{
@@ -666,7 +489,7 @@ void GltfReader::build_animations()
 		{
 			NodeAnimationTracks const &node_track = tracks[node_index];
 			if (!node_track.has_translation && !node_track.has_rotation &&
-				!node_track.has_scale && !node_track.has_weights)
+				!node_track.has_scale)
 			{
 				continue;
 			}
@@ -769,45 +592,9 @@ void GltfReader::build_animations()
 					animation.samplers.push_back(sampler);
 				}
 			}
-
-			if (node_track.has_weights)
-			{
-				std::int64_t const mesh_index = model_.joints[std::size_t(joint_index)].mesh_index;
-				if (mesh_index >= 0)
-				{
-					std::vector<float> weight_sample_times = node_track.weights.times;
-					append_cubic_segment_samples(node_track.weights.times,
-						node_track.weights.interpolation,
-						weight_sample_times);
-
-					std::sort(weight_sample_times.begin(), weight_sample_times.end());
-					weight_sample_times.erase(
-						std::unique(weight_sample_times.begin(), weight_sample_times.end(),
-							[](float lhs, float rhs)
-							{
-								return std::abs(lhs - rhs) <= 1e-6f;
-							}),
-						weight_sample_times.end());
-
-					if (!weight_sample_times.empty())
-					{
-						SerializedWeightsSampler sampler;
-						sampler.mesh_index = mesh_index;
-						sampler.interpolation = static_cast<int>(node_track.weights.interpolation == fastgltf::AnimationInterpolation::Step
-							? WeightsSampler::Interpolation::STEP : WeightsSampler::Interpolation::LINEAR);
-
-						for (float time : weight_sample_times)
-						{
-								sampler.keyframes.push_back(SerializedKeyframe{time, sample_weights_track(node_track.weights, time)});
-						}
-
-						animation.weight_samplers.push_back(sampler);
-					}
-				}
-			}
 		}
 
-		if (!animation.samplers.empty() || !animation.weight_samplers.empty())
+		if (!animation.samplers.empty())
 		{
 			model_.animations.push_back(std::move(animation));
 		}

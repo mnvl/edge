@@ -34,18 +34,6 @@ void Mesh::check()
 	EDGE_LOG_INFO("checking mesh id = {}, name = {}...", id_, name_);
 }
 
-void Mesh::set_morph_targets(std::vector<std::vector<GenericVertex>> const &targets,
-	GenericVertex::format_type format)
-{
-	(void)targets;
-	(void)format;
-}
-
-void Mesh::set_morph_weights(std::vector<float> const &weights)
-{
-	(void)weights;
-}
-
 std::size_t Mesh::morph_targets_count() const
 {
 	return 0;

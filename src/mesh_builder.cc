@@ -27,14 +27,14 @@ rove::aabb<3> const &MeshBuilder::local_bounds() const
 {
 	if (!bounds_valid_)
 	{
-		if (base_vertices_.empty())
+		if (vertices_.empty())
 		{
 			throw std::runtime_error("failed to compute bounds: no vertices in mesh builder");
 		}
-		bounds_ = rove::aabb<3>(base_vertices_[0].position);
-		for (std::size_t i = 1; i < base_vertices_.size(); ++i)
+		bounds_ = rove::aabb<3>(vertices_[0].position);
+		for (std::size_t i = 1; i < vertices_.size(); ++i)
 		{
-			bounds_.extend(base_vertices_[i].position);
+			bounds_.extend(vertices_[i].position);
 		}
 		bounds_valid_ = true;
 	}
@@ -44,17 +44,17 @@ rove::aabb<3> const &MeshBuilder::local_bounds() const
 rove::aabb<3> MeshBuilder::exact_bounds(std::vector<std::shared_ptr<Joint>> const &, Joint const &owner,
 	rove::matrix<4,4> const &world_matrix) const
 {
-	if (base_vertices_.empty())
+	if (vertices_.empty())
 	{
 		throw std::runtime_error("failed to compute bounds: no vertices in mesh builder");
 	}
 
 	rove::matrix<4,4> const transform = world_matrix * owner.matrix;
-	rove::aabb<3> bounds(rove::transform_point(transform, base_vertices_[0].position));
+	rove::aabb<3> bounds(rove::transform_point(transform, vertices_[0].position));
 
-	for (std::size_t i = 1; i < base_vertices_.size(); ++i)
+	for (std::size_t i = 1; i < vertices_.size(); ++i)
 	{
-		bounds.extend(rove::transform_point(transform, base_vertices_[i].position));
+		bounds.extend(rove::transform_point(transform, vertices_[i].position));
 	}
 
 	return bounds;
@@ -88,9 +88,7 @@ void MeshBuilder::clear_geometry()
 {
 	vertices_.clear();
 	indices_.clear();
-	base_vertices_.clear();
 	morph_target_deltas_.clear();
-	morph_weights_.clear();
 	initialized_vertex_components_ = 0;
 	bounds_valid_ = false;
 	clear_triangles();
@@ -99,12 +97,10 @@ void MeshBuilder::clear_geometry()
 void MeshBuilder::set_geometry(std::vector<vertex_type> const &vertices, std::vector<index_type> const &indices)
 {
 	vertices_ = vertices;
-	base_vertices_ = vertices_;
 	indices_ = indices;
 	bounds_valid_ = false;
 
 	morph_target_deltas_.clear();
-	morph_weights_.clear();
 	initialized_vertex_components_ = vertex_type::FORMAT;
 	clear_triangles();
 }
@@ -128,10 +124,8 @@ void MeshBuilder::append_geometry(std::vector<vertex_type> const &vertices, std:
 		indices_.push_back(index_type(shifted));
 	}
 
-	base_vertices_ = vertices_;
 	bounds_valid_ = false;
 	morph_target_deltas_.clear();
-	morph_weights_.clear();
 	initialized_vertex_components_ |= vertex_type::FORMAT;
 
 	if (add_default_triangles && !indices.empty())
@@ -189,6 +183,10 @@ void MeshBuilder::add_triangles(std::shared_ptr<Material> const &material_ptr, s
 
 void MeshBuilder::set_vertices(GenericVertex *vertices, GenericVertex::format_type format, size_t count)
 {
+	if (count != vertices_.size())
+	{
+		morph_target_deltas_.clear();      // they are offsets of as many vertices as there were
+	}
 	vertices_.resize(count);
 	if ((format & (GenericVertex::FORMAT_JOINT_INDICES | GenericVertex::FORMAT_JOINT_WEIGHTS)) != 0)
 	{
@@ -215,13 +213,8 @@ void MeshBuilder::set_vertices(GenericVertex *vertices, GenericVertex::format_ty
 	}
 
 	initialized_vertex_components_ |= format;
-	base_vertices_ = vertices_;
 	bounds_valid_ = false;
 
-	if (!morph_target_deltas_.empty())
-	{
-		apply_morph_weights();
-	}
 }
 
 void MeshBuilder::set_indices(unsigned *indices, size_t count)
@@ -237,64 +230,6 @@ void MeshBuilder::set_indices(unsigned *indices, size_t count)
 void MeshBuilder::set_always_visible(bool /*flag*/)
 {
 	// Frustum culling is not supported for builder mesh.
-}
-
-void MeshBuilder::set_morph_targets(std::vector<std::vector<GenericVertex>> const &targets,
-	GenericVertex::format_type format)
-{
-	morph_target_deltas_.clear();
-	morph_weights_.clear();
-
-	if (base_vertices_.empty() || targets.empty())
-	{
-		return;
-	}
-
-	morph_target_deltas_.resize(targets.size());
-	for (std::size_t target_index = 0; target_index < targets.size(); ++target_index)
-	{
-		std::vector<GenericVertex> const &target = targets[target_index];
-		if (target.size() != base_vertices_.size())
-		{
-			morph_target_deltas_.clear();
-			return;
-		}
-
-		std::vector<vertex_type> &converted_target = morph_target_deltas_[target_index];
-		converted_target.resize(base_vertices_.size());
-		for (std::size_t vertex_index = 0; vertex_index < target.size(); ++vertex_index)
-		{
-			vertex_type delta;
-			std::memset(&delta, 0, sizeof(delta));
-			delta.assign(target[vertex_index], format);
-			converted_target[vertex_index] = delta;
-		}
-	}
-
-	morph_weights_.assign(morph_target_deltas_.size(), 0.0f);
-	apply_morph_weights();
-}
-
-void MeshBuilder::set_morph_weights(std::vector<float> const &weights)
-{
-	if (morph_target_deltas_.empty())
-	{
-		return;
-	}
-
-	std::vector<float> new_weights(morph_target_deltas_.size(), 0.0f);
-	for (std::size_t i = 0; i < new_weights.size() && i < weights.size(); ++i)
-	{
-		new_weights[i] = weights[i];
-	}
-
-	if (new_weights == morph_weights_)
-	{
-		return;
-	}
-
-	morph_weights_.swap(new_weights);
-	apply_morph_weights();
 }
 
 std::size_t MeshBuilder::morph_targets_count() const
@@ -316,11 +251,10 @@ std::string MeshBuilder::class_serialization_type()
 
 void MeshBuilder::save_geometry(SerializedMesh &serialized) const
 {
-	// as a BasicStaticMesh<VERTEX_PTBNT> keeps its own, so that StaticModelPTBNT loads what a ModelBuilder saves: the base
-	// vertices, which the morph targets are offsets from, and the weights apart
+	// as a BasicStaticMesh<VERTEX_PTBNT> keeps its own, so that StaticModelPTBNT loads what a ModelBuilder saves
 	serialized.always_visible = false;
 	serialized.vertices.clear();
-	for (vertex_type const &vertex : base_vertices_)
+	for (vertex_type const &vertex : vertices_)
 	{
 		serialized.vertices.push_back(to_generic_vertex(vertex));
 	}
@@ -338,7 +272,6 @@ void MeshBuilder::save_geometry(SerializedMesh &serialized) const
 			serialized.morph_target_deltas.back().push_back(to_generic_vertex(delta));
 		}
 	}
-	serialized.morph_weights = morph_weights_;
 	serialized.pose_bounds.reset();
 }
 
@@ -347,11 +280,6 @@ void MeshBuilder::load_geometry(SerializedMesh const &serialized, bool)
 	if (serialized.pose_bounds)
 	{
 		throw std::runtime_error("the file gives a pose box to mesh '" + name() + "', which is not skinned");
-	}
-	if (serialized.morph_weights.size() != serialized.morph_target_deltas.size())
-	{
-		throw std::runtime_error("mesh '" + name() + "' has " + std::to_string(serialized.morph_weights.size()) + " morph weights for " +
-			std::to_string(serialized.morph_target_deltas.size()) + " morph targets");
 	}
 
 	initialized_vertex_components_ = vertex_type::FORMAT;
@@ -367,7 +295,6 @@ void MeshBuilder::load_geometry(SerializedMesh const &serialized, bool)
 	}
 
 
-	base_vertices_ = vertices_;
 	bounds_valid_ = false;
 
 	morph_target_deltas_.resize(serialized.morph_target_deltas.size());
@@ -379,54 +306,7 @@ void MeshBuilder::load_geometry(SerializedMesh const &serialized, bool)
 			morph_target_deltas_[t][i] = serialized.morph_target_deltas[t][i];
 		}
 	}
-	morph_weights_ = serialized.morph_weights;
 
-	if (!morph_target_deltas_.empty())
-	{
-		apply_morph_weights();
-	}
 }
-
-void MeshBuilder::apply_morph_weights()
-{
-	if (base_vertices_.empty() || morph_target_deltas_.empty())
-	{
-		return;
-	}
-
-	vertices_ = base_vertices_;
-	for (std::size_t vertex_index = 0; vertex_index < vertices_.size(); ++vertex_index)
-	{
-		vertex_type &vertex = vertices_[vertex_index];
-		for (std::size_t target_index = 0; target_index < morph_target_deltas_.size(); ++target_index)
-		{
-			float const weight = target_index < morph_weights_.size() ? morph_weights_[target_index] : 0.0f;
-			if (std::abs(weight) <= ZERO_WEIGHT)
-			{
-				continue;
-			}
-
-			vertex_type const &delta = morph_target_deltas_[target_index][vertex_index];
-			vertex.position += delta.position * weight;
-			vertex.normal += delta.normal * weight;
-			vertex.tangent += delta.tangent * weight;
-			vertex.binormal += delta.binormal * weight;
-		}
-
-		if (vertex.normal.length_sq() > NO_DIRECTION_LENGTH_SQ)
-		{
-			vertex.normal.normalize();
-		}
-		if (vertex.tangent.length_sq() > NO_DIRECTION_LENGTH_SQ)
-		{
-			vertex.tangent.normalize();
-		}
-		if (vertex.binormal.length_sq() > NO_DIRECTION_LENGTH_SQ)
-		{
-			vertex.binormal.normalize();
-		}
-	}
-}
-
 
 }

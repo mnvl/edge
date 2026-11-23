@@ -49,9 +49,6 @@ public:
 	void set_vertices(GenericVertex *vertices, GenericVertex::format_type format, size_t count) override;
 	void set_indices(unsigned *indices, size_t count) override;
 	void set_always_visible(bool flag) override;
-	void set_morph_targets(std::vector<std::vector<GenericVertex>> const &targets,
-		GenericVertex::format_type format) override;
-	void set_morph_weights(std::vector<float> const &weights) override;
 	std::size_t morph_targets_count() const override;
 	std::string serialization_type() const override;
 	/// What serialization_type() says of every MeshBuilder.
@@ -66,16 +63,12 @@ private:
 	GenericVertex::format_type initialized_vertex_components_;
 	std::vector<vertex_type> vertices_;
 	std::vector<index_type> indices_;
-	std::vector<vertex_type> base_vertices_;
 	std::vector<std::vector<vertex_type>> morph_target_deltas_;
-	std::vector<float> morph_weights_;
 	mutable rove::aabb<3> bounds_;
 	mutable bool bounds_valid_ = false;
 
-	/// The base vertices' box, computed once.
+	/// The vertices' box, computed once.
 	rove::aabb<3> const &local_bounds() const;
-
-void apply_morph_weights();
 };
 
 }

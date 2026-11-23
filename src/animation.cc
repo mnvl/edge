@@ -11,8 +11,6 @@ void Animation::apply(rove::scalar t)
 {
 	for (auto &sampler : samplers)
 		sampler.apply(t);
-	for (auto &weight_sampler : weight_samplers)
-		weight_sampler.apply(t);
 }
 
 void Animation::pose(rove::scalar t)

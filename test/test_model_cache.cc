@@ -225,34 +225,6 @@ BOOST_AUTO_TEST_CASE(each_instance_poses_alone)
 	}
 }
 
-BOOST_AUTO_TEST_CASE(morph_weights_move_only_their_own_instance)
-{
-	// Morph weights are written into the vertex buffer, so a mesh with
-	// morph targets cannot share it.
-	std::string const path = asset("test_gltf_loder_animation_weights_path.gltf");
-	auto a = cache.load<edge::StaticModelPTBNT>(path);
-	auto b = cache.load<edge::StaticModelPTBNT>(path);
-	BOOST_REQUIRE_GT(a->meshes()[0]->morph_targets_count(), 0u);
-	BOOST_CHECK(static_mesh<edge::VERTEX_PTBNT>(a->meshes()[0]).vertex_buffer() !=
-		static_mesh<edge::VERTEX_PTBNT>(b->meshes()[0]).vertex_buffer());
-
-	a->pose(0.0f);
-	b->pose(0.0f);
-	auto const b_before = vertex_bytes<edge::VERTEX_PTBNT>(b->meshes()[0]);
-	auto const a_before = vertex_bytes<edge::VERTEX_PTBNT>(a->meshes()[0]);
-
-	a->pose(1.0f);
-	BOOST_CHECK(vertex_bytes<edge::VERTEX_PTBNT>(a->meshes()[0]) != a_before);
-	BOOST_CHECK(vertex_bytes<edge::VERTEX_PTBNT>(b->meshes()[0]) == b_before);
-
-	// And a fresh instance starts at the file's weights, whatever a did.
-	auto direct = std::make_shared<edge::StaticModelPTBNT>(renderer);
-	direct->load_from_gltf(path);
-	auto c = cache.load<edge::StaticModelPTBNT>(path);
-	BOOST_CHECK(vertex_bytes<edge::VERTEX_PTBNT>(c->meshes()[0]) ==
-		vertex_bytes<edge::VERTEX_PTBNT>(direct->meshes()[0]));
-}
-
 BOOST_AUTO_TEST_CASE(model_type_is_part_of_the_key)
 {
 	auto as_static = cache.load<edge::StaticModelPTBNT>(asset("test_gltf_loder_animation.glb"));
@@ -418,7 +390,7 @@ BOOST_AUTO_TEST_CASE(a_null_prototype_is_refused)
 		std::invalid_argument);
 }
 
-// The CPU copies of the geometry (vertices(), indices(), morph_target_deltas()) are the prototype's, not copied into each instance:
+// The CPU copies of the geometry (vertices(), indices()) are the prototype's, not copied into each instance:
 // a scene of a few hundred placed objects loads without copying each one's vertices.  An instance's mesh given geometry of its own
 // has it alone.
 
@@ -442,12 +414,6 @@ BOOST_AUTO_TEST_CASE(instances_share_the_cpu_geometry)
 	BOOST_REQUIRE(pa && pb && !pa->vertices().empty());
 	BOOST_CHECK(pa->vertices().data() == pb->vertices().data());
 	BOOST_CHECK(pa->indices().data() == pb->indices().data());
-	std::string const morphed = asset("test_gltf_loder_animation_weights_path.gltf");
-	auto const morphed_model_a = cache.load<edge::StaticModelPTBNT>(morphed), morphed_model_b = cache.load<edge::StaticModelPTBNT>(morphed);
-	auto const &morphed_a = static_mesh<edge::VERTEX_PTBNT>(morphed_model_a->meshes()[0]);
-	auto const &morphed_b = static_mesh<edge::VERTEX_PTBNT>(morphed_model_b->meshes()[0]);
-	BOOST_REQUIRE(!morphed_a.morph_target_deltas().empty());
-	BOOST_CHECK(&morphed_a.morph_target_deltas() == &morphed_b.morph_target_deltas());
 }
 
 BOOST_AUTO_TEST_CASE(geometry_given_to_an_instance_is_its_own)

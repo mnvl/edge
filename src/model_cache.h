@@ -28,8 +28,7 @@ namespace edge
 /// buffers and its textures, and owns its joints, animations, materials and
 /// mesh flags, so posing, relabelling or hiding one instance leaves every
 /// other as it was.  The instances' skinned meshes share the poses they work out (AnimatedMeshCache), so a pose set with
-/// Model::set_cached_pose() is sampled once for all of them.  A mesh with morph targets gets a vertex buffer of its
-/// own, since morph weights are written into it.
+/// Model::set_cached_pose() is sampled once for all of them.
 ///
 /// Each instance holds its prototype (Model::prototype()), and so do the meshes' CPU copies of the geometry: instances share
 /// those as they share the GPU buffers.  How long the cache itself holds a prototype is its Keep:

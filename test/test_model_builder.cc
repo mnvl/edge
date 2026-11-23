@@ -279,44 +279,6 @@ BOOST_AUTO_TEST_CASE(save_load_roundtrip_materials)
 	run_roundtrip_check("test_gltf_loder_materials.glb", "materials");
 }
 
-/// The file keeps the vertices the morph targets are offsets from: a morphed mesh is morphed once after loading, not twice.
-BOOST_AUTO_TEST_CASE(a_morphed_mesh_comes_back_morphed_once)
-{
-	std::shared_ptr<edge::ModelBuilder> source = make_model();
-	std::shared_ptr<edge::MeshBuilder> mesh = source->add_mesh_builder();
-	std::vector<edge::MeshBuilder::vertex_type> vertices(3);
-	std::memset(vertices.data(), 0, sizeof(vertices[0]) * vertices.size());
-	vertices[1].position.set(1.0f, 0.0f, 0.0f);
-	vertices[2].position.set(0.0f, 1.0f, 0.0f);
-	mesh->set_geometry(vertices, {0, 1, 2});
-	edge::GenericVertex delta;
-	std::memset(&delta, 0, sizeof(delta));
-	delta.position.set(0.0f, 4.0f, 0.0f);
-	mesh->set_morph_targets({{delta, delta, delta}}, edge::GenericVertex::FORMAT_POSITION);
-	mesh->set_morph_weights({0.5f});
-
-	std::filesystem::path const output_path = make_roundtrip_output_path("morphed");
-	source->save_to_file(output_path.string());
-	std::shared_ptr<edge::ModelBuilder> loaded = make_model();
-	loaded->load_from_file(output_path.string());
-	std::shared_ptr<edge::StaticModelPTBNT> loaded_static = make_static_model();
-	loaded_static->load_from_file(output_path.string());
-	std::error_code remove_error;
-	std::filesystem::remove(output_path, remove_error);
-
-	auto const &builder = dynamic_cast<edge::MeshBuilder const &>(*loaded->meshes().at(0));
-	auto const &static_mesh = dynamic_cast<edge::StaticMeshPTBNT const &>(*loaded_static->meshes().at(0));
-	float const base[] = {0.0f, 0.0f, 1.0f};
-	for (std::size_t i = 0; i < 3; ++i)
-	{
-		BOOST_CHECK_SMALL(builder.vertex_buffer()[i].position.y - (base[i] + 2.0f), 1e-5f);
-		BOOST_CHECK_SMALL(static_mesh.vertices()[i].position.y - base[i], 1e-5f);     // its base vertices, the weights apart
-	}
-	edge::SerializedMesh geometry;
-	static_mesh.save_geometry(geometry);
-	BOOST_CHECK(geometry.morph_weights == std::vector<float>{0.5f});
-}
-
 BOOST_AUTO_TEST_CASE(save_load_roundtrip_static_model)
 {
 	std::shared_ptr<edge::StaticModelPTBNT> source = make_static_model();

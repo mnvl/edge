@@ -31,12 +31,19 @@ versions follow [Semantic Versioning](https://semver.org/).
   once. `wait_frame(serial)` and `frame_drawn(serial)` wait for or ask about one frame submitted.
 - `Material::revision()`, moved on by every setter: a Vulkan list remembers each material's pipeline and descriptor set until the
   material changes.
+- `Model::build_octree(world, lod)`: the collision octree of any level of detail, level 0 by default. pyedge:
+  `build_octree(world_matrix, lod=0)`.
 
 ### Changed
 
-- A mesh's copies (`Mesh::shallow_copy()`, so every instance of a `ModelCache`'s model) share its CPU copy of the geometry
-  (`vertices()`, `indices()`, `morph_target_deltas()`) instead of each copying it; a copy given geometry of its own has it alone
-  (copied on write, `SharedVector`).
+- A mesh's geometry is on the CPU once, the copy its buffers keep: `BasicStaticMesh::vertices()` and `indices()` are a `std::span` of
+  it (they were a `std::vector const &` of the mesh's own), good until the geometry is next set or the mesh goes, and
+  `TriangleIterator` takes spans. A mesh's copies (`Mesh::shallow_copy()`, so every instance of a `ModelCache`'s model) share it, and
+  `morph_target_deltas()`, instead of each copying it; a copy given geometry of its own has it alone.
+- `Mesh::insert_triangles()` takes the level of detail.
+- The `.edge` format is version 12, without morph weights and the clips that moved them. Versions 10 and 11 are read; a file of them
+  that would have to be morphed is refused, and so is one of any version whose morph target has not as many offsets as its mesh has
+  vertices.
 
 - A backend's pass is its lists: `Renderer::do_begin_pass()` returns them, the backend's own and kept from pass to pass, and
   `do_draw()` and `do_set_viewport()` are the `DrawList`'s (`draw_list.h`). A renderer that records on one thread has an
@@ -73,6 +80,10 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Removed
 
+- Morph targets are no longer played: `Mesh::set_morph_targets()` and `set_morph_weights()`, `WeightsSampler` and
+  `Animation::weight_samplers` are gone. A mesh has its targets as data (`morph_targets_count()`,
+  `BasicStaticMesh::morph_target_deltas()`). A glTF with default weights that are not zero, or with a clip that moves them, is a
+  `GltfLoader::load_error`. Why, and how to play them again, is at `morph_target_deltas()` in `static_mesh.h`.
 - `edge::init_logging()`, `edge::log()`, `pyedge.init_logging()` and `$EDGE_LOG`: edge writes no log file. A program that wants
   one gives a sink that writes it.
 - `libedge_imgui.a`, and from an install of edge built by itself, the ImGui it fetched: `libedge_imgui_core.a`, `edge::imgui_core` and
@@ -92,6 +103,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- `set_vertices()` on a copy of a mesh (an instance of a `ModelCache`'s model) gives it a vertex buffer of its own: it wrote the one
+  every copy draws. With another count of vertices it makes a buffer of that size: more than before wrote past the buffer.
 - pyedge from `pip install -e .` finds its compiled module: it looked only beside `__init__.py`, where an editable install has none, so every name
   of the binding raised `AttributeError`, saying to build what was built.
 
