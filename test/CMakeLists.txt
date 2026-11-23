@@ -43,6 +43,7 @@ SET(EDGE_TEST_SOURCES
   test_material_parameters.cc
   test_mesh.cc
   test_mesh_builder.cc
+  test_mesh_geometry.cc
   test_mesh_lod.cc
   test_mesh_tiles.cc
   test_model.cc

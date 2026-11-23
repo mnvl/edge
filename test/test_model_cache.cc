@@ -432,16 +432,16 @@ BOOST_AUTO_TEST_CASE(instances_share_the_cpu_geometry)
 		auto const &ma = static_mesh<edge::VERTEX_PTBNT>(a->meshes()[i]);
 		auto const &mb = static_mesh<edge::VERTEX_PTBNT>(b->meshes()[i]);
 		BOOST_REQUIRE(!ma.vertices().empty() && !ma.indices().empty());
-		BOOST_CHECK(&ma.vertices() == &mb.vertices());
-		BOOST_CHECK(&ma.indices() == &mb.indices());
+		BOOST_CHECK(ma.vertices().data() == mb.vertices().data());
+		BOOST_CHECK(ma.indices().data() == mb.indices().data());
 	}
 	auto animated_a = cache.load<edge::AnimatedModelPTBNJWT>(asset("test_gltf_loder_animation.glb"));
 	auto animated_b = cache.load<edge::AnimatedModelPTBNJWT>(asset("test_gltf_loder_animation.glb"));
 	auto const *pa = dynamic_cast<edge::AnimatedMeshPTBNJWT const *>(animated_a->meshes()[0].get());
 	auto const *pb = dynamic_cast<edge::AnimatedMeshPTBNJWT const *>(animated_b->meshes()[0].get());
 	BOOST_REQUIRE(pa && pb && !pa->vertices().empty());
-	BOOST_CHECK(&pa->vertices() == &pb->vertices());
-	BOOST_CHECK(&pa->indices() == &pb->indices());
+	BOOST_CHECK(pa->vertices().data() == pb->vertices().data());
+	BOOST_CHECK(pa->indices().data() == pb->indices().data());
 	std::string const morphed = asset("test_gltf_loder_animation_weights_path.gltf");
 	auto const morphed_model_a = cache.load<edge::StaticModelPTBNT>(morphed), morphed_model_b = cache.load<edge::StaticModelPTBNT>(morphed);
 	auto const &morphed_a = static_mesh<edge::VERTEX_PTBNT>(morphed_model_a->meshes()[0]);
@@ -456,19 +456,19 @@ BOOST_AUTO_TEST_CASE(geometry_given_to_an_instance_is_its_own)
 	auto b = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
 	auto const &ma = static_mesh<edge::VERTEX_PTBNT>(a->meshes()[0]);
 	auto const &mb = static_mesh<edge::VERTEX_PTBNT>(b->meshes()[0]);
-	std::vector<edge::BasicStaticMesh<edge::VERTEX_PTBNT>::index_type> const original = ma.indices();
+	std::vector<edge::BasicStaticMesh<edge::VERTEX_PTBNT>::index_type> const original(ma.indices().begin(), ma.indices().end());
 	BOOST_REQUIRE_GT(original.size(), 3u);
 	std::vector<unsigned> reversed(original.rbegin(), original.rend());
 	b->meshes()[0]->set_indices(reversed.data(), reversed.size());
 
 	BOOST_CHECK(std::equal(mb.indices().begin(), mb.indices().end(), reversed.begin(), reversed.end()));
-	BOOST_CHECK(ma.indices() == original);
-	BOOST_CHECK(&ma.indices() != &mb.indices());
+	BOOST_CHECK(std::ranges::equal(ma.indices(), original));
+	BOOST_CHECK(ma.indices().data() != mb.indices().data());
 	// the prototype's are as they were: another instance has them, shared with the first
 	auto c = cache.load<edge::StaticModelPTBNT>(asset("cone.glb"));
 	auto const &mc = static_mesh<edge::VERTEX_PTBNT>(c->meshes()[0]);
-	BOOST_CHECK(mc.indices() == original);
-	BOOST_CHECK(&mc.indices() == &ma.indices());
+	BOOST_CHECK(std::ranges::equal(mc.indices(), original));
+	BOOST_CHECK(mc.indices().data() == ma.indices().data());
 }
 
 BOOST_AUTO_TEST_SUITE_END()

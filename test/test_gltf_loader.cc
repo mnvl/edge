@@ -9,6 +9,7 @@
 #include <limits>
 #include <memory>
 #include <set>
+#include <span>
 #include <string>
 
 #include <boost/test/unit_test.hpp>
@@ -125,12 +126,12 @@ std::vector<edge::MeshBuilder::index_type> const &indices_of(edge::MeshBuilder c
 	return mesh.index_buffer();
 }
 
-std::vector<edge::VERTEX_PTBNJWT> const &vertices_of(edge::AnimatedMeshPTBNJWT const &mesh)
+std::span<edge::VERTEX_PTBNJWT const> vertices_of(edge::AnimatedMeshPTBNJWT const &mesh)
 {
 	return mesh.vertices();
 }
 
-std::vector<edge::AnimatedMeshPTBNJWT::index_type> const &indices_of(edge::AnimatedMeshPTBNJWT const &mesh)
+std::span<edge::AnimatedMeshPTBNJWT::index_type const> indices_of(edge::AnimatedMeshPTBNJWT const &mesh)
 {
 	return mesh.indices();
 }

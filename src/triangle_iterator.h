@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <span>
 #include <vector>
 #include <rove/matrix.h>
 #include <rove/triangle.h>
@@ -33,8 +34,8 @@ public:
 	///                  If empty, the entire index buffer is treated as one flat list.
 	/// @param transform Model-to-world matrix applied to each vertex position.
 	TriangleIterator(
-		std::vector<V> const &vertices,
-		std::vector<I> const &indices,
+		std::span<V const> vertices,
+		std::span<I const> indices,
 		std::vector<G> const &groups,
 		rove::matrix<4,4> const &transform)
 		: vertices_(vertices)
@@ -122,8 +123,8 @@ private:
 		}
 	}
 
-	std::vector<V> const &vertices_;
-	std::vector<I> const &indices_;
+	std::span<V const> vertices_;
+	std::span<I const> indices_;
 	std::vector<G> const &groups_;
 	rove::matrix<4,4> transform_;
 	std::size_t vertex_count_;

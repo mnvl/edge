@@ -9,6 +9,7 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <utility>
 
 #include "serialized_model.h"
 #include "uber_draw_call.h"
@@ -34,16 +35,17 @@ BasicStaticMesh<T>::~BasicStaticMesh() = default;
 template <vertex_layout T>
 rove::aabb<3> BasicStaticMesh<T>::transformed_bounds(rove::matrix<4,4> const &transform) const
 {
-	if (base_vertices_.empty())
+	std::span<vertex_type const> const vertices = this->vertices();
+	if (vertices.empty())
 	{
 		throw std::runtime_error("failed to compute bounds: no vertices in mesh '" + name() + "'");
 	}
 
-	rove::aabb<3> bounds(rove::transform_point(transform, base_vertices_[0].position));
+	rove::aabb<3> bounds(rove::transform_point(transform, vertices[0].position));
 
-	for (std::size_t i = 1; i < base_vertices_.size(); ++i)
+	for (std::size_t i = 1; i < vertices.size(); ++i)
 	{
-		bounds.extend(rove::transform_point(transform, base_vertices_[i].position));
+		bounds.extend(rove::transform_point(transform, vertices[i].position));
 	}
 
 	return bounds;
@@ -73,7 +75,7 @@ void BasicStaticMesh<T>::insert_triangles(octree_type &octree, int id, std::vect
 {
 	build_model_joints();
 	TriangleIterator<T, index_type, Mesh::Triangles>
-		tris(base_vertices_, base_indices_, this->triangles_of_lod(lod), world_matrix * owner.matrix);
+		tris(vertices(), indices(), this->triangles_of_lod(lod), world_matrix * owner.matrix);
 	for (auto const &tri : tris)
 	{
 		octree.insert(tri, id);
@@ -97,7 +99,7 @@ void BasicStaticMesh<T>::unshare_morphed_vertex_array()
 	}
 
 	vertex_array_ = model_->renderer()->
-		template create_vertex_array<vertex_type>(base_vertices_.size());
+		template create_vertex_array<vertex_type>(morph_base_.size());
 	apply_morph_weights_to_vertex_array();
 }
 
@@ -189,43 +191,89 @@ void BasicStaticMesh<T>::submit(Scheduler &scheduler, Joint *joint_ptr, std::sha
 	}
 }
 
+template <vertex_layout T>
+std::span<T const> BasicStaticMesh<T>::vertices() const
+{
+	if (!morph_base_.empty())
+	{
+		return std::span<T const>(morph_base_.data(), morph_base_.size());
+	}
+	if (!vertex_array_)
+	{
+		return {};
+	}
+	// (the mapping reads the buffer's CPU copy where it is, and ending it does nothing)
+	return std::as_const(*vertex_array_).read().template as<T const>();
+}
+
+template <vertex_layout T>
+std::span<typename BasicStaticMesh<T>::index_type const> BasicStaticMesh<T>::indices() const
+{
+	if (!index_array_)
+	{
+		return {};
+	}
+	return std::as_const(*index_array_).read().template as<index_type const>();
+}
+
+template <vertex_layout T>
+void BasicStaticMesh<T>::own_vertex_array(std::size_t count)
+{
+	if (vertex_array_ && vertex_array_.use_count() == 1 && vertex_array_->count() == count)
+	{
+		return;
+	}
+	std::shared_ptr<vertex_array_type> const had = vertex_array_;
+	vertex_array_ = Mesh::model()->renderer()->
+		template create_vertex_array<vertex_type>(count);
+	if (!had)
+	{
+		return;      // (a buffer is made zero)
+	}
+	auto mapped = vertex_array_->write(Contents::DISCARD);
+	std::span<vertex_type> const own = mapped.template as<vertex_type>();
+	std::memset(static_cast<void *>(own.data()), 0, own.size_bytes());
+	auto const before = std::as_const(*had).read();
+	std::span<vertex_type const> const old = before.template as<vertex_type const>();
+	std::copy_n(old.begin(), std::min(old.size(), own.size()), own.begin());
+	mapped.unmap();
+}
+
 template <vertex_layout V>
 void BasicStaticMesh<V>::set_vertices(GenericVertex *vertices, GenericVertex::format_type format, size_t count)
 {
 	EDGE_LOG_DEBUG("vertices: count = {}, format = {:x}", count, format);
 
-	bool const created = !vertex_array_;
-	if (created)
+	if (!morph_base_.empty() && morph_base_.size() != count)
 	{
-		vertex_array_ = Mesh::model()->renderer()->
-			template create_vertex_array<vertex_type>(count);
-	}
-	auto mapped = vertex_array_->write(created ? Contents::DISCARD : Contents::KEEP);
-	std::span<vertex_type> const buffer = mapped.template as<vertex_type>();
-	if (created)
-	{
-		std::memset(buffer.data(), 0, buffer.size_bytes());
+		drop_morph_targets();      // they are of as many vertices as there were
 	}
 
-	if (initialized_vertex_components_ == 0 || vertex_type::FORMAT == format)
-	{
-		vertex_type *p = buffer.data();
-		GenericVertex *vertex = vertices;
-
-		for (size_t i = 0; i < count; i++, p++, vertex++)
+	auto const assign = [&](std::span<vertex_type> const out) {
+		bool const whole = initialized_vertex_components_ == 0 || vertex_type::FORMAT == format;
+		for (size_t i = 0; i < count; i++)
 		{
-			*p = *vertex;
+			if (whole)
+			{
+				out[i] = vertices[i];
+			}
+			else
+			{
+				out[i].assign(vertices[i], format);
+			}
 		}
+	};
+
+	if (!morph_base_.empty())
+	{
+		assign(morph_base_.write());
 	}
 	else
 	{
-		vertex_type *p = buffer.data();
-		GenericVertex *vertex = vertices;
-
-		for (size_t i = 0; i < count; i++, p++, vertex++)
-		{
-			p->assign(*vertex, format);
-		}
+		own_vertex_array(count);
+		auto mapped = vertex_array_->write(Contents::KEEP);
+		assign(mapped.template as<vertex_type>());
+		mapped.unmap();
 	}
 
 	if (format & GenericVertex::FORMAT_POSITION)
@@ -245,14 +293,7 @@ void BasicStaticMesh<V>::set_vertices(GenericVertex *vertices, GenericVertex::fo
 
 	initialized_vertex_components_ |= format;
 
-	base_vertices_.write().assign(buffer.begin(), buffer.begin() + count);
-
-	mapped.unmap();
-
-	if (!morph_target_deltas_.empty())
-	{
-		apply_morph_weights_to_vertex_array();
-	}
+	apply_morph_weights_to_vertex_array();
 }
 
 template <vertex_layout T>
@@ -262,16 +303,12 @@ void BasicStaticMesh<T>::set_indices(unsigned *buffer, size_t count)
 
 	index_array_ = Mesh::model()->renderer()->
 		template create_index_array<index_type>(count);
-	std::vector<index_type> &cpu_indices = base_indices_.write();
-	cpu_indices.resize(count);
 
 	auto mapped = index_array_->write(Contents::DISCARD);
 	std::span<index_type> const indices = mapped.template as<index_type>();
 	for (size_t i = 0; i < count; i++)
 	{
-		index_type const value = index_type(buffer[i]);
-		cpu_indices[i] = value;
-		indices[i] = value;
+		indices[i] = index_type(buffer[i]);
 	}
 	mapped.unmap();
 }
@@ -286,10 +323,10 @@ template <vertex_layout T>
 void BasicStaticMesh<T>::set_morph_targets(std::vector<std::vector<GenericVertex>> const &targets,
 	GenericVertex::format_type format)
 {
-	morph_target_deltas_.clear();
-	morph_weights_.clear();
+	drop_morph_targets();
 
-	if (!vertex_array_ || base_vertices_.empty() || targets.empty())
+	std::span<vertex_type const> const base = vertices();
+	if (base.empty() || targets.empty())
 	{
 		return;
 	}
@@ -299,14 +336,14 @@ void BasicStaticMesh<T>::set_morph_targets(std::vector<std::vector<GenericVertex
 	for (std::size_t target_index = 0; target_index < targets.size(); ++target_index)
 	{
 		std::vector<GenericVertex> const &target = targets[target_index];
-		if (target.size() != base_vertices_.size())
+		if (target.size() != base.size())
 		{
 			morph_target_deltas_.clear();
 			return;
 		}
 
 		std::vector<vertex_type> &converted_target = deltas[target_index];
-		converted_target.resize(base_vertices_.size());
+		converted_target.resize(base.size());
 		for (std::size_t vertex_index = 0; vertex_index < target.size(); ++vertex_index)
 		{
 			vertex_type delta;
@@ -316,8 +353,25 @@ void BasicStaticMesh<T>::set_morph_targets(std::vector<std::vector<GenericVertex
 		}
 	}
 
+	morph_base_.write().assign(base.begin(), base.end());
+	own_vertex_array(base.size());      // the weights are written into it
 	morph_weights_.assign(morph_target_deltas_.size(), 0.0f);
 	apply_morph_weights_to_vertex_array();
+}
+
+template <vertex_layout T>
+void BasicStaticMesh<T>::drop_morph_targets()
+{
+	morph_target_deltas_.clear();
+	morph_weights_.clear();
+	if (morph_base_.empty())
+	{
+		return;
+	}
+	auto mapped = vertex_array_->write(Contents::DISCARD);
+	std::copy_n(morph_base_.begin(), morph_base_.size(), mapped.template as<vertex_type>().begin());
+	mapped.unmap();
+	morph_base_.clear();
 }
 
 template <vertex_layout T>
@@ -366,12 +420,12 @@ void BasicStaticMesh<T>::save_geometry(SerializedMesh &serialized) const
 {
 	serialized.always_visible = always_visible_;
 	serialized.vertices.clear();
-	for (vertex_type const &vertex : base_vertices_)
+	for (vertex_type const &vertex : vertices())
 	{
 		serialized.vertices.push_back(to_generic_vertex(vertex));
 	}
 	serialized.indices.clear();
-	for (index_type const &index : base_indices_)
+	for (index_type const &index : indices())
 	{
 		serialized.indices.push_back(static_cast<unsigned>(index));
 	}
@@ -409,8 +463,7 @@ void BasicStaticMesh<T>::load_vertices(SerializedMesh const &serialized)
 
 	always_visible_ = serialized.always_visible;
 	initialized_vertex_components_ = 0;
-	base_vertices_.clear();
-	base_indices_.clear();
+	morph_base_.clear();
 	morph_target_deltas_.clear();
 	morph_weights_.clear();
 	vertex_array_.reset();
@@ -438,7 +491,7 @@ void BasicStaticMesh<T>::load_vertices(SerializedMesh const &serialized)
 template <vertex_layout T>
 void BasicStaticMesh<T>::apply_morph_weights_to_vertex_array()
 {
-	if (!vertex_array_ || base_vertices_.empty() || morph_target_deltas_.empty())
+	if (!vertex_array_ || morph_base_.empty() || morph_target_deltas_.empty())
 	{
 		return;
 	}
@@ -446,9 +499,9 @@ void BasicStaticMesh<T>::apply_morph_weights_to_vertex_array()
 	auto mapped = vertex_array_->write();
 	std::span<vertex_type> const vertex_ptr = mapped.template as<vertex_type>();
 
-	for (std::size_t vertex_index = 0; vertex_index < base_vertices_.size(); ++vertex_index)
+	for (std::size_t vertex_index = 0; vertex_index < morph_base_.size(); ++vertex_index)
 	{
-		vertex_type morphed = base_vertices_[vertex_index];
+		vertex_type morphed = morph_base_[vertex_index];
 
 		for (std::size_t target_index = 0; target_index < morph_target_deltas_.size(); ++target_index)
 		{
