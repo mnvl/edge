@@ -8,6 +8,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <optional>
+#include <cstring>
 #include <set>
 #include <stdexcept>
 #include <vector>
@@ -65,6 +68,113 @@ float bump(float x, float y)
 	return 0.8f * std::sin(6.0f * x) * std::cos(5.0f * y);
 }
 
+
+
+/// Appends to @p mesh a group of material @p material: an n x n grid over x in [0, x1], y in [0, 10] at z = height(x, y) + lift, its normals +Z
+/// (-Z and wound the other way round, `flip`), its vertices its own.
+void sheet(edge::SerializedMesh &mesh, int n, float x1, float lift, std::int64_t material, bool flip = false)
+{
+	unsigned const base = unsigned(mesh.vertices.size());
+	for (int y = 0; y <= n; ++y)
+		for (int x = 0; x <= n; ++x)
+		{
+			edge::GenericVertex v{};
+			float const fx = float(x) / float(n), fy = float(y) / float(n);
+			v.position = rove::vec<3>(fx * x1, fy * 10.0f, bump(fx * x1 / 10.0f, fy) + lift);
+			v.normal = rove::vec<3>(0, 0, flip ? -1.0f : 1.0f);
+			v.texcoords = rove::vec<2>(fx, fy);
+			v.weights = rove::vec<8>(0.25f, 0.75f, 0, 0, 0, 0, 0, 0);
+			mesh.vertices.push_back(v);
+		}
+	edge::SerializedTriangles group;
+	group.material_index = material;
+	group.minimal_vertex_index = base;
+	group.vertices_count = mesh.vertices.size() - base;
+	group.first_index_offset = mesh.indices.size();
+	auto const at = [n, base](int x, int y) { return base + unsigned(y * (n + 1) + x); };
+	for (int y = 0; y < n; ++y)
+		for (int x = 0; x < n; ++x)
+		{
+			auto const square = flip ? std::vector<unsigned>{at(x, y), at(x + 1, y + 1), at(x + 1, y), at(x, y), at(x, y + 1), at(x + 1, y + 1)}
+			                         : std::vector<unsigned>{at(x, y), at(x + 1, y), at(x + 1, y + 1), at(x, y), at(x + 1, y + 1), at(x, y + 1)};
+			mesh.indices.insert(mesh.indices.end(), square.begin(), square.end());
+		}
+	group.triangles_count = (mesh.indices.size() - group.first_index_offset) / 3;
+	mesh.serialization_type = "static_mesh:PTBNT";
+	mesh.triangles.push_back(group);
+}
+
+/// Clothes: group 0 a bumpy sheet, group 1 the same bumps @p gap above it over x in [0, @p cover] (over the whole of it at 10).
+edge::SerializedMesh clothed(float gap, float cover = 10.0f, int n = 48)
+{
+	edge::SerializedMesh mesh;
+	sheet(mesh, n, 10.0f, 0.0f, 0);
+	sheet(mesh, int(float(n) * cover / 10.0f), cover, gap, 1);
+	return mesh;
+}
+
+/// The height of the triangles of @p group (a level's) over (x, y), none where they are not.
+std::optional<float> height_at(edge::SerializedMesh const &mesh, edge::SerializedTriangles const &group, float x, float y)
+{
+	std::optional<float> found;
+	for (size_t i = group.first_index_offset; i < group.first_index_offset + group.triangles_count * 3; i += 3)
+	{
+		rove::vec<3> const &a = mesh.vertices[mesh.indices[i]].position, &b = mesh.vertices[mesh.indices[i + 1]].position,
+			&c = mesh.vertices[mesh.indices[i + 2]].position;
+		float const d = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
+		if (std::abs(d) < 1e-12f)
+			continue;
+		float const u = ((b.y - c.y) * (x - c.x) + (c.x - b.x) * (y - c.y)) / d, v = ((c.y - a.y) * (x - c.x) + (a.x - c.x) * (y - c.y)) / d;
+		if (u < -1e-5f || v < -1e-5f || u + v > 1 + 1e-5f)
+			continue;
+		float const z = u * a.z + v * b.z + (1 - u - v) * c.z;
+		found = found ? std::max(*found, z) : z;
+	}
+	return found;
+}
+
+/// The places level @p l's group 0 shows through its group 1 (a corner or the middle of a triangle of the inner at or over the outer
+/// there), or the outer dips through the inner (a corner of the outer at or under it).
+int shown_through(edge::SerializedMesh const &mesh, size_t l)
+{
+	auto const &inner = mesh.lods[l].triangles[0], &outer = mesh.lods[l].triangles[1];
+	int shown = 0;
+	auto const points = [&](edge::SerializedTriangles const &g, auto &&each) {
+		for (size_t i = g.first_index_offset; i < g.first_index_offset + g.triangles_count * 3; i += 3)
+		{
+			rove::vec<3> const &a = mesh.vertices[mesh.indices[i]].position, &b = mesh.vertices[mesh.indices[i + 1]].position,
+				&c = mesh.vertices[mesh.indices[i + 2]].position;
+			for (rove::vec<3> const &p : {a, b, c, rove::vec<3>((a.x + b.x + c.x) / 3, (a.y + b.y + c.y) / 3, (a.z + b.z + c.z) / 3)})
+				each(p);
+		}
+	};
+	points(inner, [&](rove::vec<3> const &p) {
+		if (std::optional<float> const over = height_at(mesh, outer, p.x, p.y); over && p.z >= *over)
+			++shown;
+	});
+	points(outer, [&](rove::vec<3> const &p) {
+		if (std::optional<float> const under = height_at(mesh, inner, p.x, p.y); under && p.z <= *under)
+			++shown;
+	});
+	return shown;
+}
+
+/// The vertices the groups of level @p l name.
+std::set<unsigned> used_by(edge::SerializedMesh const &mesh, size_t l, size_t group)
+{
+	std::set<unsigned> used;
+	auto const &g = mesh.lods[l].triangles[group];
+	for (size_t i = g.first_index_offset; i < g.first_index_offset + g.triangles_count * 3; ++i)
+		used.insert(mesh.indices[i]);
+	return used;
+}
+
+edge::LodOptions layered(std::vector<float> ratios)
+{
+	edge::LodOptions options{std::move(ratios), 300};
+	options.layers = true;
+	return options;
+}
 }
 
 BOOST_AUTO_TEST_SUITE(mesh_lod)
@@ -403,6 +513,185 @@ BOOST_AUTO_TEST_CASE(a_mesh_with_a_group_that_runs_past_its_indices_is_refused)
 	edge::SerializedMesh mesh = grid(64);
 	mesh.triangles[0].triangles_count += 5;
 	BOOST_CHECK_THROW(edge::add_lods(mesh, {{0.5f}, 300}), std::runtime_error);
+}
+
+BOOST_AUTO_TEST_CASE(without_layers_a_sheet_close_under_another_shows_through_it_at_a_low_level)
+{
+	// (the premise of the layers' tests below: clothes a level's error deep or less are seen through, as the shorts were through a
+	// player's shirt from a distance)
+	edge::SerializedMesh mesh = clothed(0.02f);
+	edge::add_lods(mesh, {{0.5f, 0.2f, 0.08f}, 300});
+	BOOST_REQUIRE_EQUAL(mesh.lods.size(), 3u);
+	BOOST_CHECK_GT(mesh.lods.back().error, 0.02f);
+	BOOST_CHECK_GT(shown_through(mesh, 2), 0);
+}
+
+BOOST_AUTO_TEST_CASE(with_layers_a_group_under_another_never_shows_through_it_at_any_level)
+{
+	for (float gap : {0.002f, 0.02f, 0.05f})
+	{
+		edge::SerializedMesh mesh = clothed(gap);
+		edge::add_lods(mesh, layered({0.5f, 0.2f, 0.08f}));
+		BOOST_REQUIRE_EQUAL(mesh.lods.size(), 3u);
+		for (size_t l = 0; l < mesh.lods.size(); ++l)
+			BOOST_CHECK_MESSAGE(shown_through(mesh, l) == 0, "a gap of " << gap << ", level " << l + 1 << " (error " << mesh.lods[l].error << "): shown through at "
+				<< shown_through(mesh, l) << " places");
+	}
+}
+
+BOOST_AUTO_TEST_CASE(with_layers_level_zero_and_its_vertices_stay_as_they_were)
+{
+	edge::SerializedMesh const before = clothed(0.02f);
+	edge::SerializedMesh mesh = before;
+	edge::add_lods(mesh, layered({0.5f, 0.08f}));
+	BOOST_REQUIRE(!mesh.lods.empty());
+	BOOST_REQUIRE_GE(mesh.vertices.size(), before.vertices.size());
+	BOOST_CHECK(std::equal(before.indices.begin(), before.indices.end(), mesh.indices.begin()));
+	for (size_t v = 0; v < before.vertices.size(); ++v)
+		BOOST_REQUIRE(std::memcmp(&before.vertices[v], &mesh.vertices[v], sizeof(edge::GenericVertex)) == 0);
+	BOOST_CHECK_EQUAL(mesh.triangles.size(), 2u);
+	for (size_t g = 0; g < 2; ++g)
+	{
+		BOOST_CHECK_EQUAL(mesh.triangles[g].first_index_offset, before.triangles[g].first_index_offset);
+		BOOST_CHECK_EQUAL(mesh.triangles[g].triangles_count, before.triangles[g].triangles_count);
+		BOOST_CHECK_EQUAL(mesh.triangles[g].minimal_vertex_index, before.triangles[g].minimal_vertex_index);
+		BOOST_CHECK_EQUAL(mesh.triangles[g].vertices_count, before.triangles[g].vertices_count);
+	}
+}
+
+BOOST_AUTO_TEST_CASE(with_layers_a_vertex_pulled_in_is_a_copy_of_one_of_its_group_moved_against_its_normal_and_nothing_else)
+{
+	edge::SerializedMesh const before = clothed(0.02f);
+	edge::SerializedMesh mesh = before;
+	edge::add_lods(mesh, layered({0.5f, 0.2f, 0.08f}));
+	size_t const n = before.vertices.size();
+	BOOST_REQUIRE_GT(mesh.vertices.size(), n);          // (else nothing was pulled in, and the test proves nothing)
+	for (size_t l = 0; l < mesh.lods.size(); ++l)
+		for (size_t group = 0; group < 2; ++group)
+		{
+			auto const &g = before.triangles[group];
+			for (unsigned v : used_by(mesh, l, group))
+			{
+				if (v < n)
+				{
+					BOOST_CHECK(v >= g.minimal_vertex_index && v < g.minimal_vertex_index + g.vertices_count);
+					continue;
+				}
+				edge::GenericVertex const &copy = mesh.vertices[v];
+				bool found = false;
+				for (size_t o = g.minimal_vertex_index; o < g.minimal_vertex_index + g.vertices_count && !found; ++o)
+				{
+					edge::GenericVertex moved = before.vertices[o];
+					rove::vec<3> const d = copy.position - moved.position;
+					float const in = -(d.x * moved.normal.x + d.y * moved.normal.y + d.z * moved.normal.z);
+					rove::vec<3> const across = d + moved.normal * in;
+					moved.position = copy.position;
+					found = in > 0 && std::sqrt(across.x * across.x + across.y * across.y + across.z * across.z) < 1e-5f &&
+						std::memcmp(&moved, &copy, sizeof(edge::GenericVertex)) == 0;
+				}
+				BOOST_CHECK_MESSAGE(found, "level " << l + 1 << ", group " << group << ": vertex " << v << " is no vertex of the group pulled in");
+			}
+		}
+}
+
+BOOST_AUTO_TEST_CASE(with_layers_nothing_is_pulled_in_where_no_other_group_is_over_it)
+{
+	// the outer covers x in [0, 4]: past it (and a level's reach) the inner is its own vertices; the outer has nothing over it anywhere
+	edge::SerializedMesh mesh = clothed(0.02f, 4.0f);
+	size_t const n = mesh.vertices.size();
+	edge::add_lods(mesh, layered({0.5f, 0.2f, 0.08f}));
+	BOOST_REQUIRE_EQUAL(mesh.lods.size(), 3u);
+	bool pulled = false;
+	for (size_t l = 0; l < mesh.lods.size(); ++l)
+	{
+		for (unsigned v : used_by(mesh, l, 0))
+		{
+			pulled = pulled || v >= n;
+			BOOST_CHECK_MESSAGE(v < n || mesh.vertices[v].position.x <= 4.0f + 1e-4f, "level " << l + 1 << ": a vertex at x " << mesh.vertices[v].position.x << " pulled in");
+		}
+		for (unsigned v : used_by(mesh, l, 1))
+			BOOST_CHECK_MESSAGE(v < n, "level " << l + 1 << ": the outer group's vertex " << v << " pulled in");
+	}
+	BOOST_CHECK(pulled);
+}
+
+BOOST_AUTO_TEST_CASE(with_layers_a_surface_that_faces_another_across_a_gap_is_not_pulled_in)
+{
+	// a sheet and another over it turned to face it (an arm by the body, not a shirt over a skin): neither is under the other
+	edge::SerializedMesh mesh;
+	sheet(mesh, 48, 10.0f, 0.0f, 0);
+	sheet(mesh, 48, 10.0f, 0.02f, 1, true);
+	size_t const n = mesh.vertices.size();
+	edge::add_lods(mesh, layered({0.5f, 0.08f}));
+	BOOST_REQUIRE(!mesh.lods.empty());
+	BOOST_CHECK_EQUAL(mesh.vertices.size(), n);
+}
+
+BOOST_AUTO_TEST_CASE(with_layers_the_errors_are_those_of_the_levels_without_them)
+{
+	// (what is pulled in is under another surface: the levels look as far from level 0 as they did, and a camera picks them as before)
+	edge::SerializedMesh plain = clothed(0.02f), mesh = plain;
+	edge::add_lods(plain, {{0.5f, 0.2f, 0.08f}, 300});
+	edge::add_lods(mesh, layered({0.5f, 0.2f, 0.08f}));
+	BOOST_REQUIRE_EQUAL(mesh.lods.size(), plain.lods.size());
+	for (size_t l = 0; l < mesh.lods.size(); ++l)
+	{
+		BOOST_CHECK_EQUAL(mesh.lods[l].error, plain.lods[l].error);
+		BOOST_CHECK_EQUAL(triangles_of(mesh.lods[l].triangles), triangles_of(plain.lods[l].triangles));
+	}
+}
+
+BOOST_AUTO_TEST_CASE(with_layers_a_group_of_a_level_spans_the_vertices_it_names)
+{
+	edge::SerializedMesh mesh = clothed(0.02f);
+	edge::add_lods(mesh, layered({0.5f, 0.08f}));
+	for (size_t l = 0; l < mesh.lods.size(); ++l)
+		for (size_t group = 0; group < 2; ++group)
+		{
+			auto const &g = mesh.lods[l].triangles[group];
+			BOOST_CHECK_LE(g.minimal_vertex_index + g.vertices_count, mesh.vertices.size());
+			for (unsigned v : used_by(mesh, l, group))
+				BOOST_CHECK(v >= g.minimal_vertex_index && v < g.minimal_vertex_index + g.vertices_count);
+		}
+}
+
+BOOST_AUTO_TEST_CASE(with_layers_a_vertex_two_groups_share_is_never_pulled_in)
+{
+	// the inner sheet in two groups that share the column x = 5 (a seam of materials), all of it under a third: the seam stays one vertex in both
+	edge::SerializedMesh mesh = clothed(0.02f);
+	std::vector<unsigned> left, right;
+	auto const &inner = mesh.triangles[0];
+	for (size_t t = inner.first_index_offset; t < inner.first_index_offset + inner.triangles_count * 3; t += 3)
+	{
+		bool in_right = true;
+		for (int k = 0; k < 3; ++k)
+			in_right = in_right && (mesh.indices[t + k] % 49) >= 24;
+		auto &to = in_right ? right : left;
+		to.insert(to.end(), mesh.indices.begin() + long(t), mesh.indices.begin() + long(t) + 3);
+	}
+	std::vector<unsigned> indices = left;
+	indices.insert(indices.end(), right.begin(), right.end());
+	auto const &outer = mesh.triangles[1];
+	std::vector<unsigned> const over(mesh.indices.begin() + long(outer.first_index_offset), mesh.indices.end());
+	edge::SerializedTriangles a = inner, b = inner, c = outer;
+	a.triangles_count = left.size() / 3;
+	b.first_index_offset = left.size();
+	b.triangles_count = right.size() / 3;
+	b.material_index = 2;
+	c.first_index_offset = indices.size();
+	indices.insert(indices.end(), over.begin(), over.end());
+	mesh.indices = indices;
+	mesh.triangles = {a, b, c};
+	edge::add_lods(mesh, layered({0.2f}));
+	BOOST_REQUIRE_EQUAL(mesh.lods.size(), 1u);
+	std::set<unsigned> const l = used_by(mesh, 0, 0), r = used_by(mesh, 0, 1);
+	int seam = 0;
+	for (unsigned v = 24; v < 49u * 49u; v += 49)
+	{
+		++seam;
+		BOOST_CHECK_MESSAGE(l.count(v) && r.count(v), "the seam's vertex " << v << " is not itself in both groups");
+	}
+	BOOST_CHECK_GT(mesh.vertices.size(), 2u * 49u * 49u);          // (the rest of it was pulled in)
 }
 
 BOOST_AUTO_TEST_SUITE_END()

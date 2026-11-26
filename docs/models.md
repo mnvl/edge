@@ -91,7 +91,7 @@ except what the renderer owns, and what made it:
 (`load_from_file(filename, keep_cpu_copy)`; `ModelCache` takes it from its `GltfOptions`).
 
 **`edge_convert`** (`tools/edge_convert.cc`, built with edge) makes the file from a glTF:
-`edge_convert [--srgb-color] [--mipmaps] [--no-compress] [--astc] [--pose-margin FRACTION] [--lods RATIO,...] [--lod-min-triangles N] [--lod-lock-border] [--tile METRES] [--atlas none|grid|xatlas] [--atlas-size N] [--atlas-keep MATERIAL]... [--no-emissive] [--no-occlusion] in.glb out.edge` (`--inputs`, `--version` for a build). A glTF with a skin becomes
+`edge_convert [--srgb-color] [--mipmaps] [--no-compress] [--astc] [--pose-margin FRACTION] [--lods RATIO,...] [--lod-min-triangles N] [--lod-lock-border] [--lod-layers] [--tile METRES] [--atlas none|grid|xatlas] [--atlas-size N] [--atlas-keep MATERIAL]... [--no-emissive] [--no-occlusion] in.glb out.edge` (`--inputs`, `--version` for a build). A glTF with a skin becomes
 an `AnimatedModelPTBNJWT` file, one with vertex colors (`COLOR_0`) a `StaticModelPTBNTC` one, any other a `StaticModelPTBNT` one (a
 skinned one with vertex colors drops them with a warning); the file is written whole or not at all, and the same input gives the
 same bytes. Its textures are made BC7 with the whole mip chain (`src/model_textures.h`): colour (diffuse, emissive) is encoded for the eye and, with

@@ -288,16 +288,18 @@ void bind_model(nb::module_ &m)
 #if defined(EDGE_PYEDGE_ASSET_TOOLS)
     m.def("convert_gltf_to_edge",
         [](std::string const &gltf_file, std::string const &edge_file, std::vector<float> const &lods,
-            std::size_t min_triangles, bool lock_border) {
+            std::size_t min_triangles, bool lock_border, bool layers) {
             edge::LodOptions options;
             options.ratios = lods;
             options.min_triangles = min_triangles;
             options.lock_border = lock_border;
+            options.layers = layers;
             return edge::convert_gltf_to_edge(gltf_file, edge_file, edge::GltfOptions(), options);
         },
-        "gltf_file"_a, "edge_file"_a, "lods"_a = std::vector<float>(), "min_triangles"_a = 300, "lock_border"_a = false,
+        "gltf_file"_a, "edge_file"_a, "lods"_a = std::vector<float>(), "min_triangles"_a = 300, "lock_border"_a = false, "layers"_a = false,
         "edge_convert as a function: writes edge_file from gltf_file with the default GltfOptions.  lods gives every mesh of at least\n"
-        "min_triangles a coarser version for each ratio (falling, each in (0, 1)) of its triangles.  Returns the triangles of the whole\n"
+        "min_triangles a coarser version for each ratio (falling, each in (0, 1)) of its triangles; lock_border and layers are LodOptions'.\n"
+        "Returns the triangles of the whole\n"
         "model at each level, level 0 first.");
 #endif
 

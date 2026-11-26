@@ -7,6 +7,8 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <optional>
+#include <utility>
 #include <unordered_map>
 #include <stdexcept>
 #include <string>
@@ -147,6 +149,105 @@ double farthest_from_surface(std::vector<float> const &positions, std::vector<un
 	return worst;
 }
 
+/// Level 0's triangles, each with its group and the way it faces (its normal by its winding), in a uniform grid of cells: what a short segment
+/// from a point meets first (the layers of add_lods()).
+class Surfaces
+{
+public:
+	Surfaces(std::vector<float> const &positions, std::vector<unsigned> const &indices, std::vector<SerializedTriangles> const &groups)
+		: positions_(positions), indices_(indices)
+	{
+		double edge_sum = 0;
+		std::size_t edges = 0;
+		for (std::size_t g = 0; g < groups.size(); ++g)
+			for (std::size_t t = groups[g].first_index_offset; t < groups[g].first_index_offset + groups[g].triangles_count * 3; t += 3)
+			{
+				triangles_.push_back({t, g});
+				for (int k = 0; k < 3; ++k)
+				{
+					Vec const d = at(indices[t + std::size_t(k)]) - at(indices[t + std::size_t(k + 1) % 3]);
+					edge_sum += std::sqrt(dot(d, d));
+					++edges;
+				}
+			}
+		cell_ = std::max(edges ? edge_sum / double(edges) : 1.0, 1e-9);
+		for (std::size_t n = 0; n < triangles_.size(); ++n)
+		{
+			std::size_t const t = triangles_[n].first;
+			Vec const a = at(indices[t]), b = at(indices[t + 1]), c = at(indices[t + 2]);
+			for (long x = cell_of(std::min({a.x, b.x, c.x})); x <= cell_of(std::max({a.x, b.x, c.x})); ++x)
+				for (long y = cell_of(std::min({a.y, b.y, c.y})); y <= cell_of(std::max({a.y, b.y, c.y})); ++y)
+					for (long z = cell_of(std::min({a.z, b.z, c.z})); z <= cell_of(std::max({a.z, b.z, c.z})); ++z)
+						grid_[key(x, y, z)].push_back(n);
+		}
+	}
+
+	/// How far along `dir` (of length 1) from `from`, no further than `reach`, the first triangle is that `take(group, facing)` takes, `facing`
+	/// the cosine of the triangle's normal with `dir` (above 0: it is met from its back, from inside what it wraps); infinity for none.  A triangle
+	/// with the vertex `skip` for a corner is passed by (the point's own).
+	template <class Take>
+	double first_along(Vec from, Vec dir, double reach, unsigned skip, Take &&take) const
+	{
+		Vec const to = from + dir * reach;
+		double best = std::numeric_limits<double>::infinity();
+		std::vector<std::size_t> &seen = seen_;
+		seen.clear();
+		for (long x = cell_of(std::min(from.x, to.x)); x <= cell_of(std::max(from.x, to.x)); ++x)
+			for (long y = cell_of(std::min(from.y, to.y)); y <= cell_of(std::max(from.y, to.y)); ++y)
+				for (long z = cell_of(std::min(from.z, to.z)); z <= cell_of(std::max(from.z, to.z)); ++z)
+				{
+					auto const found = grid_.find(key(x, y, z));
+					if (found == grid_.end())
+						continue;
+					for (std::size_t n : found->second)
+					{
+						if (std::find(seen.begin(), seen.end(), n) != seen.end())
+							continue;
+						seen.push_back(n);
+						std::size_t const t = triangles_[n].first;
+						unsigned const i0 = indices_[t], i1 = indices_[t + 1], i2 = indices_[t + 2];
+						if (i0 == skip || i1 == skip || i2 == skip)
+							continue;
+						Vec const a = at(i0), e1 = at(i1) - a, e2 = at(i2) - a;
+						Vec const normal = cross(e1, e2);
+						double const area = std::sqrt(dot(normal, normal));
+						if (!(area > 0))
+							continue;
+						// (Moller and Trumbore)
+						Vec const p = cross(dir, e2);
+						double const det = dot(e1, p);
+						if (std::abs(det) < 1e-12 * area)
+							continue;
+						Vec const s = from - a;
+						double const u = dot(s, p) / det;
+						Vec const q = cross(s, e1);
+						double const v = dot(dir, q) / det, d = dot(e2, q) / det;
+						if (u < 0 || v < 0 || u + v > 1 || !(d > 0) || d > reach || d >= best)
+							continue;
+						if (take(triangles_[n].second, dot(normal, dir) / area))
+							best = d;
+					}
+				}
+		return best;
+	}
+
+private:
+	static Vec cross(Vec a, Vec b) { return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x}; }
+	static std::uint64_t key(long x, long y, long z)
+	{
+		return (static_cast<std::uint64_t>(x + 1048576) << 42) | (static_cast<std::uint64_t>(y + 1048576) << 21) | static_cast<std::uint64_t>(z + 1048576);
+	}
+	Vec at(unsigned v) const { return Vec{positions_[v * 3], positions_[v * 3 + 1], positions_[v * 3 + 2]}; }
+	long cell_of(double v) const { return static_cast<long>(std::floor(v / cell_)); }
+
+	std::vector<float> const &positions_;
+	std::vector<unsigned> const &indices_;
+	std::vector<std::pair<std::size_t, std::size_t>> triangles_;          // (its first index, its group)
+	double cell_ = 1;
+	std::unordered_map<std::uint64_t, std::vector<std::size_t>> grid_;
+	mutable std::vector<std::size_t> seen_;
+};
+
 void validate(SerializedMesh const &mesh, LodOptions const &options)
 {
 	float previous = 1;
@@ -175,6 +276,57 @@ void validate(SerializedMesh const &mesh, LodOptions const &options)
 		{
 			throw std::runtime_error("mesh '" + mesh.name + "' has an index past its vertices");
 		}
+	}
+}
+
+/// The layers of add_lods() at `lod` (its groups' indices in `level`, after the mesh's own, its error measured): each vertex of one group's
+/// that another group's surface covers within twice the error is replaced, in that group, by a copy of it pulled in along its normal that far
+/// (and no further than halfway to the surface of its own group behind it); the group's vertex range then takes its copies in.
+void pull_in_layers(SerializedMesh &mesh, SerializedLod &lod, std::vector<unsigned> &level, Surfaces const &surfaces, std::vector<float> const &positions,
+	std::vector<unsigned char> const &uses, std::vector<std::size_t> const &owner)
+{
+	double const want = 2.0 * double(lod.error);
+	if (!(want > 0))
+		return;
+	std::size_t const base = mesh.indices.size();
+	std::vector<unsigned> moved(positions.size() / 3, std::numeric_limits<unsigned>::max());          // (the copy a vertex has at this level, itself for none)
+	for (std::size_t g = 0; g < lod.triangles.size(); ++g)
+	{
+		SerializedTriangles &made = lod.triangles[g];
+		std::size_t last = 0;
+		for (std::size_t i = made.first_index_offset - base; i < made.first_index_offset - base + made.triangles_count * 3; ++i)
+		{
+			unsigned &index = level[i];
+			unsigned const v = index;
+			if (moved[v] == std::numeric_limits<unsigned>::max())
+			{
+				moved[v] = v;
+				GenericVertex const &vertex = mesh.vertices[v];
+				Vec const normal{vertex.normal.i[0], vertex.normal.i[1], vertex.normal.i[2]};
+				double const length = std::sqrt(dot(normal, normal));
+				if (uses[v] == 1 && length > 0)
+				{
+					Vec const out = normal * (1 / length), from{positions[v * 3], positions[v * 3 + 1], positions[v * 3 + 2]};
+					std::size_t const mine = owner[v];
+					double const cover = surfaces.first_along(from, out, want, v, [mine](std::size_t group, double facing) { return group != mine && facing > 0; });
+					if (cover < want)
+					{
+						double pull = want - cover;
+						double const behind = surfaces.first_along(from, out * -1.0, 2 * pull, v, [mine](std::size_t group, double) { return group == mine; });
+						pull = std::min(pull, behind / 2);
+						GenericVertex copy = vertex;
+						Vec const to = from - out * pull;
+						copy.position = rove::vec<3>(static_cast<float>(to.x), static_cast<float>(to.y), static_cast<float>(to.z));
+						moved[v] = static_cast<unsigned>(mesh.vertices.size());
+						mesh.vertices.push_back(copy);
+					}
+				}
+			}
+			index = moved[v];
+			last = std::max<std::size_t>(last, index);
+		}
+		if (made.triangles_count > 0 && last + 1 > made.minimal_vertex_index + made.vertices_count)
+			made.vertices_count = last + 1 - made.minimal_vertex_index;
 	}
 }
 
@@ -215,6 +367,7 @@ void add_lods(SerializedMesh &mesh, LodOptions const &options)
 
 	// a vertex two groups use is where two materials meet: it stays, in both
 	std::vector<unsigned char> uses(count, 0), lock(count, 0);
+	std::vector<std::size_t> owner(count, 0);          // (the group of a vertex one group uses)
 	for (SerializedTriangles const &group : mesh.triangles)
 	{
 		std::vector<unsigned char> mine(count, 0);
@@ -226,6 +379,8 @@ void add_lods(SerializedMesh &mesh, LodOptions const &options)
 		{
 			uses[v] = static_cast<unsigned char>(uses[v] + mine[v]);
 			lock[v] = uses[v] > 1;
+			if (mine[v])
+				owner[v] = std::size_t(&group - mesh.triangles.data());
 		}
 	}
 
@@ -243,6 +398,8 @@ void add_lods(SerializedMesh &mesh, LodOptions const &options)
 					level0_vertices.push_back(source[i]);
 				}
 	}
+	std::optional<Surfaces> const surfaces = options.layers && mesh.triangles.size() > 1 ?
+		std::optional<Surfaces>(std::in_place, positions, source, mesh.triangles) : std::nullopt;
 	for (float ratio : options.ratios)
 	{
 		SerializedLod lod;
@@ -274,6 +431,8 @@ void add_lods(SerializedMesh &mesh, LodOptions const &options)
 		// surface is at least as far from the original
 		lod.error = std::max(lod.error, previous_error);
 		previous_error = lod.error;
+		if (surfaces)
+			pull_in_layers(mesh, lod, level_indices, *surfaces, positions, uses, owner);
 		mesh.indices.insert(mesh.indices.end(), level_indices.begin(), level_indices.end());
 		mesh.lods.push_back(std::move(lod));
 	}

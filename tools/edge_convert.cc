@@ -4,7 +4,7 @@
 // edge_convert: makes .edge model files from glTF files (edge/src/model_convert.h).
 //
 //   edge_convert [--srgb-color] [--mipmaps] [--no-compress] [--astc] [--pose-margin FRACTION]
-//                [--lods RATIO,RATIO,...] [--lod-min-triangles N] [--lod-lock-border] [--tile METRES]
+//                [--lods RATIO,RATIO,...] [--lod-min-triangles N] [--lod-lock-border] [--lod-layers] [--tile METRES]
 //                [--atlas none|grid|xatlas] [--atlas-size N] [--atlas-keep MATERIAL]... [--no-emissive] [--no-occlusion] [--skinned-colors]
 //                <in.glb> <out.edge>
 //   edge_convert --inputs <in.glb>
@@ -14,7 +14,7 @@
 // them as 8-bit texels instead, and --mipmaps, which needs --no-compress, has the GPU make their mips; --pose-margin grows the pose boxes of skinned meshes, see
 // GltfOptions::pose_margin) and LodOptions (--lods gives every mesh a coarser version for each ratio of its triangles, falling, e.g.
 // 0.5,0.2,0.06; a mesh of fewer than --lod-min-triangles, 300 when not given, gets none; --lod-lock-border keeps the vertices on a
-// mesh's open edge at every level).  --atlas grid packs the textures of the model's materials into one set, each in a cell of its own, and --atlas
+// mesh's open edge at every level; --lod-layers keeps a group lying close under another, clothes, from being seen through it at any level).  --atlas grid packs the textures of the model's materials into one set, each in a cell of its own, and --atlas
 // xatlas unwraps the meshes anew and draws the textures into the atlas at the density they had (nothing of a texture that tiles repeated),
 // both as large as --atlas-size texels along a side at most (2048 when not given; model_atlas.h); --no-emissive leaves the light of the materials out (no emissive texture, no
 // emissive colour), --no-occlusion the occlusion maps (GltfOptions::occlusion: they are packed into the red of the metallic-roughness
@@ -120,6 +120,8 @@ int main(int argc, char **argv)
 		}
 		else if (a == "--lod-lock-border")
 			lods.lock_border = true;
+		else if (a == "--lod-layers")
+			lods.layers = true;
 		else if (a == "--tile")
 		{
 			char *end = nullptr;
@@ -190,7 +192,7 @@ int main(int argc, char **argv)
 	}
 	if (files.size() != 2)
 	{
-		std::fprintf(stderr, "usage: edge_convert [--srgb-color] [--mipmaps] [--no-compress] [--astc] [--pose-margin FRACTION] [--lods RATIO,...] [--lod-min-triangles N] [--lod-lock-border] [--tile METRES] [--atlas none|grid|xatlas] [--atlas-size N] [--atlas-keep MATERIAL]... [--no-emissive] [--no-occlusion] [--skinned-colors] <in.glb> <out.edge>\n");
+		std::fprintf(stderr, "usage: edge_convert [--srgb-color] [--mipmaps] [--no-compress] [--astc] [--pose-margin FRACTION] [--lods RATIO,...] [--lod-min-triangles N] [--lod-lock-border] [--lod-layers] [--tile METRES] [--atlas none|grid|xatlas] [--atlas-size N] [--atlas-keep MATERIAL]... [--no-emissive] [--no-occlusion] [--skinned-colors] <in.glb> <out.edge>\n");
 		return 1;
 	}
 	try

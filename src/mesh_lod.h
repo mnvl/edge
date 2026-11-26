@@ -20,13 +20,20 @@ struct LodOptions
 	/// The vertices on the mesh's open edge (where a triangle has no neighbour) are kept at every level: for meshes that meet others along it, the tiles
 	/// of a ground (mesh_tiles.h), so that no crack opens between a tile at one level and its neighbour at another.
 	bool lock_border = false;
+	/// Clothes: a group lying close under another (a shirt over shorts, shorts over a thigh, a sock in a boot) is not seen through it at
+	/// any level.  Each level simplifies every group by itself, so a surface may come to lie its error further in and the one under it its error
+	/// further out: a vertex that another group's surface covers (it is met along the vertex's normal, from its inside) within twice the
+	/// level's error is, at that level, a copy of itself pulled in along its normal until the cover is that far off (no further than halfway
+	/// through its own group behind it).  Copies differ from their vertex in where they are alone; level 0, the vertices and the errors stay as they
+	/// would be without (what is pulled in is not seen); a vertex two groups share, and one with nothing over it, is never pulled.
+	bool layers = false;
 };
 
 /// Gives @p mesh levels of detail: for each ratio of @p options a version of every triangle group of the mesh with about that share of its
 /// triangles, made by edge collapse (meshoptimizer) with the texture coordinates, normals and skin weights counted in the error, so that a seam of the
 /// texture or a joint's influence is kept for as long as it can be.  The levels use the mesh's own vertices (a skinned mesh needs no
-/// more joints, weights or clips): their indices are appended to the mesh's, and each level is a list of groups with the material and
-/// vertex range of the group it comes from, in the same order.  Vertices that two groups share are not moved or dropped, so that
+/// more joints, weights or clips; with `layers`, copies of some of them appended after them): their indices are appended to the mesh's, and
+/// each level is a list of groups with the material and vertex range of the group it comes from (with its copies, if any), in the same order.  Vertices that two groups share are not moved or dropped, so that
 /// no crack opens between the materials of a level.  Level 0, the mesh as it is, is not touched.
 ///
 /// A level that does not have fewer triangles than the one before (nothing more could be taken away) is left out, and so are all after it.
